@@ -1,11 +1,11 @@
 package cmd
 
 import (
-	"encoding/base64"
 	"fmt"
 	"os"
 
 	"github.com/charmbracelet/huh"
+	"github.com/pogo-vcs/pogo/auth"
 	"github.com/pogo-vcs/pogo/client"
 	"github.com/spf13/cobra"
 )
@@ -69,11 +69,9 @@ var tokenSetCmd = &cobra.Command{
 			return fmt.Errorf("no token provided")
 		}
 
-		// Try to decode as base64 first
-		token, err := base64.StdEncoding.DecodeString(tokenStr)
+		token, err := auth.Decode(tokenStr)
 		if err != nil {
-			// If not base64, use the raw string as bytes
-			token = []byte(tokenStr)
+			return fmt.Errorf("failed to decode token: %w", err)
 		}
 
 		// Store in keyring

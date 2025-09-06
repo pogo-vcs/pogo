@@ -16,6 +16,7 @@ import (
 	"time"
 
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
+	"github.com/pogo-vcs/pogo/auth"
 	"github.com/pogo-vcs/pogo/client"
 	"github.com/pogo-vcs/pogo/db"
 	"github.com/pogo-vcs/pogo/protos"
@@ -347,7 +348,7 @@ func initializeRepository(ctx context.Context, dir string, repoName string, serv
 	}
 
 	// Decode for use in gRPC calls
-	tokenBytes, _ := base64.StdEncoding.DecodeString(rootToken)
+	tokenBytes, _ := auth.Decode(rootToken)
 
 	// Connect to server
 	conn, err := grpc.NewClient(serverAddr,

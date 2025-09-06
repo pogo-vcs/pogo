@@ -1,10 +1,10 @@
 package cmd
 
 import (
-	"encoding/base64"
 	"errors"
 	"os"
 
+	"github.com/pogo-vcs/pogo/auth"
 	"github.com/pogo-vcs/pogo/client"
 	"github.com/spf13/cobra"
 )
@@ -37,7 +37,7 @@ var whoamiCmd = &cobra.Command{
 		}
 
 		cmd.Printf("Server: %s\n", repo.Server)
-		cmd.Printf("Personal Access Token: %s\n", base64.StdEncoding.EncodeToString(token))
+		cmd.Printf("Personal Access Token: %s\n", auth.Encode(token))
 		return nil
 	},
 }

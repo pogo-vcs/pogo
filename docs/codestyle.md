@@ -41,3 +41,7 @@ Use `tx, err := db.Q.Begin(context.Context)` to start a transaction. Always use 
 The interface `db.Querier` implements all the queries. `db.Q` is of type `*db.Queries` which implements `db.Querier`. The transaction is of type `*db.TxQueries` which also implements `db.Querier` but additionally can be committed.
 
 gRPC is used for comunicatin between server and Clint. Both server and client are in the same binary but will most likely run on different machines.
+
+### Auth
+
+Make sure the same encoding functions are used whenever a personal access token is encoded or decoded.

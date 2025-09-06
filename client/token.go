@@ -1,10 +1,10 @@
 package client
 
 import (
-	"encoding/base64"
 	"fmt"
 
 	"github.com/charmbracelet/huh"
+	"github.com/pogo-vcs/pogo/auth"
 	"github.com/pogo-vcs/pogo/tty"
 )
 
@@ -18,7 +18,7 @@ func GetToken(server string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get token from keyring: %w", err)
 	}
-	token, err := base64.StdEncoding.DecodeString(tokenStr)
+	token, err := auth.Decode(tokenStr)
 	if err != nil {
 		return nil, fmt.Errorf("decode token: %w", err)
 	}
@@ -27,7 +27,7 @@ func GetToken(server string) ([]byte, error) {
 
 func SetToken(server string, token []byte) error {
 	key := getKeyringKey(server)
-	tokenStr := base64.StdEncoding.EncodeToString(token)
+	tokenStr := auth.Encode(token)
 	if err := keyringSet("pogo", key, tokenStr); err != nil {
 		return fmt.Errorf("set token in keyring: %w", err)
 	}
@@ -74,10 +74,9 @@ func GetOrCreateToken(server string) ([]byte, error) {
 	}
 
 	// Try to decode as base64 first
-	token, err = base64.StdEncoding.DecodeString(tokenStr)
+	token, err = auth.Decode(tokenStr)
 	if err != nil {
-		// If not base64, use the raw string as bytes
-		token = []byte(tokenStr)
+		return nil, fmt.Errorf("decode token: %w", err)
 	}
 
 	// Store in keyring
