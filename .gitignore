@@ -1,0 +1,13 @@
+.DS_Store
+.idea
+.vscode
+data/
+/pogo
+/pogo.exe
+/tmp/
+node_modules/
+
+# generated files
+*.pb.go
+*_templ.go
+*.sqlc.go

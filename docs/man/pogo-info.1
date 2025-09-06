@@ -1,0 +1,52 @@
+.nh
+.TH "pogo" "1" "Sep 2025" "pogo/dev" "Pogo Manual"
+
+.SH NAME
+pogo-info - Display the current working copy status
+
+
+.SH SYNOPSIS
+\fBpogo info [flags]\fP
+
+
+.SH DESCRIPTION
+Use this command to render the pogo information to things like a shell prompt.
+The format can be customized with the --format flag, which uses Go's text/template package.
+Available variables are:
+
+.PP
+{{.ChangeNamePrefix}} - The change name prefix
+{{.ChangeNameSuffix}} - The change name suffix
+{{.ChangeName}} - The change name
+{{.ChangeDescription}} - The change description
+{{.Bookmarks}} - The bookmarks for the change
+{{.IsInConflict}} - Whether the change is in conflict
+{{.Error}} - Any error that occurred
+
+
+.SH OPTIONS
+\fB--format\fP="({{if .Error}}\\x1b[31m{{.Error}}\\x1b[0m{{else}}{{if .IsInConflict}}💥{{end}}\\x1b[35m{{.ChangeNamePrefix}}\\x1b[90m{{.ChangeNameSuffix}}\\x1b[0m {{- range $i, $b := .Bookmarks}}{{if $i}}, {{else}} {{end}}{{if eq . \\"main\\"}}\\x1b[32m{{.}}\\x1b[0m{{else}}{{.}}{{end}}{{end}}{{end}})"
+	Format string for the prompt output
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for info
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--no-pager\fP[=false]
+	Disable pager for all output
+
+.PP
+\fB--time\fP[=false]
+	Measure command execution time
+
+
+.SH EXAMPLE
+.EX
+pogo info --format '({{.ChangeName}} {{- range $i, $b := .Bookmarks}}{{- if $i}}, {{else}} {{end}}{{.}}{{- end}})'
+.EE
+
+
+.SH SEE ALSO
+\fBpogo(1)\fP

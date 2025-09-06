@@ -1,0 +1,35 @@
+.nh
+.TH "pogo" "1" "Sep 2025" "pogo/dev" "Pogo Manual"
+
+.SH NAME
+pogo-gc - Run garbage collection on the server
+
+
+.SH SYNOPSIS
+\fBpogo gc [flags]\fP
+
+
+.SH DESCRIPTION
+Run garbage collection on the server to clean up unreachable data.
+This command will:
+- Remove unreachable files from the database
+- Delete orphaned objects from the filesystem
+- Report the amount of space freed
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for gc
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--no-pager\fP[=false]
+	Disable pager for all output
+
+.PP
+\fB--time\fP[=false]
+	Measure command execution time
+
+
+.SH SEE ALSO
+\fBpogo(1)\fP

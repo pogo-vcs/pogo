@@ -1,0 +1,35 @@
+.nh
+.TH "pogo" "1" "Sep 2025" "pogo/dev" "Pogo Manual"
+
+.SH NAME
+pogo-token-set - Set or update a personal access token for a server
+
+
+.SH SYNOPSIS
+\fBpogo token set [flags]\fP
+
+
+.SH DESCRIPTION
+Set or update a personal access token for a specific Pogo server. The token will be securely stored in the system keyring.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for set
+
+.PP
+\fB--server\fP=""
+	Pogo server address (host:port), defaults to server from current repository
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--no-pager\fP[=false]
+	Disable pager for all output
+
+.PP
+\fB--time\fP[=false]
+	Measure command execution time
+
+
+.SH SEE ALSO
+\fBpogo-token(1)\fP

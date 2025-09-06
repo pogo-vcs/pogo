@@ -1,0 +1,67 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "**/*.go"
+      - "**/*.sql"
+      - "**/*.proto"
+      - "**/*.templ"
+      - "**/*.bin"
+      - go.mod
+      - go.sum
+      - justfile
+      - ".github/workflows/test.yaml"
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+          run_install: false
+      - name: Install Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: pnpm
+      - name: Install Node dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Download Go dependencies
+        run: |
+          go mod download
+          go install github.com/a-h/templ/cmd/templ@latest
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+          go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+      - uses: extractions/setup-just@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prebuild
+        run: just prebuild
+      - name: Test
+        run: just test

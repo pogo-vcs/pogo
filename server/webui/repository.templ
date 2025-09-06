@@ -1,0 +1,116 @@
+package webui
+
+import (
+	"encoding/base64"
+	"github.com/pogo-vcs/pogo/db"
+	"github.com/pogo-vcs/pogo/server/webui/components"
+	"github.com/pogo-vcs/pogo/server/webui/icons"
+	"path"
+	"strconv"
+)
+
+templ Repository() {
+	if repoId, ok := GetParamI32(ctx, "id"); ok {
+		if repo, err := db.Q.GetRepository(ctx, repoId); err == nil {
+			{{ hasAccess := repo.Public }}
+			if !hasAccess && IsLoggedIn(ctx) {
+				if user := GetUser(ctx); user != nil {
+					if accessCheck, err := db.Q.CheckUserRepositoryAccess(ctx, repoId, user.ID); err == nil {
+						{{ hasAccess = accessCheck }}
+					}
+				}
+			}
+			if hasAccess {
+				@layout(repo.Name) {
+					@components.Header(GetUser(ctx)) {
+						{{ user := GetUser(ctx) }}
+						if user != nil {
+							if userHasAccess, err := db.Q.CheckUserRepositoryAccess(ctx, repoId, user.ID); err == nil && userHasAccess {
+								<a
+									href={ templ.URL("/repository/" + strconv.Itoa(int(repo.ID)) + "/settings") }
+									class="select-none rounded-md px-2 py-1 bg-ctp-surface0 hover:bg-ctp-surface1 active:bg-ctp-surface2 active:text-ctp-text"
+								>
+									Settings
+								</a>
+							}
+						}
+						<a
+							href={ path.Join("/repository", repo.Name, "main", "archive.zip") }
+							class="select-none grid grid-cols-[1.2rem_auto] gap-x-1 items-center rounded-md px-2 py-1 bg-ctp-surface0 hover:bg-ctp-surface1 active:bg-ctp-surface2 active:text-ctp-text"
+						>
+							@icons.Zip()
+							<span>Download as zip</span>
+						</a>
+					}
+					@components.Main() {
+						if readme, err := db.Q.GetRepositoryBookmarkFileByName(ctx, repoId, "main", "readme"); err == nil {
+							<section class="readme">
+								@RenderFileComponent(readme.Name, base64.URLEncoding.EncodeToString(readme.ContentHash))
+							</section>
+						} else {
+							<h1 class="text-2xl font-bold">{ repo.Name }</h1>
+						}
+						if license, err := db.Q.GetRepositoryBookmarkFileByName(ctx, repoId, "main", "license"); err == nil {
+							<section class="readme">
+								<h2 class="mt-8 mb-2 text-lg font-bold">License</h2>
+								@RenderFileComponent(license.Name, base64.URLEncoding.EncodeToString(license.ContentHash))
+							</section>
+						}
+						<section class="files">
+							if files, err := db.Q.GetRepositoryFiles(ctx, repoId, "main"); err == nil {
+								if len(files) > 0 {
+									<h2 class="mt-8 mb-2 text-lg font-bold">
+										Files
+									</h2>
+									<ul>
+										for _, file := range files {
+											<li>
+												{{ color := "text-ctp-text" }}
+												if file.Conflict {
+													{{ color = "text-ctp-red" }}
+												} else if file.Executable {
+													{{ color = "text-ctp-blue" }}
+												}
+												<a
+													class={ "w-full grid grid-cols-[1em_1fr] gap-x-1 items-center " + color }
+													href={ path.Join("/objects", base64.URLEncoding.EncodeToString(file.ContentHash), file.Name) }
+												>
+													if file.Conflict {
+														@icons.ExclamationTriangle()
+													} else if file.Executable {
+														@icons.LightningBolt()
+													} else {
+														@icons.File()
+													}
+													<span>{ file.Name }</span>
+												</a>
+											</li>
+										}
+									</ul>
+								} else {
+									<p>No files or no main bookmark found in this repository.</p>
+								}
+							} else {
+								<p>Failed to load repository files</p>
+								<pre><code>{ err.Error() }</code></pre>
+							}
+						</section>
+					}
+					<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js"></script>
+					<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/languages/go.min.js"></script>
+					<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/languages/lua.min.js"></script>
+					<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/languages/json.min.js"></script>
+					<script defer>hljs.highlightAll();</script>
+				}
+			} else {
+				@layout("Unauthorized") {
+					@components.Header(GetUser(ctx))
+					@components.Main() {
+						<h1 class="text-2xl font-bold">Access Denied</h1>
+						<p>You don't have permission to view this repository.</p>
+					}
+				}
+			}
+		}
+	}
+}

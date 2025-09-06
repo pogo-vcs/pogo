@@ -1,0 +1,152 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema-pro.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+
+version: 2
+
+project_name: pogo
+metadata:
+  maintainers:
+    - Frank Mayer
+  license: Zlib
+  homepage: https://github.com/pogo-vcs/pogo
+  description: A centralized version control system that is simple and easy to use.
+  full_description:
+    from_file:
+      path: ./README.md
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X cmd.Version={{.Version}}
+
+archives:
+  - formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    # use zip for windows archives
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+release:
+  footer: >-
+
+    ---
+
+    Released by [GoReleaser](https://github.com/goreleaser/goreleaser).
+
+npms:
+  - name: "@pogo-vcs/pogo"
+    id: pogo
+    access: public
+    keywords:
+      - cli
+      - golang
+      - version control
+      - vcs
+      - scm
+      - centralized
+      - git
+    format: zip
+    url_template: "https://github.com/pogo-vcs/pogo/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    repository: https://github.com/pogo-vcs/pogo
+    bugs: https://github.com/pogo-vcs/pogo/issues
+
+homebrew_casks:
+  - name: pogo
+    alternative_names:
+      - pogo@@{{ .Version }}
+      - pogo@{{ .Major }}
+    manpages:
+      - docs/man/pogo-bookmark-list.1
+      - docs/man/pogo-bookmark-set.1
+      - docs/man/pogo-bookmark.1
+      - docs/man/pogo-commit.1
+      - docs/man/pogo-completion-bash.1
+      - docs/man/pogo-completion-fish.1
+      - docs/man/pogo-completion-powershell.1
+      - docs/man/pogo-completion-zsh.1
+      - docs/man/pogo-completion.1
+      - docs/man/pogo-describe.1
+      - docs/man/pogo-edit.1
+      - docs/man/pogo-gc.1
+      - docs/man/pogo-info.1
+      - docs/man/pogo-init.1
+      - docs/man/pogo-log.1
+      - docs/man/pogo-new.1
+      - docs/man/pogo-rm.1
+      - docs/man/pogo-serve.1
+      - docs/man/pogo-token-remove.1
+      - docs/man/pogo-token-set.1
+      - docs/man/pogo-token.1
+      - docs/man/pogo-whoami.1
+      - docs/man/pogo.1
+    completions:
+      bash: docs/completions/pogo.bash
+      zsh: docs/completions/pogo.zsh
+      fish: docs/completions/pogo.fish
+    url:
+      template: "https://github.com/pogo-vcs/pogo/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    repository:
+      owner: pogo-vcs
+      name: homebrew-tap
+      branch: main
+
+scoops:
+  - name: pogo
+    url_template: "https://github.com/pogo-vcs/pogo/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    repository:
+      owner: pogo-vcs
+      name: scoop-bucket
+      branch: main
+# winget:
+#   - name: pogo
+#     publisher: Frank Mayer
+#     license_url: https://github.com/pogo-vcs/pogo/blob/main/LICENSE
+#     publisher_support_url: https://github.com/pogo-vcs/pogo/issues/new
+#     copyright: Frank Mayer
+#     package_identifier: Pogo.pogo"
+#     homepage: https://github.com/pogo-vcs/pogo
+#     publisher_url: https://frankmayer.dev
+#     tags:
+#       - cli
+#       - vcs
+#       - golang
+#       - version-control
+#     url_template: "https://github.com/pogo-vcs/pogo/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+#     release_notes: "{{ .Changelog }}"
+#     repository:
+#       owner: pogo-vcs
+#       name: winget-pkgs
+#       branch: main
+#       pull_request:
+#         enabled: true
+#         draft: false
+#         base:
+#           owner: microsoft
+#           name: winget-pkgs
+#           branch: main

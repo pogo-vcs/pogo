@@ -1,0 +1,34 @@
+---
+services:
+  pogo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - db
+    ports:
+      - 4321:4321
+    environment:
+      - PORT=4321
+      - DATABASE_URL=postgres://pogo:pogo@db:5432/pogo
+      - ROOT_TOKEN=HP9X+pubni2ufsXTeDreWsxcY+MyxFHBgM+py1hWOks=
+      - GC_MEMORY_THRESHOLD=${GC_MEMORY_THRESHOLD:-10000000}
+    # volumes:
+    #   - ./pogo_data/:/pogo/
+    tmpfs:
+      - /pogo/
+  db:
+    image: postgres:17-alpine
+    environment:
+      - POSTGRES_USER=pogo
+      - POSTGRES_PASSWORD=pogo
+      - POSTGRES_DB=pogo
+    ports:
+      - 5432:5432
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pogo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

@@ -1,0 +1,11 @@
+{
+  "scripts": {
+    "styles": "tailwindcss -i ./server/webui/input.css -o ./server/public/styles.css --minify"
+  },
+  "dependencies": {
+    "@catppuccin/tailwindcss": "^1.0.0",
+    "@tailwindcss/cli": "^4.1.11",
+    "@tailwindcss/typography": "^0.5.16",
+    "tailwindcss": "^4.1.11"
+  }
+}

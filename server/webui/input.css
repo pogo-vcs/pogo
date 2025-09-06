@@ -1,0 +1,46 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+@import "@catppuccin/tailwindcss/mocha.css";
+
+:root {
+  color-scheme: dark;
+}
+
+.readme {
+  @apply prose-base prose-stone rounded-lg border-ctp-surface0 border bg-ctp-mantle p-4 shadow-md;
+}
+.readme ul {
+  list-style-type: disc;
+}
+.readme ol {
+  list-style-type: decimal;
+}
+
+pre > code.hljs[data-highlighted="yes"] {
+  @apply bg-ctp-crust rounded-md;
+}
+pre:has(> code.hljs[data-highlighted="yes"]) {
+  padding: 0 !important;
+}
+
+html {
+  height: 100%; /* Ensures html takes full viewport height */
+}
+body {
+  display: grid;
+  grid-template-rows: auto 1fr auto; /* Header | Main Content (expands) | Footer */
+  min-height: 100%; /* Ensures body stretches to full viewport height */
+  margin: 0;
+}
+header {
+  /* This would be your header if you have one */
+  grid-row: 1 / 2;
+}
+main {
+  /* This element should wrap your main content */
+  grid-row: 2 / 3;
+}
+footer {
+  /* Your footer styles */
+  grid-row: 3 / 4;
+}

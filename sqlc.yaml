@@ -1,0 +1,22 @@
+version: 2
+sql:
+  - engine: postgresql
+    queries: db/query/*.sql
+    schema: db/migrations/*.sql
+    gen:
+      go:
+        package: db
+        out: db
+        sql_package: pgx/v5
+        query_parameter_limit: 16
+        emit_exported_queries: false
+        emit_pointers_for_null_types: true
+        emit_sql_as_comment: true
+        emit_interface: true
+        omit_unused_structs: false
+        output_batch_file_name: batch.sqlc.go
+        output_db_file_name: db.sqlc.go
+        output_models_file_name: models.sqlc.go
+        output_querier_file_name: querier.sqlc.go
+        output_copyfrom_file_name: copyfrom.sqlc.go
+        output_files_suffix: c.go

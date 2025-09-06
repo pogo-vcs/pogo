@@ -1,0 +1,37 @@
+.nh
+.TH "pogo" "1" "Sep 2025" "pogo/dev" "Pogo Manual"
+
+.SH NAME
+pogo-new - Create a new change based on another
+
+
+.SH SYNOPSIS
+\fBpogo new [parent-change-names...] [flags]\fP
+
+
+.SH DESCRIPTION
+Create a new change based on one or more parent changes.
+If no parent change names are provided, the current checked out change will be used as the parent.
+Multiple parents can be specified for merge operations (not yet implemented).
+
+
+.SH OPTIONS
+\fB-m\fP, \fB--description\fP=""
+	Description for the new change
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for new
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--no-pager\fP[=false]
+	Disable pager for all output
+
+.PP
+\fB--time\fP[=false]
+	Measure command execution time
+
+
+.SH SEE ALSO
+\fBpogo(1)\fP

@@ -1,0 +1,62 @@
+package webui
+
+import "github.com/pogo-vcs/pogo/db"
+import "fmt"
+import "github.com/pogo-vcs/pogo/server/webui/components"
+
+templ Repositories() {
+	@layout("Repositories") {
+		@components.Header(GetUser(ctx))
+		@components.Main() {
+			<h1 class="text-2xl font-bold">
+				if IsLoggedIn(ctx) {
+					Repositories
+				} else {
+					Public Repositories
+				}
+			</h1>
+			if IsLoggedIn(ctx) {
+				// Show all repositories the user has access to
+				if user := GetUser(ctx); user != nil {
+					if repos, err := db.Q.GetUserAccessibleRepositories(ctx, user.ID); err != nil {
+						<p>Failed to get repositories</p>
+						<pre><code>{ err.Error() }</code></pre>
+					} else {
+						<ul>
+							for _, repo := range repos {
+								<li>
+									<a
+										href={ fmt.Sprintf("/repository/%d", repo.ID) }
+										class="text-ctp-mauve underline"
+									>
+										{ repo.Name }
+										if !repo.Public {
+											(private)
+										}
+									</a>
+								</li>
+							}
+						</ul>
+					}
+				}
+			} else {
+				// Show only public repositories
+				if repos, err := db.Q.GetPublicRepositories(ctx); err != nil {
+					<p>Failed to get repositories</p>
+					<pre><code>{ err.Error() }</code></pre>
+				} else {
+					<ul>
+						for _, repo := range repos {
+							<li>
+								<a
+									href={ fmt.Sprintf("/repository/%d", repo.ID) }
+									class="text-ctp-mauve underline"
+								>{ repo.Name }</a>
+							</li>
+						}
+					</ul>
+				}
+			}
+		}
+	}
+}

@@ -1,0 +1,46 @@
+.nh
+.TH "pogo" "1" "Sep 2025" "pogo/dev" "Pogo Manual"
+
+.SH NAME
+pogo-completion-powershell - Generate the autocompletion script for powershell
+
+
+.SH SYNOPSIS
+\fBpogo completion powershell [flags]\fP
+
+
+.SH DESCRIPTION
+Generate the autocompletion script for powershell.
+
+.PP
+To load completions in your current shell session:
+
+.EX
+pogo completion powershell | Out-String | Invoke-Expression
+.EE
+
+.PP
+To load completions for every new session, add the output of the above command
+to your powershell profile.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for powershell
+
+.PP
+\fB--no-descriptions\fP[=false]
+	disable completion descriptions
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--no-pager\fP[=false]
+	Disable pager for all output
+
+.PP
+\fB--time\fP[=false]
+	Measure command execution time
+
+
+.SH SEE ALSO
+\fBpogo-completion(1)\fP

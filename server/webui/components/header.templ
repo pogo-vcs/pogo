@@ -1,0 +1,38 @@
+package components
+
+import "github.com/pogo-vcs/pogo/db"
+
+script logoutScript() {
+    const btn = document.getElementById("logoutBtn");
+	async function handleLogout() {
+		const response = await fetch("/api/logout", {
+			method: "POST",
+			credentials: "same-origin"
+		});
+
+		if (response.ok) {
+			window.location.href = "/login";
+		}
+	}
+    btn.addEventListener("click", handleLogout);
+}
+
+templ Header(user *db.User) {
+	<header class="bg-ctp-mantle flex flex-row items-center justify-between rounded-b-md px-4 py-2 border-b border-ctp-surface0">
+		<a href="/">Pogo</a>
+		<div class="flex items-center gap-4">
+			{ children... }
+			if user != nil {
+				<span class="text-ctp-subtext0">{ user.Username }</span>
+				<button id="logoutBtn" class="px-3 py-1 bg-ctp-surface0 cursor-pointer hover:bg-ctp-surface1 rounded-md text-sm">
+					Logout
+				</button>
+			} else {
+				<a href="/login" class="px-3 py-1 bg-ctp-mauve text-ctp-base cursor-pointer hover:bg-ctp-mauve-700 rounded-md text-sm">
+					Login
+				</a>
+			}
+		</div>
+		@logoutScript()
+	</header>
+}

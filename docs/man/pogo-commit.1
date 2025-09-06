@@ -1,0 +1,39 @@
+.nh
+.TH "pogo" "1" "Sep 2025" "pogo/dev" "Pogo Manual"
+
+.SH NAME
+pogo-commit - Describe, push, and create a new change
+
+
+.SH SYNOPSIS
+\fBpogo commit [flags]\fP
+
+
+.SH DESCRIPTION
+Combines describe, push, and new operations into a single command. Sets a description for the current change, pushes it to the server, and creates a new change.
+
+
+.SH OPTIONS
+\fB-m\fP, \fB--description\fP=""
+	Description for the change
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for commit
+
+.PP
+\fB--no-edit\fP[=false]
+	Skip the describe step
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--no-pager\fP[=false]
+	Disable pager for all output
+
+.PP
+\fB--time\fP[=false]
+	Measure command execution time
+
+
+.SH SEE ALSO
+\fBpogo(1)\fP

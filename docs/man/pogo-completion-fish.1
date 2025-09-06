@@ -1,0 +1,52 @@
+.nh
+.TH "pogo" "1" "Sep 2025" "pogo/dev" "Pogo Manual"
+
+.SH NAME
+pogo-completion-fish - Generate the autocompletion script for fish
+
+
+.SH SYNOPSIS
+\fBpogo completion fish [flags]\fP
+
+
+.SH DESCRIPTION
+Generate the autocompletion script for the fish shell.
+
+.PP
+To load completions in your current shell session:
+
+.EX
+pogo completion fish | source
+.EE
+
+.PP
+To load completions for every new session, execute once:
+
+.EX
+pogo completion fish > ~/.config/fish/completions/pogo.fish
+.EE
+
+.PP
+You will need to start a new shell for this setup to take effect.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for fish
+
+.PP
+\fB--no-descriptions\fP[=false]
+	disable completion descriptions
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--no-pager\fP[=false]
+	Disable pager for all output
+
+.PP
+\fB--time\fP[=false]
+	Measure command execution time
+
+
+.SH SEE ALSO
+\fBpogo-completion(1)\fP

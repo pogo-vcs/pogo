@@ -1,0 +1,24 @@
+package webui
+
+import "github.com/pogo-vcs/pogo/server/public"
+import "github.com/pogo-vcs/pogo/server/webui/components"
+
+templ layout(title string) {
+	<html class="bg-ctp-base text-ctp-text">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+			<title>{ title }</title>
+			<meta property="og:title" content={ title }/>
+			<meta name="twitter:title" content={ title }/>
+			<meta property="og:site_name" content="Pogo"/>
+			<link rel="stylesheet" href={ public.Url("styles.css") }/>
+			<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/default.min.css"/>
+			<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@catppuccin/highlightjs@1.0.1/css/catppuccin-mocha.css"/>
+		</head>
+		<body>
+			{ children... }
+			@components.Footer()
+		</body>
+	</html>
+}

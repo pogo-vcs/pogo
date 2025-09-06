@@ -1,0 +1,66 @@
+.nh
+.TH "pogo" "1" "Sep 2025" "pogo/dev" "Pogo Manual"
+
+.SH NAME
+pogo-completion-zsh - Generate the autocompletion script for zsh
+
+
+.SH SYNOPSIS
+\fBpogo completion zsh [flags]\fP
+
+
+.SH DESCRIPTION
+Generate the autocompletion script for the zsh shell.
+
+.PP
+If shell completion is not already enabled in your environment you will need
+to enable it.  You can execute the following once:
+
+.EX
+echo "autoload -U compinit; compinit" >> ~/.zshrc
+.EE
+
+.PP
+To load completions in your current shell session:
+
+.EX
+source <(pogo completion zsh)
+.EE
+
+.PP
+To load completions for every new session, execute once:
+
+.SS Linux:
+.EX
+pogo completion zsh > "${fpath[1]}/_pogo"
+.EE
+
+.SS macOS:
+.EX
+pogo completion zsh > $(brew --prefix)/share/zsh/site-functions/_pogo
+.EE
+
+.PP
+You will need to start a new shell for this setup to take effect.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for zsh
+
+.PP
+\fB--no-descriptions\fP[=false]
+	disable completion descriptions
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--no-pager\fP[=false]
+	Disable pager for all output
+
+.PP
+\fB--time\fP[=false]
+	Measure command execution time
+
+
+.SH SEE ALSO
+\fBpogo-completion(1)\fP

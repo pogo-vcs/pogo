@@ -1,0 +1,202 @@
+syntax = "proto3";
+
+package protos;
+
+option go_package = "github.com/pogo-vcs/pogo/protos";
+
+service Pogo {
+  rpc Init(InitRequest) returns (InitResponse);
+  rpc CheckNeededFiles(CheckNeededFilesRequest) returns (CheckNeededFilesResponse);
+  rpc PushFull(stream PushFullRequest) returns (PushFullResponse);
+  rpc SetBookmark(SetBookmarkRequest) returns (SetBookmarkResponse);
+  rpc GetBookmarks(GetBookmarksRequest) returns (GetBookmarksResponse);
+  rpc NewChange(NewChangeRequest) returns (NewChangeResponse);
+  rpc GetDescription(GetDescriptionRequest) returns (GetDescriptionResponse);
+  rpc SetDescription(SetDescriptionRequest) returns (SetDescriptionResponse);
+  rpc Log(LogRequest) returns (LogResponse);
+  rpc Info(InfoRequest) returns (InfoResponse);
+  rpc Edit(EditRequest) returns (stream EditResponse);
+  rpc RemoveChange(RemoveChangeRequest) returns (RemoveChangeResponse);
+  rpc GarbageCollect(GarbageCollectRequest) returns (GarbageCollectResponse);
+}
+
+message Auth {
+  bytes personal_access_token = 1;
+}
+
+message InitRequest {
+  Auth auth = 1;
+  string repo_name = 2;
+  bool public = 3;
+}
+
+message FileHeader {
+  string name = 1;
+  optional bool executable = 2;
+  bytes content_hash = 3;
+}
+
+message InitResponse {
+  int32 repo_id = 1;
+  int64 change_id = 2;
+}
+
+message CheckNeededFilesRequest {
+  Auth auth = 1;
+  int32 repo_id = 2;
+  repeated bytes file_hashes = 3;
+}
+
+message CheckNeededFilesResponse {
+  repeated bytes needed_hashes = 1;
+}
+
+message PushFullRequest {
+  oneof payload {
+    Auth auth = 1;
+    int64 change_id = 2;
+    FileHeader file_header = 3;
+    bytes file_content = 4;
+    EOF eof = 5;
+    EndOfFiles end_of_files = 6;
+    bool has_content = 7; // Signal whether file content follows or is already stored
+    bool force = 8; // Force push even if change is readonly
+  }
+}
+
+message PushFullResponse {}
+
+message EOF {}
+
+message EndOfFiles {}
+
+message SetBookmarkRequest {
+  Auth auth = 1;
+  int32 repo_id = 2;
+  string bookmark_name = 3;
+  optional string change_name = 4;
+  optional int64 checked_out_change_id = 5;
+}
+
+message SetBookmarkResponse {}
+
+message GetBookmarksRequest {
+  Auth auth = 1;
+  int32 repo_id = 2;
+}
+
+message Bookmark {
+  string name = 1;
+  string change_name = 2;
+}
+
+message GetBookmarksResponse { repeated Bookmark bookmarks = 1; }
+
+message NewChangeRequest {
+  Auth auth = 1;
+  int32 repo_id = 2;
+  optional string description = 3;
+  repeated string parent_change_names = 4;
+  optional int64 checked_out_change_id = 5;
+}
+
+message NewChangeResponse {
+  int64 change_id = 1;
+  string change_name = 2;
+}
+
+message GetDescriptionRequest {
+  Auth auth = 1;
+  int64 change_id = 2;
+}
+
+message GetDescriptionResponse { optional string description = 1; }
+
+message SetDescriptionRequest {
+  Auth auth = 1;
+  int64 change_id = 2;
+  string description = 3;
+}
+
+message SetDescriptionResponse {}
+
+message LogRequest {
+  Auth auth = 1;
+  int32 repo_id = 2;
+  int64 checked_out_change_id = 3;
+  int32 max_changes = 4;
+}
+
+message LogChange {
+  int64 id = 1;
+  string name = 2;
+  string unique_prefix = 3;
+  optional string description = 4;
+}
+
+message LogRelation {
+  int64 child_id = 1;
+  string child_name = 2;
+  optional int64 parent_id = 3;
+  string parent_name = 4;
+}
+
+message LogResponse {
+  repeated LogChange changes = 1;
+  repeated LogRelation relations = 2;
+  int64 checked_out_change_id = 3;
+}
+
+message InfoRequest {
+  Auth auth = 1;
+  int32 repo_id = 2;
+  int64 checked_out_change_id = 3;
+}
+
+message InfoResponse {
+  string change_name_prefix = 1;
+  string change_name_suffix = 2;
+  string change_name = 3;
+  optional string change_description = 4;
+  repeated string bookmarks = 5;
+  bool is_in_conflict = 6;
+}
+
+message EditRequest {
+  Auth auth = 1;
+  int32 repo_id = 2;
+  string revision = 3;
+  repeated string client_files = 4;
+}
+
+message EditResponse {
+  oneof payload {
+    FileToDelete file_to_delete = 1;
+    FileHeader file_header = 2;
+    bytes file_content = 3;
+    EOF eof = 4;
+    EndOfFiles end_of_files = 5;
+    int64 change_id = 6;
+  }
+}
+
+message FileToDelete { string name = 1; }
+
+message RemoveChangeRequest {
+  Auth auth = 1;
+  int32 repo_id = 2;
+  string change_name = 3;
+  bool keep_children = 4;
+}
+
+message RemoveChangeResponse {}
+
+message GarbageCollectRequest {
+  Auth auth = 1;
+}
+
+message GarbageCollectResponse {
+  int32 deleted_database_files = 1;
+  int32 deleted_disk_files = 2;
+  int64 bytes_freed = 3;
+}

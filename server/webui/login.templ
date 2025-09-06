@@ -1,0 +1,81 @@
+package webui
+
+import (
+	"github.com/pogo-vcs/pogo/server/webui/components"
+	"github.com/pogo-vcs/pogo/server/webui/icons"
+)
+
+script loginScript() {
+	document.getElementById("loginForm").addEventListener("submit", async (e) => {
+		e.preventDefault();
+
+		const token = document.getElementById("token").value;
+		const errorDiv = document.getElementById("errorMessage");
+
+		try {
+			const formData = new FormData();
+			formData.append("token", token);
+
+			const response = await fetch("/api/login", {
+				method: "POST",
+				body: formData,
+				credentials: "same-origin" // Include cookies in the request
+			});
+
+			if (response.ok) {
+				// Server sets the httpOnly cookie, just redirect
+				window.location.href = "/";
+			} else {
+				const text = await response.text();
+				errorDiv.textContent = text || "Login failed";
+				errorDiv.classList.remove("hidden");
+			}
+		} catch (error) {
+			errorDiv.textContent = "Network error. Please try again.";
+			errorDiv.classList.remove("hidden");
+		}
+	});
+
+    document.getElementById("toggleTokenVisibility").addEventListener("click", (e) => {
+        e.preventDefault();
+        const inputEl = document.getElementById("token");
+        inputEl.type = inputEl.type === "password" ? "text" : "password";
+    });
+}
+
+templ Login() {
+	@layout("Login - Pogo") {
+		@components.Header(GetUser(ctx))
+		@components.Main() {
+			<div class="max-w-md mx-auto">
+				<h1 class="text-2xl font-bold mb-6">Login</h1>
+				<form id="loginForm">
+					<label for="token" class="grid grid-cols-[1fr_auto] grid-rows-[auto_auto] gap-x-4 gap-y-2">
+						<p class="text-ctp-subtext0 text-xs font-medium w-full col-span-2">
+							Personal Access Token
+						</p>
+						<input
+							type="password"
+							id="token"
+							name="token"
+							class="w-full px-3 py-2 border border-ctp-surface0 rounded-md focus:outline-none focus:ring-2 focus:ring-ctp-mauve bg-ctp-base text-ctp-text"
+							required
+							placeholder="Enter your token"
+						/>
+						<button id="toggleTokenVisibility">
+							@icons.Eye()
+						</button>
+					</label>
+					<button
+						type="submit"
+						class="w-full px-4 py-2 mt-4 bg-ctp-mauve text-ctp-base rounded-md cursor-pointer hover:bg-ctp-mauve-700 focus:outline-none focus:ring-2 focus:ring-ctp-mauve transition-colors"
+					>
+						Login
+					</button>
+					<div id="errorMessage" class="text-ctp-red text-sm hidden"></div>
+				</form>
+			</div>
+		}
+		@loginScript()
+	}
+}
