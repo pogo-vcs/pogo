@@ -14,9 +14,9 @@ services:
       - ROOT_TOKEN=HP9X+pubni2ufsXTeDreWsxcY+MyxFHBgM+py1hWOks=
       - GC_MEMORY_THRESHOLD=${GC_MEMORY_THRESHOLD:-10000000}
     # volumes:
-    #   - ./pogo_data/:/pogo/
+    #   - ./pogo_data/:/data/
     tmpfs:
-      - /pogo/
+      - /data/
   db:
     image: postgres:17-alpine
     environment:
