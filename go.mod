@@ -1,6 +1,6 @@
 module github.com/pogo-vcs/pogo
 
-go 1.24.4
+go 1.25.0
 
 replace github.com/nulab/autog v0.10.0 => github.com/tsukinoko-kun/autog v0.10.1
 
