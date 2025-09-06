@@ -2,7 +2,7 @@
 .TH "pogo" "1" "Sep 2025" "pogo/dev" "Pogo Manual"
 
 .SH NAME
-pogo-log - Show change history
+pogo-log - Show the change history
 
 
 .SH SYNOPSIS
@@ -10,7 +10,20 @@ pogo-log - Show change history
 
 
 .SH DESCRIPTION
-Display the change history as parent/child relations
+Display the change history of the repository as a tree of parent/child relationships.
+
+.PP
+The log shows:
+- Change names (automatically generated memorable identifiers)
+- Descriptions of what changed and why
+- Parent/child relationships between changes
+- Bookmarks pointing to specific changes
+- The currently checked-out change (marked with *)
+
+.PP
+Unlike Git's linear log, Pogo's log shows the true tree structure of your
+repository, making it easy to see branches and merges. Changes are shown
+from newest to oldest by default.
 
 
 .SH OPTIONS
@@ -33,6 +46,19 @@ Display the change history as parent/child relations
 .PP
 \fB--time\fP[=false]
 	Measure command execution time
+
+
+.SH EXAMPLE
+.EX
+# Show the last 10 changes (default)
+pogo log
+
+# Show the last 50 changes
+pogo log -n 50
+
+# Disable colored output
+pogo log --color=false
+.EE
 
 
 .SH SEE ALSO

@@ -2,7 +2,7 @@
 .TH "pogo" "1" "Sep 2025" "pogo/dev" "Pogo Manual"
 
 .SH NAME
-pogo-bookmark-list - List all bookmarks
+pogo-bookmark-list - List all bookmarks in the repository
 
 
 .SH SYNOPSIS
@@ -10,7 +10,11 @@ pogo-bookmark-list - List all bookmarks
 
 
 .SH DESCRIPTION
-List all bookmarks
+List all bookmarks in the repository along with the changes they point to.
+
+.PP
+This shows you all named references in your repository, making it easy to
+see important versions, releases, and the current "main" branch.
 
 
 .SH OPTIONS
@@ -25,6 +29,16 @@ List all bookmarks
 .PP
 \fB--time\fP[=false]
 	Measure command execution time
+
+
+.SH EXAMPLE
+.EX
+  # List all bookmarks
+  pogo bookmark list
+
+  # Using the short alias
+  pogo b l
+.EE
 
 
 .SH SEE ALSO

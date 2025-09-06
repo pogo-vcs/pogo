@@ -11,13 +11,20 @@ import (
 
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
+	Short: "Initialize a new repository on a given Pogo server",
+	Long: `Initialize a new Pogo repository in the current directory.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+This command creates a new repository on the specified Pogo server and configures
+the current directory to track it. A .pogo.yaml file will be created to store
+the repository configuration.
+
+The repository can be made public (read-only access for everyone) or kept private
+(requires authentication for all access).`,
+	Example: `# Initialize a private repository
+pogo init --server localhost:8080 --name my-project
+
+# Initialize a public repository
+pogo init --server pogo.example.com:8080 --name open-source-project --public`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		wd, err := os.Getwd()
 		if err != nil {

@@ -10,7 +10,22 @@ pogo-token-set - Set or update a personal access token for a server
 
 
 .SH DESCRIPTION
-Set or update a personal access token for a specific Pogo server. The token will be securely stored in the system keyring.
+Set or update a personal access token for a specific Pogo server.
+
+.PP
+The token will be securely stored in your system's keyring/keychain and
+automatically used for all future operations with that server.
+
+.PP
+If run from within a repository, the server address will be automatically
+detected. Otherwise, use the --server flag to specify the server.
+
+.PP
+The command will:
+- Prompt you to enter the token interactively (for security)
+- Validate the token format
+- Store it securely in your system keyring
+- Confirm successful storage
 
 
 .SH OPTIONS
@@ -29,6 +44,20 @@ Set or update a personal access token for a specific Pogo server. The token will
 .PP
 \fB--time\fP[=false]
 	Measure command execution time
+
+
+.SH EXAMPLE
+.EX
+  # Set token for current repository's server (run from within repo)
+  pogo token set
+
+  # Set token for a specific server
+  pogo token set --server pogo.example.com:8080
+
+  # The command will prompt:
+  # Enter the personal access token for pogo.example.com:8080
+  # > yMq3CR3BvKR6VrXn7TdDmAtt9N6M3x7a
+.EE
 
 
 .SH SEE ALSO

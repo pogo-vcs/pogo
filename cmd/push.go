@@ -11,14 +11,29 @@ import (
 var forcePush bool
 
 var pushCmd = &cobra.Command{
-	Use:    "push",
-	Short:  "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
+	Use:   "push",
+	Short: "Push all changes to the configured Pogo server",
+	Long: `Push all local changes to the configured Pogo server.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+This command uploads all modified, added, and deleted files to the server,
+updating the current change. Unlike Git, you don't need to stage files first,
+all changes in your working directory are pushed.
+
+The push might be rejected if:
+- The current change is read-only (has children or bookmarks pointing to it)
+- You don't have write permissions to the repository
+- Network or server issues occur
+
+Use the --force flag to override read-only protection, but be careful as this
+can break the history for other users.`,
+	Example: `# Push all changes to the server
+pogo push
+
+# Force push even if the change is read-only (use with caution!)
+pogo push --force
+
+# Short form of force push
+pogo push -f`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		wd, err := os.Getwd()
 		if err != nil {

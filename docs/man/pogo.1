@@ -2,7 +2,7 @@
 .TH "pogo" "1" "Sep 2025" "pogo/dev" "Pogo Manual"
 
 .SH NAME
-pogo - A brief description of your application
+pogo - A centralized version control system that is simple and easy to use
 
 
 .SH SYNOPSIS
@@ -10,13 +10,22 @@ pogo - A brief description of your application
 
 
 .SH DESCRIPTION
-A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+Pogo is a centralized version control system designed to be straightforward and efficient.
 
 .PP
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.
+Unlike Git, Pogo uses a centralized server as the single source of truth for all your data.
+It features an easy-to-use CLI, a simple web UI, and robust support for both text and binary files.
+Conflicts are treated as first-class citizens - they can be pushed to the remote and resolved later.
+
+.PP
+Key concepts:
+- Changes: The fundamental unit of work, similar to commits in Git
+- Bookmarks: Named references to specific changes (like tags/branches in Git)
+- No named branches: Create branches by adding multiple children to a change
+- Automatic naming: Changes are automatically named with memorable identifiers
+
+.PP
+For more information, visit: https://github.com/pogo-vcs/pogo
 
 
 .SH OPTIONS
@@ -33,4 +42,4 @@ to quickly create a Cobra application.
 
 
 .SH SEE ALSO
-\fBpogo-bookmark(1)\fP, \fBpogo-commit(1)\fP, \fBpogo-completion(1)\fP, \fBpogo-describe(1)\fP, \fBpogo-edit(1)\fP, \fBpogo-gc(1)\fP, \fBpogo-info(1)\fP, \fBpogo-init(1)\fP, \fBpogo-log(1)\fP, \fBpogo-new(1)\fP, \fBpogo-rm(1)\fP, \fBpogo-serve(1)\fP, \fBpogo-token(1)\fP, \fBpogo-whoami(1)\fP
+\fBpogo-bookmark(1)\fP, \fBpogo-commit(1)\fP, \fBpogo-completion(1)\fP, \fBpogo-describe(1)\fP, \fBpogo-edit(1)\fP, \fBpogo-gc(1)\fP, \fBpogo-info(1)\fP, \fBpogo-init(1)\fP, \fBpogo-log(1)\fP, \fBpogo-new(1)\fP, \fBpogo-push(1)\fP, \fBpogo-rm(1)\fP, \fBpogo-serve(1)\fP, \fBpogo-token(1)\fP, \fBpogo-whoami(1)\fP

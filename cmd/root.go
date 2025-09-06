@@ -17,13 +17,20 @@ var (
 
 	rootCmd = &cobra.Command{
 		Use:   "pogo",
-		Short: "A brief description of your application",
-		Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+		Short: "A centralized version control system that is simple and easy to use",
+		Long: `Pogo is a centralized version control system designed to be straightforward and efficient.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+Unlike Git, Pogo uses a centralized server as the single source of truth for all your data.
+It features an easy-to-use CLI, a simple web UI, and robust support for both text and binary files.
+Conflicts are treated as first-class citizens - they can be pushed to the remote and resolved later.
+
+Key concepts:
+- Changes: The fundamental unit of work, similar to commits in Git
+- Bookmarks: Named references to specific changes (like tags/branches in Git)
+- No named branches: Create branches by adding multiple children to a change
+- Automatic naming: Changes are automatically named with memorable identifiers
+
+For more information, visit: https://github.com/pogo-vcs/pogo`,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if globalTimer {
 				globalTimeStart = time.Now()

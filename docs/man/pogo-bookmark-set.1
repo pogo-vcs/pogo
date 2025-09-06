@@ -2,15 +2,23 @@
 .TH "pogo" "1" "Sep 2025" "pogo/dev" "Pogo Manual"
 
 .SH NAME
-pogo-bookmark-set - Set a bookmark
+pogo-bookmark-set - Set a bookmark to point to a specific change
 
 
 .SH SYNOPSIS
-\fBpogo bookmark set [flags]\fP
+\fBpogo bookmark set  [change] [flags]\fP
 
 
 .SH DESCRIPTION
-Set a bookmark
+Set a bookmark to point to a specific change.
+
+.PP
+If no change is specified, the bookmark will point to the current change.
+Setting a bookmark to a change that already has the bookmark will move it.
+
+.PP
+Bookmarks make changes read-only by default to preserve history. Use the
+push --force flag if you need to modify a bookmarked change.
 
 
 .SH OPTIONS
@@ -29,7 +37,20 @@ Set a bookmark
 
 .SH EXAMPLE
 .EX
-pogo bookmark set main abc123
+# Set "main" bookmark to current change
+pogo bookmark set main
+
+# Set "v1.0.0" bookmark to current change
+pogo bookmark set v1.0.0
+
+# Set "main" bookmark to a specific change
+pogo bookmark set main sunny-sunset-42
+
+# Move an existing bookmark to current change
+pogo bookmark set production
+
+# Using the short alias
+pogo b s main
 .EE
 
 

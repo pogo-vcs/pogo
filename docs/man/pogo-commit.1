@@ -2,7 +2,7 @@
 .TH "pogo" "1" "Sep 2025" "pogo/dev" "Pogo Manual"
 
 .SH NAME
-pogo-commit - Describe, push, and create a new change
+pogo-commit - Describe, push, and create a new change in one command
 
 
 .SH SYNOPSIS
@@ -10,7 +10,28 @@ pogo-commit - Describe, push, and create a new change
 
 
 .SH DESCRIPTION
-Combines describe, push, and new operations into a single command. Sets a description for the current change, pushes it to the server, and creates a new change.
+Commit is a convenience command that combines three operations:
+1. Set/update the description for the current change (describe)
+2. Push all changes to the server (push)
+3. Create a new empty change for future work (new)
+
+.PP
+This command streamlines the common workflow of finishing work on the current
+change and starting fresh. It's similar to 'git commit' but remember that in
+Pogo, your work is continuously saved to the server rather than being staged
+locally first.
+
+.PP
+The command will:
+- Open an editor for the description (unless -m or --no-edit is used)
+- Upload all your changes to the server
+- Create a new change with the current change as parent
+- Switch to the new change automatically
+- Display the updated change history
+
+.PP
+This is ideal when you've completed a logical unit of work and want to start
+on something new while preserving the current state.
 
 
 .SH OPTIONS
@@ -33,6 +54,26 @@ Combines describe, push, and new operations into a single command. Sets a descri
 .PP
 \fB--time\fP[=false]
 	Measure command execution time
+
+
+.SH EXAMPLE
+.EX
+# Commit with an editor for the description
+pogo commit
+
+# Commit with a description from command line
+pogo commit -m "fix: resolve database connection timeout"
+
+# Commit without changing the existing description
+pogo commit --no-edit
+
+# Typical workflow
+pogo describe -m "feat: add user authentication"
+# ... make changes ...
+pogo push
+# ... make more changes ...
+pogo commit  # Finalize and start new change
+.EE
 
 
 .SH SEE ALSO

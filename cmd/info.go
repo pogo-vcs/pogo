@@ -15,21 +15,46 @@ import (
 )
 
 var infoCmd = &cobra.Command{
-	Use:     "info",
-	Example: `pogo info --format '({{.ChangeName}} {{- range $i, $b := .Bookmarks}}{{- if $i}}, {{else}} {{end}}{{.}}{{- end}})'`,
-	Short:   "Display the current working copy status",
-	Long: `Use this command to render the pogo information to things like a shell prompt.
-The format can be customized with the --format flag, which uses Go's text/template package.
-Available variables are:
+	Use:   "info",
+	Short: "Display the current working copy status",
+	Long: `Display information about the current working copy and repository status.
 
-{{.ChangeNamePrefix}} - The change name prefix
-{{.ChangeNameSuffix}} - The change name suffix
-{{.ChangeName}} - The change name
-{{.ChangeDescription}} - The change description
-{{.Bookmarks}} - The bookmarks for the change
-{{.IsInConflict}} - Whether the change is in conflict
-{{.Error}} - Any error that occurred
-`,
+This command is particularly useful for:
+- Checking which change you're currently working on
+- Seeing if there are any conflicts
+- Integrating Pogo status into your shell prompt
+- Scripting and automation
+
+The output can be customized using Go's text/template syntax with the --format flag.
+
+Available template variables:
+  {{.ChangeNamePrefix}}   - The adjective part of the change name  
+  {{.ChangeNameSuffix}}   - The noun and number part of the change name  
+  {{.ChangeName}}         - The full change name (prefix + suffix)  
+  {{.ChangeDescription}}  - The description of the current change  
+  {{.Bookmarks}}          - Array of bookmarks pointing to this change  
+  {{.IsInConflict}}       - Boolean indicating if the change has conflicts  
+  {{.Error}}              - Any error message (connection issues, etc.)  
+
+The default format shows a colored prompt-friendly output with conflict
+indicators and bookmark information.`,
+	Example: `# Show default formatted info
+pogo info
+
+# Simple format showing just the change name
+pogo info --format '{{.ChangeName}}'
+
+# Format for shell prompt showing change and bookmarks
+pogo info --format '({{.ChangeName}}{{range .Bookmarks}} [{{.}}]{{end}})'
+
+# Show description if available
+pogo info --format '{{.ChangeName}}: {{.ChangeDescription}}'
+
+# Bash prompt integration example
+export PS1='$(pogo info --format "{{.ChangeName}}") \$ '
+
+# Check for conflicts in a script
+pogo info --format '{{.IsInConflict}}'`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		t, err := template.New("info format").Parse(cmd.Flag("format").Value.String())
 		if err != nil {

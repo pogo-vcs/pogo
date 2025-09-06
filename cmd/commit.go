@@ -11,8 +11,41 @@ import (
 
 var commitCmd = &cobra.Command{
 	Use:   "commit",
-	Short: "Describe, push, and create a new change",
-	Long:  "Combines describe, push, and new operations into a single command. Sets a description for the current change, pushes it to the server, and creates a new change.",
+	Short: "Describe, push, and create a new change in one command",
+	Long: `Commit is a convenience command that combines three operations:
+1. Set/update the description for the current change (describe)
+2. Push all changes to the server (push)
+3. Create a new empty change for future work (new)
+
+This command streamlines the common workflow of finishing work on the current
+change and starting fresh. It's similar to 'git commit' but remember that in
+Pogo, your work is continuously saved to the server rather than being staged
+locally first.
+
+The command will:
+- Open an editor for the description (unless -m or --no-edit is used)
+- Upload all your changes to the server
+- Create a new change with the current change as parent
+- Switch to the new change automatically
+- Display the updated change history
+
+This is ideal when you've completed a logical unit of work and want to start
+on something new while preserving the current state.`,
+	Example: `# Commit with an editor for the description
+pogo commit
+
+# Commit with a description from command line
+pogo commit -m "fix: resolve database connection timeout"
+
+# Commit without changing the existing description
+pogo commit --no-edit
+
+# Typical workflow
+pogo describe -m "feat: add user authentication"
+# ... make changes ...
+pogo push
+# ... make more changes ...
+pogo commit  # Finalize and start new change`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) > 0 {
 			return errors.New("too many arguments")

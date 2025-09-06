@@ -12,6 +12,19 @@ pogo-token-remove - Remove a personal access token for a server
 .SH DESCRIPTION
 Remove a personal access token for a specific Pogo server from the system keyring.
 
+.PP
+This will:
+- Delete the stored token for the specified server
+- Require re-authentication for future operations
+- Ask for confirmation before deletion
+
+.PP
+Use this command when:
+- Leaving a team or organization
+- Rotating credentials for security
+- Troubleshooting authentication issues
+- Cleaning up old server configurations
+
 
 .SH OPTIONS
 \fB-h\fP, \fB--help\fP[=false]
@@ -29,6 +42,20 @@ Remove a personal access token for a specific Pogo server from the system keyrin
 .PP
 \fB--time\fP[=false]
 	Measure command execution time
+
+
+.SH EXAMPLE
+.EX
+# Remove token for current repository's server (run from within repo)
+pogo token remove
+
+# Remove token for a specific server
+pogo token remove --server old.server.com:8080
+
+# The command will ask for confirmation:
+# Are you sure you want to remove the token for old.server.com:8080?
+# > Yes
+.EE
 
 
 .SH SEE ALSO

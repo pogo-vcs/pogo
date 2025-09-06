@@ -14,8 +14,27 @@ var (
 	logNumberFlag int32
 	logCmd        = &cobra.Command{
 		Use:   "log",
-		Short: "Show change history",
-		Long:  "Display the change history as parent/child relations",
+		Short: "Show the change history",
+		Long: `Display the change history of the repository as a tree of parent/child relationships.
+
+The log shows:
+- Change names (automatically generated memorable identifiers)
+- Descriptions of what changed and why
+- Parent/child relationships between changes
+- Bookmarks pointing to specific changes
+- The currently checked-out change (marked with *)
+
+Unlike Git's linear log, Pogo's log shows the true tree structure of your
+repository, making it easy to see branches and merges. Changes are shown
+from newest to oldest by default.`,
+		Example: `# Show the last 10 changes (default)
+pogo log
+
+# Show the last 50 changes
+pogo log -n 50
+
+# Disable colored output
+pogo log --color=false`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return errors.New("too many arguments")
