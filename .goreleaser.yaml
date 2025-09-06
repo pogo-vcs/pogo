@@ -40,7 +40,6 @@ archives:
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
-    # use zip for windows archives
     format_overrides:
       - goos: windows
         formats: [zip]
@@ -71,7 +70,6 @@ npms:
       - scm
       - centralized
       - git
-    format: zip
     url_template: "https://github.com/pogo-vcs/pogo/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     repository: https://github.com/pogo-vcs/pogo
     bugs: https://github.com/pogo-vcs/pogo/issues
