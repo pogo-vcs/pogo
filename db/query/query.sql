@@ -245,6 +245,12 @@ SELECT EXISTS (
     WHERE cf.change_id = $1 AND f.conflict = TRUE
 );
 
+-- name: GetConflictFilesForChange :many
+SELECT f.name FROM change_files cf
+JOIN files f ON cf.file_id = f.id
+WHERE cf.change_id = $1 AND f.conflict = TRUE
+ORDER BY f.name;
+
 -- name: FindLCA :one
 WITH RECURSIVE ancestors AS (
     -- Start with the two target changes

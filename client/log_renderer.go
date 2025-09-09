@@ -62,6 +62,9 @@ func RenderLog(response *protos.LogResponse, coloredOutput bool) string {
 			} else {
 				output.WriteString(change.Name)
 			}
+			if len(change.ConflictFiles) > 0 {
+				output.WriteString(" 💥")
+			}
 
 			if change.Description != nil {
 				output.WriteString("\n  ")
@@ -167,6 +170,9 @@ func RenderLog(response *protos.LogResponse, coloredOutput bool) string {
 				} else {
 					drawer.Write(startX, y+1, *change.Description)
 				}
+			}
+			if len(change.ConflictFiles) > 0 {
+				drawer.Write(startX+len(change.Name), y, " 💥")
 			}
 		} else {
 			// Change not in our list, render as ~ (unknown change)

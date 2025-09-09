@@ -827,6 +827,14 @@ func (a *Server) Log(ctx context.Context, req *protos.LogRequest) (*protos.LogRe
 		if change.Description != nil {
 			logChange.Description = change.Description
 		}
+
+		// Get conflict files for this change
+		conflictFiles, err := db.Q.GetConflictFilesForChange(ctx, change.ID)
+		if err != nil {
+			return nil, fmt.Errorf("get conflict files for change %d: %w", change.ID, err)
+		}
+		logChange.ConflictFiles = conflictFiles
+
 		response.Changes = append(response.Changes, logChange)
 	}
 
