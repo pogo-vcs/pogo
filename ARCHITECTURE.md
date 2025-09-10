@@ -246,7 +246,6 @@ graph TB
     EditCmd --> Client
     LogCmd --> Client
     LogCmd --> TTY
-    LogCmd --> BubbleTea
     BookmarkCmd --> Client
     DescribeCmd --> Client
     DescribeCmd --> Editor
@@ -424,14 +423,13 @@ sequenceDiagram
   - Small-scale (< 10 million files): in-memory hash set for fast lookups
   - Large-scale (>= 10 million files): batched processing with constant memory usage
 - GC can be run manually (`pogo gc`) or as a scheduled background task when the server runs
-- The threshold and GC parameters are configurable via environment variables (e.g. `GC_MEMORY_THRESHOLD`)
+- The threshold and GC parameters are configurable via environment variables (`GC_MEMORY_THRESHOLD`)
 
-### 8. Interactive Terminal UI
+### 8. Direct Output Display
 
-- BubbleTea-based log viewer for scrollable output
-- Automatically activated when log output exceeds terminal height
-- Can be disabled with `--no-pager` flag
-- Keyboard navigation (arrows, page up/down, home/end)
+- Log command outputs to stdout for simple viewing
+- Color-coded output when running in an interactive terminal
+- Full log content displayed without pagination
 
 ## Technology Stack
 
@@ -443,4 +441,4 @@ sequenceDiagram
 - **Web UI**: Templ templates
 - **HTTP Server**: net/http with HTTP/2 support
 - **Build Tool**: Just
-- **TUI Components**: Charm BubbleTea for interactive terminal UI (log viewer)
+- **TUI Components**: Charm Huh for interactive forms (token setup)

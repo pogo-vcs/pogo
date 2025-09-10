@@ -6,6 +6,7 @@ import (
 
 	"github.com/pogo-vcs/pogo/client"
 	"github.com/pogo-vcs/pogo/editor"
+	"github.com/pogo-vcs/pogo/tty"
 	"github.com/spf13/cobra"
 )
 
@@ -107,12 +108,12 @@ pogo commit  # Finalize and start new change`,
 
 		c.ConfigSetChangeId(changeId)
 
-		// Display the log using pager
-		if err := ShowLogWithPager(c, 10, nil, false, func(s string) {
-			cmd.Println(s)
-		}); err != nil {
-			return errors.Join(errors.New("display log"), err)
+		// Display the log
+		logOutput, err := c.Log(10, tty.IsInteractive())
+		if err != nil {
+			return errors.Join(errors.New("fetch log"), err)
 		}
+		cmd.Print(logOutput)
 
 		return nil
 	},

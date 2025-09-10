@@ -11,7 +11,6 @@ import (
 var Version = "dev"
 
 var (
-	globalNoPager   bool
 	globalTimer     bool
 	globalTimeStart time.Time
 
@@ -49,7 +48,6 @@ func init() {
 	rootCmd.DisableAutoGenTag = true
 
 	// Add global flags
-	rootCmd.PersistentFlags().BoolVar(&globalNoPager, "no-pager", false, "Disable pager for all output")
 	rootCmd.PersistentFlags().BoolVar(&globalTimer, "time", false, "Measure command execution time")
 }
 

@@ -50,12 +50,12 @@ pogo log --color=false`,
 			}
 			defer c.Close()
 
-			// Use the pager to fetch and display the log output
-			if err := ShowLogWithPager(c, logNumberFlag, &logColorFlag, false, func(s string) {
-				cmd.Println(s)
-			}); err != nil {
-				return errors.Join(errors.New("display log"), err)
+			// Fetch and display the log output
+			logOutput, err := c.Log(logNumberFlag, logColorFlag)
+			if err != nil {
+				return errors.Join(errors.New("fetch log"), err)
 			}
+			cmd.Print(logOutput)
 
 			return nil
 		},
