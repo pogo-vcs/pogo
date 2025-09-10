@@ -27,7 +27,9 @@ Common bookmark patterns:
 - "before-refactor" - Mark a point before major changes
 
 The "main" bookmark is special, it's treated as the default branch and is
-what new users will see when they clone your repository.`,
+what new users will see when they clone your repository.
+
+This command pushes any changes before running.`,
 	}
 	bookmarkSetCmd = &cobra.Command{
 		Use:     "set <name> [change]",

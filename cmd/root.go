@@ -34,6 +34,9 @@ For more information, visit: https://github.com/pogo-vcs/pogo`,
 			if globalTimer {
 				globalTimeStart = time.Now()
 			}
+			if isUnder(cmd, bookmarkCmd, describeCmd, editCmd, logCmd, rmCmd) {
+				_ = pushCmd.RunE(cmd, nil)
+			}
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
 			if globalTimer {
@@ -42,6 +45,17 @@ For more information, visit: https://github.com/pogo-vcs/pogo`,
 		},
 	}
 )
+
+func isUnder(cmd *cobra.Command, targets ...*cobra.Command) bool {
+	for c := cmd; c != nil; c = c.Parent() {
+		for _, target := range targets {
+			if c == target {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 func init() {
 	rootCmd.SilenceUsage = true

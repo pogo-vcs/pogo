@@ -34,7 +34,9 @@ You cannot remove:
 This command is useful for:
 - Cleaning up experimental branches that didn't work out
 - Removing accidentally created changes
-- Pruning unnecessary history before archiving`,
+- Pruning unnecessary history before archiving
+
+This command pushes any changes before running.`,
 	Example: `# Remove a change and all its descendants
 pogo rm experimental-feature-27
 

@@ -26,7 +26,9 @@ The log shows:
 
 Unlike Git's linear log, Pogo's log shows the true tree structure of your
 repository, making it easy to see branches and merges. Changes are shown
-from newest to oldest by default.`,
+from newest to oldest by default.
+
+This command pushes any changes before running.`,
 		Example: `# Show the last 10 changes (default)
 pogo log
 

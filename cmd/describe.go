@@ -29,7 +29,9 @@ can write a detailed description. The description follows the Conventional
 Commits format by default.
 
 The description is crucial for understanding the history of your project and
-should explain both WHAT changed and WHY it changed.`,
+should explain both WHAT changed and WHY it changed.
+
+This command pushes any changes before running.`,
 		Example: `# Open an editor to write/edit the description
 pogo describe
 
