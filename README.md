@@ -87,6 +87,14 @@ The intended workflow for Pogo is simple and efficient:
 5.  **Create a new change:** When you are done with your changes, create a new one using the `pogo new` command. You can optionally add one or more parent changes to the command. By default, your current change is used as the parent.
 6.  **Maintain a "main" bookmark:** Use bookmarks to tag important changes. You can set a bookmark with `pogo bookmark set main` to set the current change as the main one, or `pogo bookmark set main <change>` to set a specific change as main. "main" ist just a string, you can use any format for version bookmarks you want. But "main" is a special value, treated like a default branch in Git.
 
+For running the server, you need to have a PostgreSQL database running and the following environment variables set:
+
+- `DATABASE_URL`: The URL of the PostgreSQL database.
+- `PUBLIC_ADDRESS`: The public address of the server.
+- `PORT` or `HOST`: The port or host to listen on.
+- `ROOT_TOKEN`: *optional* The root token for the server.
+- `GC_MEMORY_THRESHOLD`: *optional* The number of files to use as the threshold for which garbage collection implementations will run (in memory vs batch processing).
+
 ## 📋 Commands
 
 | Command         | Subcommand | Aliases            | Description                                                                                 |
