@@ -572,3 +572,12 @@ SELECT EXISTS (
     -- Change author is someone else
     SELECT 1 FROM changes c WHERE c.id = @change_id AND c.author_id != @user_id
 ) AS is_readonly;
+
+-- name: GetRepositoryRootChange :one
+SELECT c.id, c.name
+FROM changes c
+WHERE c.repository_id = $1
+  AND NOT EXISTS (
+    SELECT 1 FROM change_relations cr WHERE cr.change_id = c.id
+  )
+LIMIT 1;

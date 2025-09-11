@@ -19,6 +19,7 @@ service Pogo {
   rpc Edit(EditRequest) returns (stream EditResponse);
   rpc RemoveChange(RemoveChangeRequest) returns (RemoveChangeResponse);
   rpc GarbageCollect(GarbageCollectRequest) returns (GarbageCollectResponse);
+  rpc GetRepositoryInfo(GetRepositoryInfoRequest) returns (GetRepositoryInfoResponse);
 }
 
 message Auth {
@@ -209,4 +210,17 @@ message GarbageCollectResponse {
   int32 deleted_database_files = 1;
   int32 deleted_disk_files = 2;
   int64 bytes_freed = 3;
+}
+
+message GetRepositoryInfoRequest {
+  Auth auth = 1;
+  string repo_name = 2;
+}
+
+message GetRepositoryInfoResponse {
+  int32 repo_id = 1;
+  string repo_name = 2;
+  bool is_public = 3;
+  optional string main_bookmark_change = 4;
+  optional string root_change = 5;
 }

@@ -450,3 +450,17 @@ func (c *Client) RemoveChange(changeName string, keepChildren bool) error {
 
 	return nil
 }
+
+func (c *Client) GetRepositoryInfo(repoName string) (*protos.GetRepositoryInfoResponse, error) {
+	request := &protos.GetRepositoryInfoRequest{
+		Auth:     c.GetAuth(),
+		RepoName: repoName,
+	}
+
+	response, err := c.Pogo.GetRepositoryInfo(c.ctx, request)
+	if err != nil {
+		return nil, errors.Join(errors.New("get repository info"), err)
+	}
+
+	return response, nil
+}

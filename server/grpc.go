@@ -1154,3 +1154,42 @@ func (a *Server) RemoveChange(ctx context.Context, req *protos.RemoveChangeReque
 
 	return &protos.RemoveChangeResponse{}, nil
 }
+
+func (a *Server) GetRepositoryInfo(ctx context.Context, req *protos.GetRepositoryInfoRequest) (*protos.GetRepositoryInfoResponse, error) {
+	gcMutex.RLock()
+	defer gcMutex.RUnlock()
+
+	// Get repository by name
+	repository, err := db.Q.GetRepositoryByName(ctx, req.RepoName)
+	if err != nil {
+		return nil, fmt.Errorf("repository '%s' not found", req.RepoName)
+	}
+
+	// Check if repository is public or if user has access
+	if !repository.Public {
+		_, err := checkRepositoryAccessFromAuth(ctx, req.Auth, repository.ID)
+		if err != nil {
+			return nil, fmt.Errorf("access denied to repository '%s': %w", req.RepoName, err)
+		}
+	}
+
+	response := &protos.GetRepositoryInfoResponse{
+		RepoId:   repository.ID,
+		RepoName: repository.Name,
+		IsPublic: repository.Public,
+	}
+
+	// Try to get main bookmark
+	if mainChangeId, err := db.Q.GetBookmark(ctx, repository.ID, "main"); err == nil {
+		if mainChange, err := db.Q.GetChange(ctx, mainChangeId); err == nil {
+			response.MainBookmarkChange = &mainChange.Name
+		}
+	}
+
+	// Try to get root change
+	if rootChange, err := db.Q.GetRepositoryRootChange(ctx, repository.ID); err == nil {
+		response.RootChange = &rootChange.Name
+	}
+
+	return response, nil
+}

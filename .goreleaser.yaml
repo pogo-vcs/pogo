@@ -84,6 +84,7 @@ homebrew_casks:
       - docs/man/pogo-bookmark-remove.1
       - docs/man/pogo-bookmark-set.1
       - docs/man/pogo-bookmark.1
+      - docs/man/pogo-clone.1
       - docs/man/pogo-commit.1
       - docs/man/pogo-completion-bash.1
       - docs/man/pogo-completion-fish.1
