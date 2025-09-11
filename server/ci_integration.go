@@ -10,6 +10,7 @@ import (
 	"github.com/pogo-vcs/pogo/db"
 	"github.com/pogo-vcs/pogo/filecontents"
 	"github.com/pogo-vcs/pogo/server/ci"
+	"github.com/pogo-vcs/pogo/server/env"
 )
 
 var ciExecutor = ci.NewExecutor()
@@ -66,13 +67,7 @@ func executeCIForBookmarkEvent(ctx context.Context, changeId int64, bookmarkName
 		return
 	}
 
-	// Build archive URL using PUBLIC_ADDRESS environment variable
-	publicAddress := os.Getenv("PUBLIC_ADDRESS")
-	if publicAddress == "" {
-		publicAddress = "http://localhost:8080" // fallback for development
-	}
-
-	archiveUrl := fmt.Sprintf("%s/repository/%s/archive/%s", publicAddress, repo.Name, bookmarkName)
+	archiveUrl := fmt.Sprintf("%s/repository/%s/archive/%s", env.PublicAddress, repo.Name, bookmarkName)
 
 	event := ci.Event{
 		Rev:        bookmarkName,

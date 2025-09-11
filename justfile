@@ -52,7 +52,7 @@ install:
 serve:
     @just prebuild
     just docs
-    PORT=4321 DATABASE_URL=postgres://pogo:pogo@localhost:5432/pogo ROOT_TOKEN=HP9X+pubni2ufsXTeDreWsxcY+MyxFHBgM+py1hWOks= air
+    PORT=4321 DATABASE_URL=postgres://pogo:pogo@localhost:5432/pogo ROOT_TOKEN=HP9X+pubni2ufsXTeDreWsxcY+MyxFHBgM+py1hWOks= PUBLIC_ADDRESS=http://localhost:4321 air
 
 deamon:
     @just prebuild

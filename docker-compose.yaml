@@ -13,6 +13,7 @@ services:
       - DATABASE_URL=postgres://pogo:pogo@db:5432/pogo
       - ROOT_TOKEN=HP9X+pubni2ufsXTeDreWsxcY+MyxFHBgM+py1hWOks=
       - GC_MEMORY_THRESHOLD=${GC_MEMORY_THRESHOLD:-10000000}
+      - PUBLIC_ADDRESS=http://localhost:4321
     # volumes:
     #   - ./pogo_data/:/data/
     tmpfs:

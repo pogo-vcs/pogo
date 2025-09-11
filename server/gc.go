@@ -8,27 +8,17 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 
 	"github.com/pogo-vcs/pogo/db"
 	"github.com/pogo-vcs/pogo/protos"
+	"github.com/pogo-vcs/pogo/server/env"
 )
 
 var gcMutex sync.RWMutex
 
 // Default memory threshold for in-memory strategy (10 million files = ~640MB)
 const defaultInMemoryThreshold = 10_000_000
-
-// getInMemoryThreshold returns the configured threshold from env or default
-func getInMemoryThreshold() int64 {
-	if env := os.Getenv("GC_MEMORY_THRESHOLD"); env != "" {
-		if threshold, err := strconv.ParseInt(env, 10, 64); err == nil {
-			return threshold
-		}
-	}
-	return defaultInMemoryThreshold
-}
 
 func (s *Server) GarbageCollect(ctx context.Context, req *protos.GarbageCollectRequest) (*protos.GarbageCollectResponse, error) {
 	// Authenticate user - only authenticated users can trigger GC
@@ -85,14 +75,13 @@ func runGarbageCollectionInternal(ctx context.Context) (*protos.GarbageCollectRe
 	var deletedDiskFiles int32
 	var bytesFreed int64
 
-	threshold := getInMemoryThreshold()
-	if int64(fileCount) < threshold {
+	if int64(fileCount) < env.GcMemoryThreshold {
 		// Use in-memory strategy for smaller datasets
-		fmt.Printf("GC: Using in-memory strategy (threshold: %d, files: %d)\n", threshold, fileCount)
+		fmt.Printf("GC: Using in-memory strategy (threshold: %d, files: %d)\n", env.GcMemoryThreshold, fileCount)
 		deletedDiskFiles, bytesFreed, err = cleanupDiskInMemory(ctx)
 	} else {
 		// Use batch strategy for larger datasets
-		fmt.Printf("GC: Using batch strategy (threshold: %d, files: %d)\n", threshold, fileCount)
+		fmt.Printf("GC: Using batch strategy (threshold: %d, files: %d)\n", env.GcMemoryThreshold, fileCount)
 		deletedDiskFiles, bytesFreed, err = cleanupDiskBatch(ctx)
 	}
 

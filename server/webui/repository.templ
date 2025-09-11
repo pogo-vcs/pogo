@@ -28,19 +28,13 @@ templ Repository() {
 							if userHasAccess, err := db.Q.CheckUserRepositoryAccess(ctx, repoId, user.ID); err == nil && userHasAccess {
 								<a
 									href={ templ.URL("/repository/" + strconv.Itoa(int(repo.ID)) + "/settings") }
-									class="select-none rounded-md px-2 py-1 bg-ctp-surface0 hover:bg-ctp-surface1 active:bg-ctp-surface2 active:text-ctp-text"
+									class="rounded-md px-3 py-2 bg-ctp-surface0 hover:bg-ctp-surface1 active:bg-ctp-surface2 active:text-ctp-text"
 								>
 									Settings
 								</a>
 							}
 						}
-						<a
-							href={ path.Join("/repository", repo.Name, "archive", "main") }
-							class="select-none grid grid-cols-[1.2rem_auto] gap-x-1 items-center rounded-md px-2 py-1 bg-ctp-surface0 hover:bg-ctp-surface1 active:bg-ctp-surface2 active:text-ctp-text"
-						>
-							@icons.Zip()
-							<span>Download as zip</span>
-						</a>
+						@components.CodeButton(repo.ID, repo.Name)
 					}
 					@components.Main() {
 						if readme, err := db.Q.GetRepositoryBookmarkFileByName(ctx, repoId, "main", "readme"); err == nil {

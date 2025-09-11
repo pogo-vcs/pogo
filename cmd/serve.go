@@ -9,6 +9,7 @@ import (
 
 	"github.com/pogo-vcs/pogo/db"
 	"github.com/pogo-vcs/pogo/server"
+	"github.com/pogo-vcs/pogo/server/env"
 	"github.com/robfig/cron/v3"
 	"github.com/spf13/cobra"
 )
@@ -56,17 +57,8 @@ DATABASE_URL=postgres://user:pass@localhost/pogo pogo serve
 # Docker example
 docker run -p 8080:8080 -e DATABASE_URL=... ghcr.io/pogo-vcs/pogo:alpine`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var host string
-		if hostEnv, ok := os.LookupEnv("HOST"); ok {
-			host = hostEnv
-		} else if portEnv, ok := os.LookupEnv("PORT"); ok {
-			host = ":" + portEnv
-		} else if cmd.Flags().Changed("host") {
-			host = cmd.Flag("host").Value.String()
-		} else if cmd.Flags().Changed("port") {
-			host = ":" + cmd.Flag("port").Value.String()
-		} else {
-			host = ":8080"
+		if err := env.InitFromEnvironment(); err != nil {
+			return err
 		}
 
 		db.Connect()
@@ -74,7 +66,7 @@ docker run -p 8080:8080 -e DATABASE_URL=... ghcr.io/pogo-vcs/pogo:alpine`,
 		srv := server.NewServer()
 		defer srv.Stop(cmd.Context())
 
-		if err := srv.Start(host); err != nil {
+		if err := srv.Start(env.ListenAddress); err != nil {
 			return err
 		}
 

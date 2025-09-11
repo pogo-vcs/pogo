@@ -1,0 +1,72 @@
+package components
+
+import (
+	"github.com/pogo-vcs/pogo/server/webui/icons"
+	"strconv"
+	"fmt"
+	"github.com/pogo-vcs/pogo/server/env"
+)
+
+templ CodeButton(repoId int32, repoName string) {
+	<details class="relative hidden sm:inline-block">
+		<summary class="grid grid-cols-[1.2rem_auto_1rem] gap-x-2 items-center rounded-md px-3 py-2 bg-ctp-green text-ctp-base hover:bg-ctp-green/90 active:bg-ctp-green/80 font-medium cursor-pointer list-none">
+			@icons.Code()
+			<span>Code</span>
+			@icons.ChevronDown()
+		</summary>
+		<div class="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-md shadow-lg bg-ctp-surface0 border border-ctp-surface1 z-10 sm:right-auto sm:left-1/2 sm:transform sm:-translate-x-1/2">
+			<div class="py-1">
+				<!-- Clone section -->
+				<div class="px-4 py-3 border-b border-ctp-surface1">
+					<h4 class="text-sm font-medium text-ctp-text mb-2">Clone</h4>
+					<div class="flex items-center space-x-2">
+						<input
+							type="text"
+							readonly
+							value={ fmt.Sprintf("pogo clone --server '%s' --repo '%s'", env.Hostname, repoName) }
+							class="flex-1 min-w-0 px-3 py-2 text-sm bg-ctp-surface1 border border-ctp-surface2 rounded-md text-ctp-text font-mono"
+							id={ "clone-command-" + strconv.Itoa(int(repoId)) }
+						/>
+						<button
+							data-copy-target={ "clone-command-" + strconv.Itoa(int(repoId)) }
+							class="copy-button cursor-pointer flex-shrink-0 px-3 py-[calc(var(--spacing)*2.5)] bg-ctp-surface1 hover:bg-ctp-surface2 border border-ctp-surface2 rounded-md text-ctp-text"
+							title="Copy clone command"
+						>
+							@icons.Copy()
+						</button>
+					</div>
+				</div>
+				<!-- Download section -->
+				<div class="px-4 py-3">
+					<h4 class="text-sm font-medium text-ctp-text mb-2">Download</h4>
+					<a
+						href={ "/repository/" + repoName + "/archive/main" }
+						class="flex items-center space-x-2 w-full px-3 py-2 text-sm text-ctp-text hover:bg-ctp-surface1 rounded-md"
+					>
+						@icons.Zip()
+						<span>Download ZIP</span>
+					</a>
+				</div>
+			</div>
+		</div>
+	</details>
+	<script>
+		document.addEventListener('click', function(e) {
+			if (e.target.classList.contains('copy-button')) {
+				const targetId = e.target.getAttribute('data-copy-target');
+				const element = document.getElementById(targetId);
+				if (element) {
+					element.select();
+					element.setSelectionRange(0, 99999);
+					document.execCommand('copy');
+					
+					const originalTitle = e.target.title;
+					e.target.title = 'Copied!';
+					setTimeout(() => {
+						e.target.title = originalTitle;
+					}, 2000);
+				}
+			}
+		});
+	</script>
+}

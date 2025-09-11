@@ -4,7 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"os"
+
+	"github.com/pogo-vcs/pogo/server/env"
 )
 
 func Setup(ctx context.Context) error {
@@ -18,8 +19,8 @@ func Setup(ctx context.Context) error {
 	}
 
 	var tokenBytes []byte
-	if staticRootToken, ok := os.LookupEnv("ROOT_TOKEN"); ok {
-		if tokenBytes, err = DecodeToken(staticRootToken); err != nil {
+	if len(env.RootToken) > 0 {
+		if tokenBytes, err = DecodeToken(env.RootToken); err != nil {
 			return fmt.Errorf("failed to decode root token: %w", err)
 		}
 	} else {

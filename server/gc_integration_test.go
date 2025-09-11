@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/pogo-vcs/pogo/db"
 	"github.com/pogo-vcs/pogo/protos"
 	"github.com/pogo-vcs/pogo/server"
+	"github.com/pogo-vcs/pogo/server/env"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -86,24 +88,6 @@ func setupTestEnvironment(t *testing.T, gcThreshold string) *testEnvironment {
 		t.Fatalf("Failed to start embedded PostgreSQL: %v", err)
 	}
 
-	// Set DATABASE_URL environment variable for the db package
-	databaseURL := fmt.Sprintf("postgres://pogo:testpass@localhost:%d/pogo?sslmode=disable", dbPort)
-	os.Setenv("DATABASE_URL", databaseURL)
-
-	// Set ROOT_TOKEN to use our static token
-	os.Setenv("ROOT_TOKEN", rootToken)
-
-	// Set GC threshold if provided
-	if gcThreshold != "" {
-		os.Setenv("GC_MEMORY_THRESHOLD", gcThreshold)
-	}
-
-	// Disconnect first if already connected (from a previous test)
-	db.Disconnect()
-
-	// Connect to the database
-	db.Connect()
-
 	// Create temporary directory for Pogo data
 	dataDir, err := os.MkdirTemp("", "pogo-test-data-*")
 	if err != nil {
@@ -112,8 +96,39 @@ func setupTestEnvironment(t *testing.T, gcThreshold string) *testEnvironment {
 		t.Fatalf("Failed to create temp directory for Pogo data: %v", err)
 	}
 
+	// Initialize environment configuration for testing
+	databaseURL := fmt.Sprintf("postgres://pogo:testpass@localhost:%d/pogo?sslmode=disable", dbPort)
+	publicAddress := fmt.Sprintf("http://localhost:%d", serverPort)
+
+	var gcMemoryThreshold int64 = 10000000
+	if gcThreshold != "" {
+		if thresh, err := strconv.ParseInt(gcThreshold, 10, 64); err == nil {
+			gcMemoryThreshold = thresh
+		}
+	}
+
+	envConfig := env.Config{
+		DatabaseUrl:       databaseURL,
+		PublicAddress:     publicAddress,
+		RootToken:         rootToken,
+		ListenAddress:     fmt.Sprintf(":%d", serverPort),
+		GcMemoryThreshold: gcMemoryThreshold,
+	}
+	if err := env.InitFromConfig(envConfig); err != nil {
+		postgres.Stop()
+		os.RemoveAll(tmpDir)
+		os.RemoveAll(dataDir)
+		t.Fatalf("Failed to initialize env config: %v", err)
+	}
+
 	// Set DATA_DIR environment variable
 	os.Setenv("DATA_DIR", dataDir)
+
+	// Disconnect first if already connected (from a previous test)
+	db.Disconnect()
+
+	// Connect to the database
+	db.Connect()
 
 	// Start embedded Pogo server
 	srv := server.NewServer()

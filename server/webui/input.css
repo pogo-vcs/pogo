@@ -44,3 +44,19 @@ footer {
   /* Your footer styles */
   grid-row: 3 / 4;
 }
+
+/* Code button details styling */
+details summary::-webkit-details-marker {
+  display: none;
+}
+details summary::marker {
+  display: none;
+}
+
+details[open] summary svg:last-child {
+  transform: rotate(180deg);
+}
+
+details summary svg:last-child {
+  transition: transform 0.2s ease-in-out;
+}

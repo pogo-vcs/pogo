@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pogo-vcs/pogo/server/env"
 )
 
 var (
@@ -25,14 +26,7 @@ func Connect() {
 
 	ctx := context.Background()
 
-	connectionString, ok := os.LookupEnv("DATABASE_URL")
-	if !ok {
-		_, _ = fmt.Fprintln(os.Stderr, "DATABASE_URL not set")
-		os.Exit(1)
-		return
-	}
-
-	config, err := pgxpool.ParseConfig(connectionString)
+	config, err := pgxpool.ParseConfig(env.DatabaseUrl)
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, "failed to parse DATABASE_URL")
 		os.Exit(1)
