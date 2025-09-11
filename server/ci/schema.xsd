@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:ci="https://example.com/ci"
+  targetNamespace="https://example.com/ci"
+  elementFormDefault="qualified"
+  attributeFormDefault="unqualified"
+  version="1.1"
+>
+  <xs:element name="config" type="ci:Config" />
+
+  <xs:complexType name="Config">
+    <xs:sequence>
+      <xs:element name="version" type="ci:Version" />
+      <xs:element name="on" type="ci:On" />
+      <xs:element name="do" type="ci:Do" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="Version">
+    <xs:restriction base="xs:int">
+      <xs:enumeration value="1" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="On">
+    <xs:all>
+      <xs:element name="push" type="ci:OnPush" minOccurs="0" />
+      <xs:element name="remove" type="ci:OnRemove" minOccurs="0" />
+    </xs:all>
+    <xs:assert
+      test="
+        count(./ci:push/ci:bookmarks/ci:bookmark)
+        + count(./ci:remove/ci:bookmarks/ci:bookmark)
+        >= 1"
+    />
+  </xs:complexType>
+
+  <xs:complexType name="OnPush">
+    <xs:sequence>
+      <xs:element name="bookmarks" type="ci:Bookmarks" minOccurs="0" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="OnRemove">
+    <xs:sequence>
+      <xs:element name="bookmarks" type="ci:Bookmarks" minOccurs="0" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Bookmarks">
+    <xs:sequence>
+      <xs:element
+        name="bookmark"
+        type="xs:string"
+        minOccurs="0"
+        maxOccurs="unbounded"
+      />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Do">
+    <xs:sequence>
+      <xs:element
+        name="task"
+        type="ci:Task"
+        minOccurs="1"
+        maxOccurs="unbounded"
+      />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Task">
+    <xs:sequence>
+      <xs:element name="url" type="ci:Url" />
+      <xs:element name="method" type="ci:NonEmptyString" />
+      <xs:element name="headers" type="ci:Headers" minOccurs="0" />
+      <xs:element name="body" type="xs:string" minOccurs="0" />
+      <xs:element name="retry_policy" type="ci:RetryPolicy" minOccurs="0" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Headers">
+    <xs:sequence>
+      <xs:element
+        name="header"
+        type="ci:Header"
+        minOccurs="0"
+        maxOccurs="unbounded"
+      />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Header">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="name" type="xs:string" use="required" />
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:complexType name="RetryPolicy">
+    <xs:sequence>
+      <xs:element name="max_attempts" type="ci:PositiveInt" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="PositiveInt">
+    <xs:restriction base="xs:int">
+      <xs:minInclusive value="1" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="Url">
+    <xs:restriction base="xs:anyURI">
+      <xs:minLength value="1" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="NonEmptyString">
+    <xs:restriction base="xs:string">
+      <xs:minLength value="1" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

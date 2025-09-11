@@ -140,11 +140,57 @@ see important versions, releases, and the current "main" branch.`,
 			return nil
 		},
 	}
+	bookmarkRemoveCmd = &cobra.Command{
+		Use:     "remove <name>",
+		Aliases: []string{"rm", "delete", "del"},
+		Short:   "Remove a bookmark from the repository",
+		Long: `Remove a bookmark from the repository.
+
+This permanently removes the named reference to a change, but does not
+delete the change itself. The change will still exist and can be
+accessed by its change name.`,
+		Example: `  # Remove a bookmark
+  pogo bookmark remove old-version
+
+  # Remove the main bookmark (be careful!)
+  pogo bookmark remove main
+
+  # Using the short alias
+  pogo b rm v1.0.0`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return errors.New("bookmark name is required")
+			}
+			if len(args) > 1 {
+				return errors.New("too many arguments")
+			}
+
+			bookmarkName := args[0]
+
+			wd, err := os.Getwd()
+			if err != nil {
+				return errors.Join(errors.New("get working directory"), err)
+			}
+			c, err := client.OpenFromFile(cmd.Context(), wd)
+			if err != nil {
+				return errors.Join(errors.New("open client"), err)
+			}
+			defer c.Close()
+			configureClientOutputs(cmd, c)
+
+			if err := c.RemoveBookmark(bookmarkName); err != nil {
+				return errors.Join(errors.New("remove bookmark"), err)
+			}
+
+			return nil
+		},
+	}
 )
 
 func init() {
 	bookmarkCmd.AddCommand(bookmarkSetCmd)
 	bookmarkCmd.AddCommand(bookmarkListCmd)
+	bookmarkCmd.AddCommand(bookmarkRemoveCmd)
 
 	rootCmd.AddCommand(bookmarkCmd)
 }

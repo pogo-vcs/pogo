@@ -209,6 +209,21 @@ func (c *Client) SetBookmark(bookmarkName string, changeName *string) error {
 	return nil
 }
 
+func (c *Client) RemoveBookmark(bookmarkName string) error {
+	request := &protos.RemoveBookmarkRequest{
+		Auth:         c.GetAuth(),
+		RepoId:       c.repoId,
+		BookmarkName: bookmarkName,
+	}
+
+	_, err := c.Pogo.RemoveBookmark(c.ctx, request)
+	if err != nil {
+		return errors.Join(errors.New("remove bookmark"), err)
+	}
+
+	return nil
+}
+
 func (c *Client) GetBookmarks() ([]*protos.Bookmark, error) {
 	request := &protos.GetBookmarksRequest{
 		Auth:   c.GetAuth(),

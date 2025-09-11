@@ -1002,6 +1002,33 @@ func testBookmarks(t *testing.T, ctx context.Context, serverAddr string) {
 		}
 	}
 
+	// Test bookmark removal
+	originalBookmarkCount := len(bookmarks2)
+	if err := c2.RemoveBookmark("v1.0.0"); err != nil {
+		t.Fatalf("Failed to remove v1.0.0 bookmark: %v", err)
+	}
+
+	// Verify bookmark was removed
+	bookmarks3, err := c2.GetBookmarks()
+	if err != nil {
+		t.Fatalf("Failed to get bookmarks after removal: %v", err)
+	}
+
+	if len(bookmarks3) != originalBookmarkCount-1 {
+		t.Errorf("Expected %d bookmarks after removal, got %d", originalBookmarkCount-1, len(bookmarks3))
+	}
+
+	for _, b := range bookmarks3 {
+		if b.Name == "v1.0.0" {
+			t.Errorf("v1.0.0 bookmark should have been removed but still exists")
+		}
+	}
+
+	// Test removing non-existent bookmark (should not error)
+	if err := c2.RemoveBookmark("non-existent-bookmark"); err != nil {
+		t.Fatalf("Failed to remove non-existent bookmark: %v", err)
+	}
+
 	t.Log("Bookmarks test completed successfully")
 }
 

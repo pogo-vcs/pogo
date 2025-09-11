@@ -34,6 +34,9 @@ ORDER BY name;
 -- name: GetRepository :one
 SELECT * FROM repositories WHERE id = $1;
 
+-- name: GetRepositoryByName :one
+SELECT * FROM repositories WHERE name = $1;
+
 -- name: GetRepositoryFiles :many
 SELECT DISTINCT f.name, f.executable, f.content_hash, f.conflict
 FROM files f
@@ -449,6 +452,16 @@ SELECT b.name AS bookmark, b.change_id, c.name AS change_name, c.updated_at
 FROM bookmarks b
 JOIN changes c ON c.id = b.change_id
 WHERE b.repository_id = $1;
+
+-- name: RemoveBookmark :exec
+DELETE FROM bookmarks
+WHERE repository_id = $1 AND name = $2;
+
+-- name: GetCIConfigFiles :many
+SELECT f.name, f.content_hash
+FROM files f
+JOIN change_files cf ON f.id = cf.file_id
+WHERE cf.change_id = $1 AND f.name LIKE '.pogo/ci/%';
 
 -- name: GetChangeChildren :many
 SELECT c.id, c.name

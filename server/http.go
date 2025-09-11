@@ -19,15 +19,51 @@ import (
 	"github.com/pogo-vcs/pogo/auth"
 	"github.com/pogo-vcs/pogo/db"
 	"github.com/pogo-vcs/pogo/filecontents"
+	"github.com/pogo-vcs/pogo/server/ci"
 	"github.com/pogo-vcs/pogo/server/public"
 	"github.com/pogo-vcs/pogo/server/webui"
 )
 
+func getTokenFromHeader(r *http.Request) string {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return ""
+	}
+
+	// Support both "Bearer <token>" and just "<token>" formats
+	if after, ok := strings.CutPrefix(authHeader, "Bearer "); ok {
+		return after
+	}
+	return authHeader
+}
+
+func getTokenFromQuery(r *http.Request) string {
+	return r.URL.Query().Get("token")
+}
+
+func getTokenFromCookie(r *http.Request) string {
+	cookie, err := r.Cookie("token")
+	if err != nil || cookie.Value == "" {
+		return ""
+	}
+	return cookie.Value
+}
+
 func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := r.Cookie("token")
-		if err == nil && cookie.Value != "" {
-			tokenBytes, err := auth.Decode(cookie.Value)
+		// Try to get token with priority: Header > Query > Cookie
+		var token string
+		if token = getTokenFromHeader(r); token != "" {
+			// Token found in header
+		} else if token = getTokenFromQuery(r); token != "" {
+			// Token found in query parameter
+		} else {
+			token = getTokenFromCookie(r)
+			// Token found in cookie or empty string
+		}
+
+		if token != "" {
+			tokenBytes, err := auth.Decode(token)
 			if err == nil {
 				user, err := auth.ValidateToken(r.Context(), tokenBytes)
 				if err == nil {
@@ -49,9 +85,10 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 func RegisterWebUI(s *Server) {
 	s.httpMux.HandleFunc("/", authMiddleware(rootHandler(webui.Repositories())))
 	s.httpMux.HandleFunc("/public/{file}", public.Handle)
+	s.httpMux.HandleFunc("/schemas/ci/{schema}", handleCISchemas)
 	s.httpMux.HandleFunc("/repository/{id}", authMiddleware(templComponentToHandler(webui.Repository())))
 	s.httpMux.HandleFunc("/repository/{id}/settings", authMiddleware(templComponentToHandler(webui.Settings())))
-	s.httpMux.HandleFunc("/repository/{repo}/{bookmark}/archive.zip", authMiddleware(handleZipDownload))
+	s.httpMux.HandleFunc("/repository/{repo}/archive/{rev}", authMiddleware(handleZipDownload))
 	s.httpMux.HandleFunc("/objects/{hash}", handleObjectServe)
 	s.httpMux.HandleFunc("/objects/{hash}/{filename}", handleObjectServe)
 
@@ -224,17 +261,44 @@ func handleLogout(w http.ResponseWriter, r *http.Request) {
 func handleZipDownload(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	repo := r.PathValue("repo")
-	bookmark := r.PathValue("bookmark")
+	rev := r.PathValue("rev")
 
-	vcsFiles, err := db.Q.GetPublicFileHashesByBookmark(ctx, repo, bookmark)
+	// Check if user has repository access for private repos
+	repository, err := db.Q.GetRepositoryByName(ctx, repo)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to get file hashes for bookmark %q: %s", bookmark, err.Error()), http.StatusInternalServerError)
+		http.Error(w, "Repository not found", http.StatusNotFound)
+		return
+	}
+
+	if !repository.Public {
+		userInterface := ctx.Value(auth.UserCtxKey)
+		if userInterface == nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		user, ok := userInterface.(*db.User)
+		if !ok || user == nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		hasAccess, err := db.Q.CheckUserRepositoryAccess(ctx, repository.ID, user.ID)
+		if err != nil || !hasAccess {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+	}
+
+	// Get files for the change using the revision-fuzzy method
+	vcsFiles, err := db.Q.GetRepositoryFilesForRevisionFuzzy(ctx, repository.ID, rev)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to get files for revision %q: %s", rev, err.Error()), http.StatusInternalServerError)
 		return
 	}
 
 	// Set headers before writing any data
 	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s.zip", bookmark))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s-%s.zip", repo, rev))
 
 	// Create zip writer directly on the response writer
 	zipWriter := zip.NewWriter(w)
@@ -429,4 +493,36 @@ func handleRevokeAccess(w http.ResponseWriter, r *http.Request) {
 
 	// Redirect back to settings page
 	http.Redirect(w, r, fmt.Sprintf("/repository/%d/settings", repoId), http.StatusSeeOther)
+}
+
+func handleCISchemas(w http.ResponseWriter, r *http.Request) {
+	// Extract the schema filename from the URL path
+	schemaFile := r.PathValue("schema")
+	if schemaFile == "" {
+		http.Error(w, "Schema file not specified", http.StatusBadRequest)
+		return
+	}
+
+	// Try to open the file from the CI embedded filesystem
+	f, err := ci.Schemas.Open(schemaFile)
+	if err != nil {
+		http.Error(w, "Schema not found", http.StatusNotFound)
+		return
+	}
+	defer f.Close()
+
+	// Set appropriate content type based on file extension
+	var contentType string
+	switch path.Ext(schemaFile) {
+	case ".json":
+		contentType = "application/json"
+	case ".xsd":
+		contentType = "application/xml"
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "public, max-age=3600") // Cache for 1 hour
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	// Copy the file content to the response
+	_, _ = io.Copy(w, f)
 }

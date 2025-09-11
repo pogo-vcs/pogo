@@ -81,6 +81,7 @@ homebrew_casks:
       - pogo@{{ .Major }}
     manpages:
       - docs/man/pogo-bookmark-list.1
+      - docs/man/pogo-bookmark-remove.1
       - docs/man/pogo-bookmark-set.1
       - docs/man/pogo-bookmark.1
       - docs/man/pogo-commit.1

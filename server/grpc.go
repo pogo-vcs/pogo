@@ -15,6 +15,7 @@ import (
 	"github.com/pogo-vcs/pogo/db"
 	"github.com/pogo-vcs/pogo/filecontents"
 	"github.com/pogo-vcs/pogo/protos"
+	"github.com/pogo-vcs/pogo/server/ci"
 	"google.golang.org/grpc"
 )
 
@@ -316,7 +317,44 @@ func (a *Server) SetBookmark(ctx context.Context, req *protos.SetBookmarkRequest
 		return nil, fmt.Errorf("commit transaction: %w", err)
 	}
 
+	// Execute CI for bookmark push event
+	executeCIForBookmarkEvent(ctx, changeId, req.BookmarkName, ci.EventTypePush)
+
 	return &protos.SetBookmarkResponse{}, nil
+}
+
+func (a *Server) RemoveBookmark(ctx context.Context, req *protos.RemoveBookmarkRequest) (*protos.RemoveBookmarkResponse, error) {
+	gcMutex.RLock()
+	defer gcMutex.RUnlock()
+
+	// Check repository access
+	_, err := checkRepositoryAccessFromAuth(ctx, req.Auth, req.RepoId)
+	if err != nil {
+		return nil, fmt.Errorf("check repository access: %w", err)
+	}
+
+	tx, err := db.Q.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("open db transaction: %w", err)
+	}
+	defer tx.Close()
+
+	if err := tx.RemoveBookmark(ctx, req.RepoId, req.BookmarkName); err != nil {
+		return nil, fmt.Errorf("remove bookmark: %w", err)
+	}
+
+	// Note: We need to execute CI before the bookmark is removed, so we need to get the change ID
+	// For now, let's use a simple approach and execute CI with the current repository state
+	changeId, err := db.Q.GetBookmark(ctx, req.RepoId, req.BookmarkName)
+	if err == nil {
+		executeCIForBookmarkEvent(ctx, changeId, req.BookmarkName, ci.EventTypeRemove)
+	}
+
+	if err = tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return &protos.RemoveBookmarkResponse{}, nil
 }
 
 func (a *Server) GetBookmarks(ctx context.Context, req *protos.GetBookmarksRequest) (*protos.GetBookmarksResponse, error) {

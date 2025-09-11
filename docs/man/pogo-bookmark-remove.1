@@ -1,0 +1,49 @@
+.nh
+.TH "pogo" "1" "Sep 2025" "pogo/dev" "Pogo Manual"
+
+.SH NAME
+pogo-bookmark-remove - Remove a bookmark from the repository
+
+
+.SH SYNOPSIS
+\fBpogo bookmark remove  [flags]\fP
+
+
+.SH DESCRIPTION
+Remove a bookmark from the repository.
+
+.PP
+This permanently removes the named reference to a change, but does not
+delete the change itself. The change will still exist and can be
+accessed by its change name.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for remove
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--time\fP[=false]
+	Measure command execution time
+
+.PP
+\fB-v\fP, \fB--verbose\fP[=false]
+	Enable verbose debug logging
+
+
+.SH EXAMPLE
+.EX
+  # Remove a bookmark
+  pogo bookmark remove old-version
+
+  # Remove the main bookmark (be careful!)
+  pogo bookmark remove main
+
+  # Using the short alias
+  pogo b rm v1.0.0
+.EE
+
+
+.SH SEE ALSO
+\fBpogo-bookmark(1)\fP

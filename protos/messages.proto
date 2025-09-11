@@ -9,6 +9,7 @@ service Pogo {
   rpc CheckNeededFiles(CheckNeededFilesRequest) returns (CheckNeededFilesResponse);
   rpc PushFull(stream PushFullRequest) returns (PushFullResponse);
   rpc SetBookmark(SetBookmarkRequest) returns (SetBookmarkResponse);
+  rpc RemoveBookmark(RemoveBookmarkRequest) returns (RemoveBookmarkResponse);
   rpc GetBookmarks(GetBookmarksRequest) returns (GetBookmarksResponse);
   rpc NewChange(NewChangeRequest) returns (NewChangeResponse);
   rpc GetDescription(GetDescriptionRequest) returns (GetDescriptionResponse);
@@ -79,6 +80,14 @@ message SetBookmarkRequest {
 }
 
 message SetBookmarkResponse {}
+
+message RemoveBookmarkRequest {
+  Auth auth = 1;
+  int32 repo_id = 2;
+  string bookmark_name = 3;
+}
+
+message RemoveBookmarkResponse {}
 
 message GetBookmarksRequest {
   Auth auth = 1;
