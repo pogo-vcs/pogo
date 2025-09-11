@@ -49,19 +49,20 @@ Requirements:
 			return fmt.Errorf("open client: %w", err)
 		}
 		defer c.Close()
+		configureClientOutputs(cmd, c)
 
 		// Run garbage collection
-		fmt.Println("Running garbage collection...")
+		fmt.Fprintln(c.VerboseOut, "Running garbage collection...")
 		resp, err := c.GarbageCollect(ctx)
 		if err != nil {
-			return fmt.Errorf("garbage collect: %w", err)
+			return fmt.Errorf("run garbage collection: %w", err)
 		}
 
-		// Report results
-		fmt.Printf("Garbage collection completed:\n")
-		fmt.Printf("  Database files deleted: %d\n", resp.DeletedDatabaseFiles)
-		fmt.Printf("  Disk files deleted: %d\n", resp.DeletedDiskFiles)
-		fmt.Printf("  Bytes freed: %d\n", resp.BytesFreed)
+		// Print results
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Garbage collection completed:\n")
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  Database files deleted: %d\n", resp.DeletedDatabaseFiles)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  Disk files deleted: %d\n", resp.DeletedDiskFiles)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  Bytes freed: %d\n", resp.BytesFreed)
 
 		if resp.BytesFreed > 0 {
 			// Convert bytes to human-readable format
@@ -72,7 +73,7 @@ Requirements:
 				size /= 1024
 				unitIdx++
 			}
-			fmt.Printf("  Space freed: %.2f %s\n", size, units[unitIdx])
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  Space freed: %.2f %s\n", size, units[unitIdx])
 		}
 
 		return nil

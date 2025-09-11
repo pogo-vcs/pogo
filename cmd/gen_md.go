@@ -78,13 +78,13 @@ func generateMarkdownDocs(cmd *cobra.Command, targetDir string) error {
 		if _, exists := commandDocs[baseCommandName]; !exists {
 			commandDocs[baseCommandName] = &strings.Builder{}
 			commandDocs[baseCommandName].WriteString("---\n")
-			commandDocs[baseCommandName].WriteString(fmt.Sprintf("title: %s\n", baseCommandName))
+			fmt.Fprintf(commandDocs[baseCommandName], "title: %s\n", baseCommandName)
 
 			rootLevelCmd := c
 			for rootLevelCmd.Parent() != nil && rootLevelCmd.Parent().Name() != "pogo" {
 				rootLevelCmd = rootLevelCmd.Parent()
 			}
-			commandDocs[baseCommandName].WriteString(fmt.Sprintf("description: %s\n", rootLevelCmd.Short))
+			fmt.Fprintf(commandDocs[baseCommandName], "description: %s\n", rootLevelCmd.Short)
 			commandDocs[baseCommandName].WriteString("---\n\n")
 		}
 
@@ -92,7 +92,7 @@ func generateMarkdownDocs(cmd *cobra.Command, targetDir string) error {
 
 		if parentName != "" {
 			level := strings.Count(commandName, " ") + 1
-			doc.WriteString(fmt.Sprintf("%s %s\n\n", strings.Repeat("#", level), commandName))
+			fmt.Fprintf(doc, "%s %s\n\n", strings.Repeat("#", level), commandName)
 		}
 
 		if c.Long != "" {
@@ -103,7 +103,7 @@ func generateMarkdownDocs(cmd *cobra.Command, targetDir string) error {
 
 		doc.WriteString("## Usage\n\n")
 		doc.WriteString("```bash\n")
-		doc.WriteString(fmt.Sprintf("pogo %s", commandName))
+		fmt.Fprintf(doc, "pogo %s", commandName)
 		if c.Use != "" && !strings.HasPrefix(c.Use, commandName) {
 			useParts := strings.SplitN(c.Use, " ", 2)
 			if len(useParts) > 1 {
@@ -112,10 +112,10 @@ func generateMarkdownDocs(cmd *cobra.Command, targetDir string) error {
 		}
 		doc.WriteString("\n```\n\n")
 
-		if c.Aliases != nil && len(c.Aliases) > 0 {
+		if len(c.Aliases) > 0 {
 			doc.WriteString("## Aliases\n\n")
 			for _, alias := range c.Aliases {
-				doc.WriteString(fmt.Sprintf("- `%s`\n", alias))
+				fmt.Fprintf(doc, "- `%s`\n", alias)
 			}
 			doc.WriteString("\n")
 		}
@@ -127,16 +127,16 @@ func generateMarkdownDocs(cmd *cobra.Command, targetDir string) error {
 				if flag.Hidden {
 					return
 				}
-				doc.WriteString(fmt.Sprintf("- `--%s`", flag.Name))
+				fmt.Fprintf(doc, "- `--%s`", flag.Name)
 				if flag.Shorthand != "" {
-					doc.WriteString(fmt.Sprintf(", `-%s`", flag.Shorthand))
+					fmt.Fprintf(doc, ", `-%s`", flag.Shorthand)
 				}
 				if flag.Value.Type() != "bool" {
-					doc.WriteString(fmt.Sprintf(" <%s>", flag.Value.Type()))
+					fmt.Fprintf(doc, " <%s>", flag.Value.Type())
 				}
-				doc.WriteString(fmt.Sprintf(": %s", flag.Usage))
+				fmt.Fprintf(doc, ": %s", flag.Usage)
 				if flag.DefValue != "" && flag.DefValue != "false" && flag.DefValue != "[]" {
-					doc.WriteString(fmt.Sprintf(" (default: `%s`)", flag.DefValue))
+					fmt.Fprintf(doc, " (default: `%s`)", flag.DefValue)
 				}
 				doc.WriteString("\n")
 			})

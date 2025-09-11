@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -13,14 +14,15 @@ import (
 )
 
 type Client struct {
-	ctx      context.Context
-	Token    []byte
-	Grpc     *grpc.ClientConn
-	Pogo     protos.PogoClient
-	Location string
-	server   string
-	repoId   int32
-	changeId int64
+	ctx        context.Context
+	Token      []byte
+	Grpc       *grpc.ClientConn
+	Pogo       protos.PogoClient
+	Location   string
+	server     string
+	repoId     int32
+	changeId   int64
+	VerboseOut io.Writer
 }
 
 func OpenFromFile(ctx context.Context, location string) (*Client, error) {
@@ -51,14 +53,15 @@ func OpenFromFile(ctx context.Context, location string) (*Client, error) {
 	pogoClient := protos.NewPogoClient(grpcClient)
 
 	return &Client{
-		ctx,
-		token,
-		grpcClient,
-		pogoClient,
-		filepath.Dir(file),
-		config.Server,
-		config.RepoId,
-		config.ChangeId,
+		ctx:        ctx,
+		Token:      token,
+		Grpc:       grpcClient,
+		Pogo:       pogoClient,
+		Location:   filepath.Dir(file),
+		server:     config.Server,
+		repoId:     config.RepoId,
+		changeId:   config.ChangeId,
+		VerboseOut: io.Discard,
 	}, nil
 }
 
@@ -114,15 +117,15 @@ func OpenNew(ctx context.Context, addr string, location string) (*Client, error)
 	pogoClient := protos.NewPogoClient(grpcClient)
 
 	return &Client{
-		ctx,
-		token,
-		grpcClient,
-		pogoClient,
-		location,
-		// will be overwritten later:
-		addr,
-		0,
-		0,
+		ctx:        ctx,
+		Token:      token,
+		Grpc:       grpcClient,
+		Pogo:       pogoClient,
+		Location:   location,
+		server:     addr,
+		repoId:     0,
+		changeId:   0,
+		VerboseOut: io.Discard,
 	}, nil
 }
 

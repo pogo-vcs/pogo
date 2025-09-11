@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"time"
 
+	"github.com/pogo-vcs/pogo/client"
 	"github.com/spf13/cobra"
 )
 
@@ -13,6 +15,7 @@ var Version = "dev"
 var (
 	globalTimer     bool
 	globalTimeStart time.Time
+	globalVerbose   bool
 
 	rootCmd = &cobra.Command{
 		Use:   "pogo",
@@ -40,7 +43,7 @@ For more information, visit: https://github.com/pogo-vcs/pogo`,
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
 			if globalTimer {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nTime: %s\n", time.Since(globalTimeStart))
+				_, _ = fmt.Fprintf(cmd.OutOrStderr(), "\nTime: %s\n", time.Since(globalTimeStart))
 			}
 		},
 	}
@@ -63,6 +66,15 @@ func init() {
 
 	// Add global flags
 	rootCmd.PersistentFlags().BoolVar(&globalTimer, "time", false, "Measure command execution time")
+	rootCmd.PersistentFlags().BoolVarP(&globalVerbose, "verbose", "v", false, "Enable verbose debug logging")
+}
+
+func configureClientOutputs(cmd *cobra.Command, c *client.Client) {
+	if globalVerbose {
+		c.VerboseOut = cmd.OutOrStderr()
+	} else {
+		c.VerboseOut = io.Discard
+	}
 }
 
 func Execute() {

@@ -85,6 +85,7 @@ pogo b s main`,
 				return errors.Join(errors.New("open client"), err)
 			}
 			defer c.Close()
+			configureClientOutputs(cmd, c)
 
 			if err := c.SetBookmark(bookmarkName, changeName); err != nil {
 				return errors.Join(errors.New("set bookmark"), err)
@@ -120,6 +121,7 @@ see important versions, releases, and the current "main" branch.`,
 				return errors.Join(errors.New("open client"), err)
 			}
 			defer c.Close()
+			configureClientOutputs(cmd, c)
 
 			bookmarks, err := c.GetBookmarks()
 			if err != nil {
@@ -127,12 +129,12 @@ see important versions, releases, and the current "main" branch.`,
 			}
 
 			if len(bookmarks) == 0 {
-				fmt.Println("No bookmarks found")
+				_, _ = fmt.Fprintln(cmd.OutOrStderr(), "No bookmarks found")
 				return nil
 			}
 
 			for _, bookmark := range bookmarks {
-				fmt.Printf("%s -> %s\n", bookmark.Name, bookmark.ChangeName)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s -> %s\n", bookmark.Name, bookmark.ChangeName)
 			}
 
 			return nil

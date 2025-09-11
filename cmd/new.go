@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
 	"github.com/pogo-vcs/pogo/client"
@@ -59,24 +60,28 @@ pogo new main`,
 			return errors.Join(errors.New("open client"), err)
 		}
 		defer c.Close()
+		configureClientOutputs(cmd, c)
 
-		changeId, revision, err := c.NewChange(descriptionPtr, args)
+		changeId, changeName, err := c.NewChange(descriptionPtr, args)
 		if err != nil {
 			return errors.Join(errors.New("create new change"), err)
 		}
 
-		if err = c.Edit(revision); err != nil {
+		if err = c.Edit(changeName); err != nil {
 			return errors.Join(errors.New("edit revision"), err)
 		}
 
 		c.ConfigSetChangeId(changeId)
 
-		// Display the log
+		// Print the created change name to stdout (primary output)
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), changeName)
+
+		// Display the log to stderr (additional helpful info)
 		logOutput, err := c.Log(10, tty.IsInteractive())
 		if err != nil {
 			return errors.Join(errors.New("fetch log"), err)
 		}
-		cmd.Print(logOutput)
+		_, _ = fmt.Fprintln(cmd.OutOrStderr(), logOutput)
 
 		return nil
 	},

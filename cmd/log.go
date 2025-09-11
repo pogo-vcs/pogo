@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
 	"github.com/pogo-vcs/pogo/client"
@@ -51,13 +52,14 @@ pogo log --color=false`,
 				return errors.Join(errors.New("open client"), err)
 			}
 			defer c.Close()
+			configureClientOutputs(cmd, c)
 
 			// Fetch and display the log output
 			logOutput, err := c.Log(logNumberFlag, logColorFlag)
 			if err != nil {
 				return errors.Join(errors.New("fetch log"), err)
 			}
-			cmd.Print(logOutput)
+			_, _ = fmt.Fprintln(cmd.OutOrStderr(), logOutput)
 
 			return nil
 		},

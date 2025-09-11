@@ -43,7 +43,7 @@ func (c *Client) PushFull(force bool) error {
 	defer cancel()
 
 	// First, collect all file hashes
-	fmt.Println("Collecting file hashes...")
+	fmt.Fprintln(c.VerboseOut, "Collecting file hashes...")
 	type fileInfo struct {
 		file       LocalFile
 		hash       []byte
@@ -66,7 +66,7 @@ func (c *Client) PushFull(force bool) error {
 	}
 
 	// Check which files are needed by the server
-	fmt.Printf("Checking which of %d files need to be uploaded...\n", len(files))
+	fmt.Fprintf(c.VerboseOut, "Checking which of %d files need to be uploaded...\n", len(files))
 	checkResp, err := c.Pogo.CheckNeededFiles(ctx, &protos.CheckNeededFilesRequest{
 		Auth:       c.GetAuth(),
 		RepoId:     c.repoId,
@@ -82,7 +82,7 @@ func (c *Client) PushFull(force bool) error {
 		hashStr := base64.URLEncoding.EncodeToString(hash)
 		neededHashes[hashStr] = true
 	}
-	fmt.Printf("Server needs %d new files\n", len(neededHashes))
+	fmt.Fprintf(c.VerboseOut, "Server needs %d new files\n", len(neededHashes))
 
 	// Now push with the optimized protocol
 	stream, err := c.Pogo.PushFull(ctx)
@@ -121,9 +121,9 @@ func (c *Client) PushFull(force bool) error {
 		needsContent := neededHashes[hashStr]
 
 		if needsContent {
-			fmt.Printf("Pushing new file: %s\n", fileInfo.file.Name)
+			fmt.Fprintf(c.VerboseOut, "Pushing new file: %s\n", fileInfo.file.Name)
 		} else {
-			fmt.Printf("Skipping existing file: %s\n", fileInfo.file.Name)
+			fmt.Fprintf(c.VerboseOut, "Skipping existing file: %s\n", fileInfo.file.Name)
 		}
 
 		// Send file header with hash
@@ -181,7 +181,7 @@ func (c *Client) PushFull(force bool) error {
 	}
 
 	// Wait for response
-	fmt.Println("Waiting for response")
+	fmt.Fprintln(c.VerboseOut, "Waiting for response")
 	_, err = stream.CloseAndRecv()
 	if err != nil {
 		return errors.Join(errors.New("recv response"), err)

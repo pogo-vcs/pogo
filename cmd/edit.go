@@ -58,6 +58,7 @@ pogo checkout feature-branch`,
 			return errors.Join(errors.New("open client"), err)
 		}
 		defer c.Close()
+		configureClientOutputs(cmd, c)
 
 		if err := c.Edit(revision); err != nil {
 			return errors.Join(errors.New("edit revision"), err)

@@ -44,6 +44,7 @@ pogo push -f`,
 			return errors.Join(errors.New("open client"), err)
 		}
 		defer c.Close()
+		configureClientOutputs(cmd, c)
 
 		if err := c.PushFull(forcePush); err != nil {
 			return errors.Join(errors.New("push full"), err)

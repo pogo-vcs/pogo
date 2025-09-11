@@ -35,6 +35,7 @@ pogo init --server pogo.example.com:8080 --name open-source-project --public`,
 			return fmt.Errorf("open client: %w", err)
 		}
 		defer c.Close()
+		configureClientOutputs(cmd, c)
 
 		repoId, changeId, err := c.Init(
 			cmd.Flag("name").Value.String(),
@@ -48,7 +49,7 @@ pogo init --server pogo.example.com:8080 --name open-source-project --public`,
 			return fmt.Errorf("push full: %w", err)
 		}
 
-		cmd.Printf("Repository ID: %d\n", repoId)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Repository ID: %d\n", repoId)
 
 		if err := (&client.Repo{
 			Server:   cmd.Flag("server").Value.String(),

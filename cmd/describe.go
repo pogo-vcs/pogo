@@ -55,6 +55,7 @@ pogo rephrase -m "docs: update API documentation"`,
 				return errors.Join(errors.New("open client"), err)
 			}
 			defer c.Close()
+			configureClientOutputs(cmd, c)
 
 			var newDescription string
 			if cmd.Flags().Changed("description") {

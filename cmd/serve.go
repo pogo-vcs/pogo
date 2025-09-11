@@ -81,18 +81,18 @@ docker run -p 8080:8080 -e DATABASE_URL=... ghcr.io/pogo-vcs/pogo:alpine`,
 		// Set up cron job for automatic garbage collection at 3 AM daily
 		c := cron.New()
 		_, err := c.AddFunc("0 3 * * *", func() {
-			fmt.Println("Running scheduled garbage collection...")
+			fmt.Fprintln(os.Stderr, "Running scheduled garbage collection...")
 			ctx := context.Background()
 			resp, err := server.RunGarbageCollection(ctx)
 			if err != nil {
-				fmt.Printf("Error during scheduled garbage collection: %v\n", err)
+				fmt.Fprintf(os.Stderr, "Error during scheduled garbage collection: %v\n", err)
 				return
 			}
-			fmt.Printf("Scheduled GC completed: deleted %d database files, %d disk files, freed %d bytes\n",
+			fmt.Fprintf(os.Stderr, "Scheduled GC completed: deleted %d database files, %d disk files, freed %d bytes\n",
 				resp.DeletedDatabaseFiles, resp.DeletedDiskFiles, resp.BytesFreed)
 		})
 		if err != nil {
-			cmd.Printf("Warning: Failed to schedule automatic garbage collection: %v\n", err)
+			_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Warning: Failed to schedule automatic garbage collection: %v\n", err)
 		} else {
 			c.Start()
 			defer c.Stop()

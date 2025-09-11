@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
 	"github.com/pogo-vcs/pogo/auth"
@@ -59,8 +60,8 @@ pogo whoami
 			return errors.Join(errors.New("get token"), err)
 		}
 
-		cmd.Printf("Server: %s\n", repo.Server)
-		cmd.Printf("Personal Access Token: %s\n", auth.Encode(token))
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Server: %s\n", repo.Server)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Personal Access Token: %s\n", auth.Encode(token))
 		return nil
 	},
 }

@@ -115,9 +115,9 @@ The command will:
 		}
 
 		if existingToken != nil {
-			cmd.Printf("Token updated successfully for %s\n", server)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Token updated successfully for %s\n", server)
 		} else {
-			cmd.Printf("Token set successfully for %s\n", server)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Token set successfully for %s\n", server)
 		}
 
 		return nil
@@ -190,7 +190,7 @@ pogo token remove --server old.server.com:8080
 		}
 
 		if !confirmDelete {
-			cmd.Println("Token removal cancelled")
+			_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Token removal cancelled")
 			return nil
 		}
 
@@ -199,7 +199,7 @@ pogo token remove --server old.server.com:8080
 			return fmt.Errorf("failed to remove token: %w", err)
 		}
 
-		cmd.Printf("Token removed successfully for %s\n", server)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Token removed successfully for %s\n", server)
 		return nil
 	},
 }

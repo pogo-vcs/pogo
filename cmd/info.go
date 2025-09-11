@@ -78,6 +78,7 @@ pogo info --format '{{.IsInConflict}}'`,
 			return nil
 		}
 		defer c.Close()
+		configureClientOutputs(cmd, c)
 
 		infoResponse, err := c.Info()
 		if err != nil {
