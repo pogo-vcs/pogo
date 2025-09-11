@@ -27,6 +27,7 @@ Pogo is a centralized version control system designed to be straightforward and 
 - **🌳 No Named Branches:** Create branches by adding multiple children to a change and merge them by creating a new change with multiple parents. Changes are automaticall named.
 - **🔖 Bookmarks:** Tag versions with bookmarks, like `main` for the current version or `v1.0.0` for a specific version. `main` is treated like a default branch in Git.
 - **📦 Go Module Support:** Import a Pogo repository as a Go module, no additional configuration or software required.
+- **🔒 Adaptive Security:** Automatically detects and uses HTTPS/TLS when available, gracefully falls back to HTTP when needed.
 
 ## 🚀 Installation
 

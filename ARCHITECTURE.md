@@ -387,7 +387,14 @@ sequenceDiagram
 - HTTP/2 with h2c for protocol detection
 - Shared business logic between interfaces
 
-### 2. Stream-Based File Transfer
+### 2. Adaptive TLS/HTTPS Detection
+
+- Client automatically detects if server supports TLS/HTTPS
+- Falls back gracefully to HTTP if TLS is not available
+- Works seamlessly with reverse proxies that provide TLS termination
+- Provides verbose logging about connection security level
+
+### 3. Stream-Based File Transfer
 
 - gRPC streaming for efficient large file handling
 - Chunked transfer with headers and content separation

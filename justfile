@@ -42,7 +42,7 @@ test:
     @just prebuild
     just docs
     go build -tags=fakekeyring ./...
-    go test -tags=fakekeyring ./... -count=1 -v
+    go test -tags=fakekeyring ./...
 
 install:
     @just prebuild
