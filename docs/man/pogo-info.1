@@ -1,3 +1,4 @@
+'\" t
 .nh
 .TH "pogo" "1" "Sep 2025" "pogo/dev" "Pogo Manual"
 
@@ -14,33 +15,65 @@ Display information about the current working copy and repository status.
 
 .PP
 This command is particularly useful for:
-- Checking which change you're currently working on
-- Seeing if there are any conflicts
-- Integrating Pogo status into your shell prompt
-- Scripting and automation
+.IP \(bu 2
+Checking which change you're currently working on
+.IP \(bu 2
+Seeing if there are any conflicts
+.IP \(bu 2
+Integrating Pogo status into your shell prompt
+.IP \(bu 2
+Scripting and automation
 
 .PP
 The output can be customized using Go's text/template syntax with the --format flag.
 
 .PP
 Available template variables:
-  {{.ChangeNamePrefix}}   - The adjective part of the change name
-.br
-  {{.ChangeNameSuffix}}   - The noun and number part of the change name
-.br
-  {{.ChangeName}}         - The full change name (prefix + suffix)
-.br
-  {{.ChangeDescription}}  - The description of the current change
-.br
-  {{.Bookmarks}}          - Array of bookmarks pointing to this change
-.br
-  {{.IsInConflict}}       - Boolean indicating if the change has conflicts
-.br
-  {{.Error}}              - Any error message (connection issues, etc.)
+
+.TS
+allbox;
+l l 
+l l .
+\fBVariable\fP	\fBDescription\fP
+\fB{{.ChangeNamePrefix}}\fR	T{
+The adjective part of the change name
+T}
+\fB{{.ChangeNameSuffix}}\fR	T{
+The noun and number part of the change name
+T}
+\fB{{.ChangeName}}\fR	T{
+The full change name (prefix + suffix)
+T}
+\fB{{.ChangeDescription}}\fR	T{
+The description of the current change
+T}
+\fB{{.Bookmarks}}\fR	T{
+Array of bookmarks pointing to this change
+T}
+\fB{{.IsInConflict}}\fR	T{
+Boolean indicating if the change has conflicts
+T}
+\fB{{.Error}}\fR	T{
+Any error message (connection issues, etc.)
+T}
+.TE
 
 .PP
 The default format shows a colored prompt-friendly output with conflict
 indicators and bookmark information.
+
+.PP
+Fish shell integration:
+
+.EX
+function fish_vcs_prompt --description 'Print all vcs prompts'
+    pogo info $argv
+    or fish_jj_prompt $argv
+    or fish_git_prompt $argv
+    or fish_hg_prompt $argv
+    or fish_fossil_prompt $argv
+end
+.EE
 
 
 .SH OPTIONS
