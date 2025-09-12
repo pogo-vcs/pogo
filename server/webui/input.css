@@ -15,6 +15,9 @@
 .readme ol {
   list-style-type: decimal;
 }
+.readme pre {
+  @apply rounded-md border-ctp-surface0 border;
+}
 
 pre > code.hljs[data-highlighted="yes"] {
   @apply bg-ctp-crust rounded-md;
