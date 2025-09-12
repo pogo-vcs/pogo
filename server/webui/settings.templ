@@ -15,143 +15,143 @@ templ Settings() {
 				<p>You must be logged in to access repository settings.</p>
 			}
 		}
-		return
-	}
-	if repoIdStr, ok := GetParam(ctx, "id"); ok {
-		if repoId, err := strconv.ParseInt(repoIdStr, 10, 32); err == nil {
-			if repo, err := db.Q.GetRepository(ctx, int32(repoId)); err == nil {
-				{{ user := GetUser(ctx) }}
-				{{ hasAccess := false }}
-				if user != nil {
-					if accessCheck, err := db.Q.CheckUserRepositoryAccess(ctx, repo.ID, user.ID); err == nil {
-						{{ hasAccess = accessCheck }}
-					}
-				}
-				if !hasAccess {
-					@layout("Unauthorized") {
-						@components.Header(user)
-						@components.Main() {
-							<h1 class="text-2xl font-bold mb-4">Unauthorized</h1>
-							<p>You do not have access to manage this repository.</p>
+	} else {
+		if repoIdStr, ok := GetParam(ctx, "id"); ok {
+			if repoId, err := strconv.ParseInt(repoIdStr, 10, 32); err == nil {
+				if repo, err := db.Q.GetRepository(ctx, int32(repoId)); err == nil {
+					{{ user := GetUser(ctx) }}
+					{{ hasAccess := false }}
+					if user != nil {
+						if accessCheck, err := db.Q.CheckUserRepositoryAccess(ctx, repo.ID, user.ID); err == nil {
+							{{ hasAccess = accessCheck }}
 						}
 					}
-					return
-				}
-				@layout(repo.Name + " - Settings") {
-					@components.Header(user) {
-						<a
-							href={ templ.URL("/repository/" + strconv.Itoa(int(repo.ID))) }
-							class="rounded-md px-2 py-1 bg-ctp-surface0 hover:bg-ctp-surface1 active:bg-ctp-surface2 active:text-ctp-text"
-						>
-							Back to Repository
-						</a>
-					}
-					@components.Main() {
-						<h1 class="text-2xl font-bold mb-6">Repository Settings</h1>
-						<section class="mb-8 p-4 bg-ctp-mantle rounded-lg">
-							<h2 class="text-xl font-semibold mb-4">Repository Name</h2>
-							<form method="POST" action={ templ.URL("/api/repository/" + strconv.Itoa(int(repo.ID)) + "/rename") } class="space-y-4">
-								<div>
-									<label for="name" class="block text-sm font-medium mb-2">Repository Name</label>
-									<input
-										type="text"
-										id="name"
-										name="name"
-										value={ repo.Name }
-										required
-										class="w-full px-3 py-2 bg-ctp-surface0 rounded-md border border-ctp-surface1 focus:outline-none focus:ring-2 focus:ring-ctp-blue focus:border-transparent"
-									/>
-								</div>
-								<button
-									type="submit"
-									class="cursor-pointer px-4 py-2 bg-ctp-blue text-ctp-base font-medium rounded-md hover:bg-ctp-sapphire focus:outline-none focus:ring-2 focus:ring-ctp-blue focus:ring-offset-2 focus:ring-offset-ctp-base"
+					if !hasAccess {
+						@layout("Unauthorized") {
+							@components.Header(user)
+							@components.Main() {
+								<h1 class="text-2xl font-bold mb-4">Unauthorized</h1>
+								<p>You do not have access to manage this repository.</p>
+							}
+						}
+					} else {
+						@layout(repo.Name + " - Settings") {
+							@components.Header(user) {
+								<a
+									href={ templ.URL("/repository/" + strconv.Itoa(int(repo.ID))) }
+									class="rounded-md px-2 py-1 bg-ctp-surface0 hover:bg-ctp-surface1 active:bg-ctp-surface2 active:text-ctp-text"
 								>
-									Rename Repository
-								</button>
-							</form>
-						</section>
-						<section class="mb-8 p-4 bg-ctp-mantle rounded-lg">
-							<h2 class="text-xl font-semibold mb-4">User Access</h2>
-							<div class="mb-6">
-								<h3 class="text-lg font-medium mb-3">Current Users with Access</h3>
-								if users, err := db.Q.GetRepositoryUsers(ctx, repo.ID); err == nil {
-									if len(users) > 0 {
-										<ul class="space-y-2">
-											for _, u := range users {
-												<li class="flex justify-between items-center p-3 bg-ctp-surface0 rounded-md">
-													<span class="font-medium">{ u.Username }</span>
-													if u.ID != user.ID {
-														<form method="POST" action={ templ.URL("/api/repository/" + strconv.Itoa(int(repo.ID)) + "/revoke") } class="inline">
-															<input type="hidden" name="username" value={ u.Username }/>
-															<button
-																type="submit"
-																class="cursor-pointer px-3 py-1 bg-ctp-red text-ctp-base text-sm font-medium rounded-md hover:bg-ctp-maroon focus:outline-none focus:ring-2 focus:ring-ctp-red focus:ring-offset-2 focus:ring-offset-ctp-base"
-															>
-																Revoke Access
-															</button>
-														</form>
-													} else {
-														<span class="text-sm text-ctp-subtext0">(You)</span>
+									Back to Repository
+								</a>
+							}
+							@components.Main() {
+								<h1 class="text-2xl font-bold mb-6">Repository Settings</h1>
+								<section class="mb-8 p-4 bg-ctp-mantle rounded-lg">
+									<h2 class="text-xl font-semibold mb-4">Repository Name</h2>
+									<form method="POST" action={ templ.URL("/api/repository/" + strconv.Itoa(int(repo.ID)) + "/rename") } class="space-y-4">
+										<div>
+											<label for="name" class="block text-sm font-medium mb-2">Repository Name</label>
+											<input
+												type="text"
+												id="name"
+												name="name"
+												value={ repo.Name }
+												required
+												class="w-full px-3 py-2 bg-ctp-surface0 rounded-md border border-ctp-surface1 focus:outline-none focus:ring-2 focus:ring-ctp-blue focus:border-transparent"
+											/>
+										</div>
+										<button
+											type="submit"
+											class="cursor-pointer px-4 py-2 bg-ctp-blue text-ctp-base font-medium rounded-md hover:bg-ctp-sapphire focus:outline-none focus:ring-2 focus:ring-ctp-blue focus:ring-offset-2 focus:ring-offset-ctp-base"
+										>
+											Rename Repository
+										</button>
+									</form>
+								</section>
+								<section class="mb-8 p-4 bg-ctp-mantle rounded-lg">
+									<h2 class="text-xl font-semibold mb-4">User Access</h2>
+									<div class="mb-6">
+										<h3 class="text-lg font-medium mb-3">Current Users with Access</h3>
+										if users, err := db.Q.GetRepositoryUsers(ctx, repo.ID); err == nil {
+											if len(users) > 0 {
+												<ul class="space-y-2">
+													for _, u := range users {
+														<li class="flex justify-between items-center p-3 bg-ctp-surface0 rounded-md">
+															<span class="font-medium">{ u.Username }</span>
+															if user != nil && u.ID != user.ID {
+																<form method="POST" action={ templ.URL("/api/repository/" + strconv.Itoa(int(repo.ID)) + "/revoke") } class="inline">
+																	<input type="hidden" name="username" value={ u.Username }/>
+																	<button
+																		type="submit"
+																		class="cursor-pointer px-3 py-1 bg-ctp-red text-ctp-base text-sm font-medium rounded-md hover:bg-ctp-maroon focus:outline-none focus:ring-2 focus:ring-ctp-red focus:ring-offset-2 focus:ring-offset-ctp-base"
+																	>
+																		Revoke Access
+																	</button>
+																</form>
+															} else {
+																<span class="text-sm text-ctp-subtext0">(You)</span>
+															}
+														</li>
 													}
-												</li>
+												</ul>
+											} else {
+												<p class="text-ctp-subtext0">No users have access to this repository.</p>
 											}
-										</ul>
-									} else {
-										<p class="text-ctp-subtext0">No users have access to this repository.</p>
-									}
-								} else {
-									<p class="text-ctp-red">Failed to load users.</p>
-								}
-							</div>
-							<div>
-								<h3 class="text-lg font-medium mb-3">Grant Access to User</h3>
-								<form method="POST" action={ templ.URL("/api/repository/" + strconv.Itoa(int(repo.ID)) + "/grant") } class="space-y-4">
-									<div>
-										<label for="username" class="block text-sm font-medium mb-2">Username</label>
-										<input
-											type="text"
-											id="username"
-											name="username"
-											required
-											placeholder="Enter username"
-											class="w-full px-3 py-2 bg-ctp-surface0 rounded-md border border-ctp-surface1 focus:outline-none focus:ring-2 focus:ring-ctp-blue focus:border-transparent"
-										/>
+										} else {
+											<p class="text-ctp-red">Failed to load users.</p>
+										}
 									</div>
-									<button
-										type="submit"
-										class="cursor-pointer px-4 py-2 bg-ctp-green text-ctp-base font-medium rounded-md hover:bg-ctp-teal focus:outline-none focus:ring-2 focus:ring-ctp-green focus:ring-offset-2 focus:ring-offset-ctp-base"
-									>
-										Grant Access
-									</button>
-								</form>
-							</div>
-						</section>
+									<div>
+										<h3 class="text-lg font-medium mb-3">Grant Access to User</h3>
+										<form method="POST" action={ templ.URL("/api/repository/" + strconv.Itoa(int(repo.ID)) + "/grant") } class="space-y-4">
+											<div>
+												<label for="username" class="block text-sm font-medium mb-2">Username</label>
+												<input
+													type="text"
+													id="username"
+													name="username"
+													required
+													placeholder="Enter username"
+													class="w-full px-3 py-2 bg-ctp-surface0 rounded-md border border-ctp-surface1 focus:outline-none focus:ring-2 focus:ring-ctp-blue focus:border-transparent"
+												/>
+											</div>
+											<button
+												type="submit"
+												class="cursor-pointer px-4 py-2 bg-ctp-green text-ctp-base font-medium rounded-md hover:bg-ctp-teal focus:outline-none focus:ring-2 focus:ring-ctp-green focus:ring-offset-2 focus:ring-offset-ctp-base"
+											>
+												Grant Access
+											</button>
+										</form>
+									</div>
+								</section>
+							}
+						}
+					}
+				} else {
+					@layout("Repository Not Found") {
+						@components.Header(GetUser(ctx))
+						@components.Main() {
+							<h1 class="text-2xl font-bold mb-4">Repository Not Found</h1>
+							<p>The repository you are looking for does not exist.</p>
+						}
 					}
 				}
 			} else {
-				@layout("Repository Not Found") {
+				@layout("Invalid Repository ID") {
 					@components.Header(GetUser(ctx))
 					@components.Main() {
-						<h1 class="text-2xl font-bold mb-4">Repository Not Found</h1>
-						<p>The repository you are looking for does not exist.</p>
+						<h1 class="text-2xl font-bold mb-4">Invalid Repository ID</h1>
+						<p>The repository ID is invalid.</p>
 					}
 				}
 			}
 		} else {
-			@layout("Invalid Repository ID") {
+			@layout("Missing Repository ID") {
 				@components.Header(GetUser(ctx))
 				@components.Main() {
-					<h1 class="text-2xl font-bold mb-4">Invalid Repository ID</h1>
-					<p>The repository ID is invalid.</p>
+					<h1 class="text-2xl font-bold mb-4">Missing Repository ID</h1>
+					<p>No repository ID was provided.</p>
 				}
-			}
-		}
-	} else {
-		@layout("Missing Repository ID") {
-			@components.Header(GetUser(ctx))
-			@components.Main() {
-				<h1 class="text-2xl font-bold mb-4">Missing Repository ID</h1>
-				<p>No repository ID was provided.</p>
 			}
 		}
 	}
