@@ -9,7 +9,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -305,8 +304,8 @@ func handleZipDownload(w http.ResponseWriter, r *http.Request) {
 	defer zipWriter.Close()
 
 	for _, vcsFile := range vcsFiles {
-		filePath := filecontents.GetFilePathFromHash(base64.URLEncoding.EncodeToString(vcsFile.ContentHash))
-		f, err := os.Open(filePath)
+		hashStr := base64.URLEncoding.EncodeToString(vcsFile.ContentHash)
+		f, err := filecontents.OpenFileByHash(hashStr)
 		if err != nil {
 			// Can't use http.Error after headers are sent, log the error instead
 			log.Printf("Failed to open file %q for zip: %s", vcsFile.Name, err.Error())

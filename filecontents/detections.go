@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"unicode/utf16"
 	"unicode/utf8"
+
+	"github.com/pogo-vcs/pogo/compressions"
 )
 
 type (
@@ -1054,23 +1057,81 @@ func ThreeWayMergeResultType(a, o, b FileType) FileType {
 }
 
 func HasConflictMarkers(filePath string) (bool, error) {
-	fileType, err := DetectFileType(filePath)
-	if err != nil {
-		return false, errors.Join(fmt.Errorf("detect file type %s", filePath), err)
+	// For object store files, we need to extract the hash and use the decompression path
+	hashStr := filepath.Base(filepath.Dir(filePath)) + filepath.Base(filePath)
+	if len(hashStr) >= 2 {
+		// This looks like it might be an object store path, try using OpenFileByHashWithType
+		reader, fileType, err := OpenFileByHashWithType(hashStr)
+		if err == nil {
+			defer reader.Close()
+
+			if fileType.Binary {
+				return false, nil
+			}
+
+			scanner := bytes.NewBuffer(nil)
+			_, err = io.Copy(scanner, reader)
+			if err != nil {
+				return false, errors.Join(fmt.Errorf("read file %s", filePath), err)
+			}
+
+			content := scanner.Bytes()
+			hasStart := bytes.Contains(content, []byte("<<<<<<<"))
+			hasSeparator := bytes.Contains(content, []byte("======="))
+			hasEnd := bytes.Contains(content, []byte(">>>>>>>"))
+
+			return hasStart && hasSeparator && hasEnd, nil
+		}
 	}
+
+	// Fallback to handle files directly (with potential compression)
+	var reader io.ReadCloser
+	var fileType FileType
+	var err error
+	var file *os.File
+
+	// Check if file is compressed and handle accordingly
+	if isZstdCompressed(filePath) {
+		// For compressed files, create temporary decompressed file for type detection
+		tempFile, err := createTempDecompressedFile(filePath)
+		if err != nil {
+			return false, errors.Join(fmt.Errorf("create temp decompressed file %s", filePath), err)
+		}
+		defer os.Remove(tempFile)
+
+		fileType, err = DetectFileType(tempFile)
+		if err != nil {
+			return false, errors.Join(fmt.Errorf("detect file type %s", filePath), err)
+		}
+
+		// Open compressed file with decompression
+		file, err = os.Open(filePath)
+		if err != nil {
+			return false, errors.Join(fmt.Errorf("open file %s", filePath), err)
+		}
+		reader = compressions.Decompress(file)
+	} else {
+		// For uncompressed files, handle normally
+		fileType, err = DetectFileType(filePath)
+		if err != nil {
+			return false, errors.Join(fmt.Errorf("detect file type %s", filePath), err)
+		}
+
+		file, err = os.Open(filePath)
+		if err != nil {
+			return false, errors.Join(fmt.Errorf("open file %s", filePath), err)
+		}
+		reader = file
+	}
+
+	defer reader.Close()
 
 	if fileType.Binary {
 		return false, nil
 	}
 
-	file, err := os.Open(filePath)
-	if err != nil {
-		return false, errors.Join(fmt.Errorf("open file %s", filePath), err)
-	}
-	defer file.Close()
-
 	scanner := bytes.NewBuffer(nil)
-	_, err = io.Copy(scanner, file)
+	_, err = io.Copy(scanner, reader)
 	if err != nil {
 		return false, errors.Join(fmt.Errorf("read file %s", filePath), err)
 	}

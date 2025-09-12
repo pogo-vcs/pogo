@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"os"
+	"io"
 	"path/filepath"
 
 	"github.com/pogo-vcs/pogo/db"
@@ -41,8 +41,14 @@ func isCIConfigFile(filename string) bool {
 }
 
 func readFileContent(contentHash []byte) ([]byte, error) {
-	filePath := filecontents.GetFilePathFromHash(base64.URLEncoding.EncodeToString(contentHash))
-	return os.ReadFile(filePath)
+	hashStr := base64.URLEncoding.EncodeToString(contentHash)
+	reader, err := filecontents.OpenFileByHash(hashStr)
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+
+	return io.ReadAll(reader)
 }
 
 func executeCIForBookmarkEvent(ctx context.Context, changeId int64, bookmarkName string, eventType ci.EventType) {

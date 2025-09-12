@@ -1,20 +1,18 @@
 //go:build cgo
-// +build cgo
 
-package utils
+package compressions
 
 import (
 	"io"
+	"sync"
 
 	"github.com/DataDog/zstd"
 )
 
-func Compress(r io.Reader) io.Reader {
+func Compress(r io.ReadCloser) io.ReadCloser {
 	pr, pw := io.Pipe()
 
 	go func() {
-		// defer r.Close()
-
 		zw := zstd.NewWriterLevel(pw, zstd.DefaultCompression)
 
 		_, copyErr := io.Copy(zw, r)
@@ -26,19 +24,17 @@ func Compress(r io.Reader) io.Reader {
 		} else if closeErr != nil {
 			pw.CloseWithError(closeErr)
 		} else {
-			pw.Close()
+			_ = pw.Close()
 		}
 	}()
 
-	return pr
+	return &closeWrapper{pr, r, sync.Mutex{}}
 }
 
-func Decompress(r io.Reader) io.Reader {
+func Decompress(r io.ReadCloser) io.ReadCloser {
 	pr, pw := io.Pipe()
 
 	go func() {
-		// defer r.Close()
-
 		zr := zstd.NewReader(r)
 		defer zr.Close()
 
@@ -47,9 +43,9 @@ func Decompress(r io.Reader) io.Reader {
 		if copyErr != nil {
 			pw.CloseWithError(copyErr)
 		} else {
-			pw.Close()
+			_ = pw.Close()
 		}
 	}()
 
-	return pr
+	return &closeWrapper{pr, r, sync.Mutex{}}
 }

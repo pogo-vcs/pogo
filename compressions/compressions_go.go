@@ -1,15 +1,15 @@
 //go:build !cgo
-// +build !cgo
 
 package compressions
 
 import (
 	"io"
+	"sync"
 
 	"github.com/klauspost/compress/zstd"
 )
 
-func Compress(r io.Reader) io.Reader {
+func Compress(r io.ReadCloser) io.ReadCloser {
 	pr, pw := io.Pipe()
 
 	go func() {
@@ -34,10 +34,10 @@ func Compress(r io.Reader) io.Reader {
 		}
 	}()
 
-	return pr
+	return &closeWrapper{pr, r, sync.Mutex{}}
 }
 
-func Decompress(r io.Reader) io.Reader {
+func Decompress(r io.ReadCloser) io.ReadCloser {
 	pr, pw := io.Pipe()
 
 	go func() {
@@ -59,5 +59,5 @@ func Decompress(r io.Reader) io.Reader {
 		}
 	}()
 
-	return pr
+	return &closeWrapper{pr, r, sync.Mutex{}}
 }

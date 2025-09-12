@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"html"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -21,11 +20,10 @@ import (
 
 // RenderFile renders a file based on its extension
 func RenderFile(filename string, hash string) (string, error) {
-	// Open the file using the filecontents abstraction
-	filePath := filecontents.GetFilePathFromHash(hash)
-	f, err := os.Open(filePath)
+	// Open the file using the filecontents abstraction with decompression
+	f, err := filecontents.OpenFileByHash(hash)
 	if err != nil {
-		return "", fmt.Errorf("open %s hash %s, path %s: %w", filename, hash, filePath, err)
+		return "", fmt.Errorf("open %s hash %s: %w", filename, hash, err)
 	}
 	defer f.Close()
 

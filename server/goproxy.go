@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"os"
 	"path"
 	"strings"
 	"time"
@@ -105,8 +104,8 @@ func (c *goproxyCacher) Get(ctx context.Context, name string) (io.ReadCloser, er
 				if err != nil {
 					return nil, errors.Join(fmt.Errorf("failed to get go.mod hash for bookmark %q", bookmark), err)
 				}
-				goModPath := filecontents.GetFilePathFromHash(base64.URLEncoding.EncodeToString(goModHash))
-				f, err := os.Open(goModPath)
+				hashStr := base64.URLEncoding.EncodeToString(goModHash)
+				f, err := filecontents.OpenFileByHash(hashStr)
 				if err != nil {
 					return nil, errors.Join(fmt.Errorf("failed to open go.mod file for bookmark %q", bookmark), err)
 				}
@@ -119,8 +118,8 @@ func (c *goproxyCacher) Get(ctx context.Context, name string) (io.ReadCloser, er
 				buf := new(bytes.Buffer)
 				zipWriter := zip.NewWriter(buf)
 				for _, vcsFile := range vcsFiles {
-					filePath := filecontents.GetFilePathFromHash(base64.URLEncoding.EncodeToString(vcsFile.ContentHash))
-					f, err := os.Open(filePath)
+					hashStr := base64.URLEncoding.EncodeToString(vcsFile.ContentHash)
+					f, err := filecontents.OpenFileByHash(hashStr)
 					if err != nil {
 						zipWriter.Close()
 						return nil, errors.Join(fmt.Errorf("failed to open file %q for zip: %w", vcsFile.Name, err), err)
