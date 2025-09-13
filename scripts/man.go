@@ -24,6 +24,9 @@ func Main() error {
 	}
 	manDir := os.Args[1]
 
+	cmd.RootCmd.InitDefaultCompletionCmd()
+	cmd.RootCmd.InitDefaultHelpCmd()
+
 	hdr := &doc.GenManHeader{
 		Title:   cmd.RootCmd.Name(),
 		Section: "1",

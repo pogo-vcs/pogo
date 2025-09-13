@@ -29,6 +29,9 @@ func Main() error {
 		return fmt.Errorf("failed to create target directory: %w", err)
 	}
 
+	cmd.RootCmd.InitDefaultCompletionCmd()
+	cmd.RootCmd.InitDefaultHelpCmd()
+
 	entries, err := os.ReadDir(targetDir)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to read target directory: %w", err)
