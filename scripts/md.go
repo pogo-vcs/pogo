@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,18 +11,8 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func main() {
-	if err := Main(); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %s\n", err)
-		os.Exit(1)
-	}
-}
-
-func Main() error {
-	if len(os.Args) <= 1 {
-		return errors.New("missing target directory")
-	}
-	targetDir := os.Args[1]
+func Md(targetDir string) error {
+	fmt.Printf("Generating markdown docs into %s\n", targetDir)
 
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return fmt.Errorf("failed to create target directory: %w", err)

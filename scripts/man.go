@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -11,18 +10,12 @@ import (
 	"github.com/spf13/cobra/doc"
 )
 
-func main() {
-	if err := Main(); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %s\n", err)
-		os.Exit(1)
-	}
-}
+func Man(manDir string) error {
+	fmt.Printf("Generating manpages into %s\n", manDir)
 
-func Main() error {
-	if len(os.Args) <= 1 {
-		return errors.New("missing target directory")
+	if err := os.MkdirAll(manDir, 0755); err != nil {
+		return err
 	}
-	manDir := os.Args[1]
 
 	cmd.RootCmd.InitDefaultCompletionCmd()
 	cmd.RootCmd.InitDefaultHelpCmd()
@@ -32,9 +25,6 @@ func Main() error {
 		Section: "1",
 		Manual:  "Pogo Manual",
 		Source:  fmt.Sprintf("%s/%s", cmd.RootCmd.Name(), cmd.Version),
-	}
-	if err := os.MkdirAll(manDir, 0755); err != nil {
-		return err
 	}
 	if err := doc.GenManTree(cmd.RootCmd, hdr, manDir); err != nil {
 		return err

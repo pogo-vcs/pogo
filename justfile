@@ -21,7 +21,7 @@ completions:
     go run . completion fish > docs/completions/pogo.fish
 
 man:
-    go run ./scripts/man.go ./docs/man
+    go run ./scripts man ./docs/man
 
 docs:
     @just completions

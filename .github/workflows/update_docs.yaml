@@ -55,7 +55,7 @@ jobs:
           path: homepage
           fetch-depth: 0
       - name: Run generator
-        run: go run ./scripts/md.go ./homepage/src/content/docs/reference/
+        run: go run ./scripts md ./homepage/src/content/docs/reference/
       - name: Detect changes in homepage repo
         id: detect
         run: |
