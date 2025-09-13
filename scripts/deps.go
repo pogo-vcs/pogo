@@ -217,6 +217,11 @@ notversion:
 		return err
 	}
 
+	// Add GitHub PAT if available
+	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
