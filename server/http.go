@@ -20,6 +20,7 @@ import (
 	"github.com/goproxy/goproxy"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pogo-vcs/pogo/auth"
+	"github.com/pogo-vcs/pogo/brand"
 	"github.com/pogo-vcs/pogo/db"
 	"github.com/pogo-vcs/pogo/filecontents"
 	"github.com/pogo-vcs/pogo/server/ci"
@@ -87,6 +88,7 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 func RegisterWebUI(s *Server) {
 	s.httpMux.HandleFunc("/", authMiddleware(rootHandler(webui.Repositories())))
+	s.httpMux.HandleFunc("/favicon.svg", brand.LogoHandler)
 	s.httpMux.HandleFunc("/public/{file}", public.Handle)
 	s.httpMux.HandleFunc("/schemas/ci/{schema}", handleCISchemas)
 	s.httpMux.HandleFunc("/repository/{id}", authMiddleware(templComponentToHandler(webui.Repository())))
