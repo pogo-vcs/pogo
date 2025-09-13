@@ -20,6 +20,8 @@ service Pogo {
   rpc RemoveChange(RemoveChangeRequest) returns (RemoveChangeResponse);
   rpc GarbageCollect(GarbageCollectRequest) returns (GarbageCollectResponse);
   rpc GetRepositoryInfo(GetRepositoryInfoRequest) returns (GetRepositoryInfoResponse);
+  rpc CreateInvite(CreateInviteRequest) returns (CreateInviteResponse);
+  rpc GetInvites(GetInvitesRequest) returns (GetInvitesResponse);
 }
 
 message Auth {
@@ -223,4 +225,30 @@ message GetRepositoryInfoResponse {
   bool is_public = 3;
   optional string main_bookmark_change = 4;
   optional string root_change = 5;
+}
+
+message CreateInviteRequest {
+  Auth auth = 1;
+  int64 expires_in_hours = 2;
+}
+
+message CreateInviteResponse {
+  string invite_url = 1;
+  string invite_token = 2;
+}
+
+message GetInvitesRequest {
+  Auth auth = 1;
+}
+
+message Invite {
+  string token = 1;
+  string created_at = 2;
+  string expires_at = 3;
+  optional string used_at = 4;
+  optional string used_by_username = 5;
+}
+
+message GetInvitesResponse {
+  repeated Invite invites = 1;
 }

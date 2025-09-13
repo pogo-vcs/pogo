@@ -581,3 +581,34 @@ WHERE c.repository_id = $1
     SELECT 1 FROM change_relations cr WHERE cr.change_id = c.id
   )
 LIMIT 1;
+
+-- name: CreateInvite :one
+INSERT INTO invites (token, created_by_user_id, expires_at)
+VALUES ($1, $2, $3) RETURNING id;
+
+-- name: GetInviteByToken :one
+SELECT * FROM invites WHERE token = $1;
+
+-- name: UseInvite :exec
+UPDATE invites SET used_at = CURRENT_TIMESTAMP, used_by_user_id = $2
+WHERE token = $1 AND used_at IS NULL;
+
+-- name: GetActiveInvitesByUser :many
+SELECT * FROM invites 
+WHERE created_by_user_id = $1 
+  AND used_at IS NULL 
+  AND expires_at > CURRENT_TIMESTAMP
+ORDER BY created_at DESC;
+
+-- name: GetAllInvitesByUser :many
+SELECT i.*, u.username as used_by_username
+FROM invites i
+LEFT JOIN users u ON i.used_by_user_id = u.id
+WHERE i.created_by_user_id = $1
+ORDER BY i.created_at DESC;
+
+-- name: DeleteExpiredInvites :exec
+DELETE FROM invites WHERE expires_at < CURRENT_TIMESTAMP;
+
+-- name: RevokeInvite :exec
+DELETE FROM invites WHERE token = $1 AND created_by_user_id = $2 AND used_at IS NULL;

@@ -42,6 +42,8 @@ The interface `db.Querier` implements all the queries. `db.Q` is of type `*db.Qu
 
 gRPC is used for comunicatin between server and Clint. Both server and client are in the same binary but will most likely run on different machines.
 
+The `env` package is used for working with env variables on the server. It ensures that it's values are valid. Never do any checks! Always assume that the values in the `env` package are correct and usable! Only use this package on the server, never on the client.
+
 ### Auth
 
 Make sure the same encoding functions are used whenever a personal access token is encoded or decoded.

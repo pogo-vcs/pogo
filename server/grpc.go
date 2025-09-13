@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -10,12 +11,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/devsisters/go-diff3"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pogo-vcs/pogo/db"
 	"github.com/pogo-vcs/pogo/filecontents"
 	"github.com/pogo-vcs/pogo/protos"
 	"github.com/pogo-vcs/pogo/server/ci"
+	"github.com/pogo-vcs/pogo/server/env"
 	"google.golang.org/grpc"
 )
 
@@ -1192,4 +1196,98 @@ func (a *Server) GetRepositoryInfo(ctx context.Context, req *protos.GetRepositor
 	}
 
 	return response, nil
+}
+
+// generateSecureToken creates a cryptographically secure random token
+func generateSecureToken() ([]byte, error) {
+	token := make([]byte, 32)
+	if _, err := rand.Read(token); err != nil {
+		return nil, fmt.Errorf("generate random token: %w", err)
+	}
+	return token, nil
+}
+
+// getPublicAddress returns the public address from environment variable
+func getPublicAddress() string {
+	return env.PublicAddress
+}
+
+func (a *Server) CreateInvite(ctx context.Context, req *protos.CreateInviteRequest) (*protos.CreateInviteResponse, error) {
+	gcMutex.RLock()
+	defer gcMutex.RUnlock()
+
+	// Authenticate the user
+	user, err := getUserFromAuth(ctx, req.Auth)
+	if err != nil {
+		return nil, fmt.Errorf("authenticate user: %w", err)
+	}
+
+	// Generate secure invite token
+	inviteToken, err := generateSecureToken()
+	if err != nil {
+		return nil, fmt.Errorf("generate invite token: %w", err)
+	}
+
+	// Calculate expiration time
+	expiresAt := pgtype.Timestamptz{
+		Time:  time.Now().Add(time.Duration(req.ExpiresInHours) * time.Hour),
+		Valid: true,
+	}
+
+	// Create invite in database
+	_, err = db.Q.CreateInvite(ctx, inviteToken, user.ID, expiresAt)
+	if err != nil {
+		return nil, fmt.Errorf("create invite: %w", err)
+	}
+
+	// Generate invite URL (assuming the server is accessible via PUBLIC_ADDRESS env var)
+	inviteTokenStr := db.EncodeToken(inviteToken)
+	inviteURL := fmt.Sprintf("%s/register?invite=%s", getPublicAddress(), inviteTokenStr)
+
+	return &protos.CreateInviteResponse{
+		InviteUrl:   inviteURL,
+		InviteToken: inviteTokenStr,
+	}, nil
+}
+
+func (a *Server) GetInvites(ctx context.Context, req *protos.GetInvitesRequest) (*protos.GetInvitesResponse, error) {
+	gcMutex.RLock()
+	defer gcMutex.RUnlock()
+
+	// Authenticate the user
+	user, err := getUserFromAuth(ctx, req.Auth)
+	if err != nil {
+		return nil, fmt.Errorf("authenticate user: %w", err)
+	}
+
+	// Get all invites created by this user
+	invites, err := db.Q.GetAllInvitesByUser(ctx, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("get invites: %w", err)
+	}
+
+	// Convert to protobuf format
+	var protoInvites []*protos.Invite
+	for _, invite := range invites {
+		protoInvite := &protos.Invite{
+			Token:     db.EncodeToken(invite.Token),
+			CreatedAt: invite.CreatedAt.Time.Format(time.RFC3339),
+			ExpiresAt: invite.ExpiresAt.Time.Format(time.RFC3339),
+		}
+
+		if invite.UsedAt.Valid {
+			usedAt := invite.UsedAt.Time.Format(time.RFC3339)
+			protoInvite.UsedAt = &usedAt
+		}
+
+		if invite.UsedByUsername != nil && *invite.UsedByUsername != "" {
+			protoInvite.UsedByUsername = invite.UsedByUsername
+		}
+
+		protoInvites = append(protoInvites, protoInvite)
+	}
+
+	return &protos.GetInvitesResponse{
+		Invites: protoInvites,
+	}, nil
 }

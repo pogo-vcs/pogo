@@ -4,17 +4,21 @@ import (
 	"archive/zip"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/goproxy/goproxy"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pogo-vcs/pogo/auth"
 	"github.com/pogo-vcs/pogo/db"
 	"github.com/pogo-vcs/pogo/filecontents"
@@ -95,6 +99,11 @@ func RegisterWebUI(s *Server) {
 	s.httpMux.HandleFunc("/login", authMiddleware(templComponentToHandler(webui.Login())))
 	s.httpMux.HandleFunc("/api/login", handleLogin)
 	s.httpMux.HandleFunc("/api/logout", handleLogout)
+	s.httpMux.HandleFunc("/register", handleRegisterPage)
+	s.httpMux.HandleFunc("/api/register", handleRegister)
+	s.httpMux.HandleFunc("/invites", authMiddleware(templComponentToHandler(webui.Invites())))
+	s.httpMux.HandleFunc("/api/invites/create", authMiddleware(handleCreateInvite))
+	s.httpMux.HandleFunc("/api/invites/revoke", authMiddleware(handleRevokeInvite))
 
 	// Repository management API routes
 	s.httpMux.HandleFunc("/api/repository/{id}/rename", authMiddleware(handleRenameRepository))
@@ -524,4 +533,289 @@ func handleCISchemas(w http.ResponseWriter, r *http.Request) {
 
 	// Copy the file content to the response
 	_, _ = io.Copy(w, f)
+}
+
+func handleRegisterPage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	inviteToken := r.URL.Query().Get("invite")
+	if inviteToken == "" {
+		http.Error(w, "Missing invite token", http.StatusBadRequest)
+		return
+	}
+
+	// Validate invite token
+	tokenBytes, err := auth.Decode(inviteToken)
+	if err != nil {
+		http.Error(w, "Invalid invite token format", http.StatusBadRequest)
+		return
+	}
+
+	invite, err := db.Q.GetInviteByToken(r.Context(), tokenBytes)
+	if err != nil {
+		http.Error(w, "Invalid or expired invite token", http.StatusBadRequest)
+		return
+	}
+
+	// Check if invite is still valid
+	if invite.UsedAt.Valid {
+		http.Error(w, "This invite has already been used", http.StatusBadRequest)
+		return
+	}
+
+	if time.Now().After(invite.ExpiresAt.Time) {
+		http.Error(w, "This invite has expired", http.StatusBadRequest)
+		return
+	}
+
+	// Render registration page
+	component := webui.Register(inviteToken)
+	if err := component.Render(r.Context(), w); err != nil {
+		http.Error(w, "Failed to render page", http.StatusInternalServerError)
+	}
+}
+
+// validUsernamePattern defines the allowed characters for usernames
+var validUsernamePattern = regexp.MustCompile("^[a-zA-Z0-9_-]+$")
+
+// validateUsername checks if a username meets the required format
+func validateUsername(username string) error {
+	if len(username) == 0 {
+		return errors.New("Username is required")
+	}
+	if len(username) < 3 {
+		return errors.New("Username must be at least 3 characters long")
+	}
+	if len(username) > 32 {
+		return errors.New("Username must be no more than 32 characters long")
+	}
+	if !validUsernamePattern.MatchString(username) {
+		return errors.New("Username can only contain letters, numbers, underscores, and hyphens")
+	}
+	return nil
+}
+
+func handleRegister(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	username := strings.TrimSpace(r.FormValue("username"))
+	inviteToken := r.FormValue("invite_token")
+
+	// Validate username format
+	if err := validateUsername(username); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if inviteToken == "" {
+		http.Error(w, "Invite token is required", http.StatusBadRequest)
+		return
+	}
+
+	// Validate invite token
+	tokenBytes, err := auth.Decode(inviteToken)
+	if err != nil {
+		http.Error(w, "Invalid invite token format", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+	tx, err := db.Q.Begin(ctx)
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Close()
+
+	invite, err := tx.GetInviteByToken(ctx, tokenBytes)
+	if err != nil {
+		http.Error(w, "Invalid or expired invite token", http.StatusBadRequest)
+		return
+	}
+
+	// Check if invite is still valid
+	if invite.UsedAt.Valid {
+		http.Error(w, "This invite has already been used", http.StatusBadRequest)
+		return
+	}
+
+	if time.Now().After(invite.ExpiresAt.Time) {
+		http.Error(w, "This invite has expired", http.StatusBadRequest)
+		return
+	}
+
+	// Check if username already exists
+	if _, err := tx.GetUserByUsername(ctx, username); err == nil {
+		http.Error(w, "Username already exists", http.StatusConflict)
+		return
+	}
+
+	// Generate secure personal access token for new user
+	userToken, err := generateSecureToken()
+	if err != nil {
+		http.Error(w, "Failed to generate user token", http.StatusInternalServerError)
+		return
+	}
+
+	// Create user with token
+	err = tx.CreateUserWithToken(ctx, username, userToken)
+	if err != nil {
+		http.Error(w, "Failed to create user", http.StatusInternalServerError)
+		return
+	}
+
+	// Get the created user to get their ID
+	newUser, err := tx.GetUserByUsername(ctx, username)
+	if err != nil {
+		http.Error(w, "Failed to retrieve new user", http.StatusInternalServerError)
+		return
+	}
+
+	// Mark invite as used - this is the final step before commit
+	err = tx.UseInvite(ctx, tokenBytes, &newUser.ID)
+	if err != nil {
+		http.Error(w, "Failed to mark invite as used", http.StatusInternalServerError)
+		return
+	}
+
+	// Commit the transaction - only after this point is the invite truly "used"
+	if err = tx.Commit(ctx); err != nil {
+		http.Error(w, "Failed to complete registration", http.StatusInternalServerError)
+		return
+	}
+
+	// Set authentication cookie for automatic login
+	userTokenStr := auth.Encode(userToken)
+	http.SetCookie(w, &http.Cookie{
+		Name:     "token",
+		Value:    userTokenStr,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   r.TLS != nil, // Set Secure flag if using HTTPS
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   30 * 24 * 60 * 60, // 30 days
+	})
+
+	// Return success response with token
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	response := map[string]any{
+		"success":  true,
+		"username": username,
+		"token":    userTokenStr,
+	}
+	json.NewEncoder(w).Encode(response)
+}
+
+func handleCreateInvite(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get authenticated user from context
+	user := webui.GetUser(r.Context())
+	if user == nil {
+		http.Error(w, "Authentication required", http.StatusUnauthorized)
+		return
+	}
+
+	hoursStr := r.FormValue("hours")
+	if hoursStr == "" {
+		http.Error(w, "Hours parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	hours, err := strconv.ParseInt(hoursStr, 10, 64)
+	if err != nil || hours <= 0 {
+		http.Error(w, "Invalid hours value", http.StatusBadRequest)
+		return
+	}
+
+	// Generate secure invite token
+	inviteToken, err := generateSecureToken()
+	if err != nil {
+		http.Error(w, "Failed to generate invite token", http.StatusInternalServerError)
+		return
+	}
+
+	// Calculate expiration time
+	expiresAt := pgtype.Timestamptz{
+		Time:  time.Now().Add(time.Duration(hours) * time.Hour),
+		Valid: true,
+	}
+
+	// Create invite in database
+	ctx := r.Context()
+	_, err = db.Q.CreateInvite(ctx, inviteToken, user.ID, expiresAt)
+	if err != nil {
+		http.Error(w, "Failed to create invite", http.StatusInternalServerError)
+		return
+	}
+
+	// Generate invite URL
+	inviteTokenStr := auth.Encode(inviteToken)
+	inviteURL := fmt.Sprintf("%s/register?invite=%s", getPublicAddress(), inviteTokenStr)
+
+	// Return success response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	response := map[string]any{
+		"success":    true,
+		"invite_url": inviteURL,
+		"token":      inviteTokenStr,
+	}
+	json.NewEncoder(w).Encode(response)
+}
+
+func handleRevokeInvite(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get authenticated user from context
+	user := webui.GetUser(r.Context())
+	if user == nil {
+		http.Error(w, "Authentication required", http.StatusUnauthorized)
+		return
+	}
+
+	inviteToken := r.FormValue("token")
+	if inviteToken == "" {
+		http.Error(w, "Token parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	// Decode the invite token
+	tokenBytes, err := auth.Decode(inviteToken)
+	if err != nil {
+		http.Error(w, "Invalid token format", http.StatusBadRequest)
+		return
+	}
+
+	// Revoke the invite (only if it belongs to the user and is unused)
+	ctx := r.Context()
+	err = db.Q.RevokeInvite(ctx, tokenBytes, user.ID)
+	if err != nil {
+		http.Error(w, "Failed to revoke invite or invite not found", http.StatusInternalServerError)
+		return
+	}
+
+	// Return success response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	response := map[string]any{
+		"success": true,
+	}
+	json.NewEncoder(w).Encode(response)
 }

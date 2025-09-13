@@ -96,6 +96,9 @@ homebrew_casks:
       - docs/man/pogo-gc.1
       - docs/man/pogo-info.1
       - docs/man/pogo-init.1
+      - docs/man/pogo-invite-create.1
+      - docs/man/pogo-invite-list.1
+      - docs/man/pogo-invite.1
       - docs/man/pogo-log.1
       - docs/man/pogo-new.1
       - docs/man/pogo-push.1

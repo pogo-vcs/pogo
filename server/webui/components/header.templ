@@ -23,6 +23,9 @@ templ Header(user *db.User) {
 		<div class="flex items-center gap-4">
 			{ children... }
 			if user != nil {
+				<a href="/invites" class="px-3 py-1 bg-ctp-surface0 hover:bg-ctp-surface1 rounded-md">
+					Invites
+				</a>
 				<span class="text-ctp-subtext0">{ user.Username }</span>
 				<button id="logoutBtn" class="px-3 py-2 bg-ctp-surface0 cursor-pointer hover:bg-ctp-surface1 rounded-md">
 					Logout

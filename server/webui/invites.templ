@@ -1,0 +1,269 @@
+package webui
+
+import (
+	"fmt"
+	"github.com/pogo-vcs/pogo/db"
+	"github.com/pogo-vcs/pogo/server/env"
+	"github.com/pogo-vcs/pogo/server/webui/components"
+	"time"
+)
+
+script inviteScript() {
+	// Handle create invite form submission
+	document.getElementById("createInviteForm").addEventListener("submit", async (e) => {
+		e.preventDefault();
+
+		const hours = document.getElementById("hours").value;
+		const errorDiv = document.getElementById("errorMessage");
+		const successDiv = document.getElementById("successMessage");
+
+		try {
+			const formData = new FormData();
+			formData.append("hours", hours);
+
+			const response = await fetch("/api/invites/create", {
+				method: "POST",
+				body: formData,
+				credentials: "same-origin"
+			});
+
+			if (response.ok) {
+				const data = await response.json();
+				successDiv.innerHTML = `
+					<h3 class="font-bold text-lg">Invite Created!</h3>
+					<p class="mt-2">Share this invite URL with the person you want to invite:</p>
+					<div class="mt-2 p-3 bg-ctp-surface0 rounded font-mono text-sm break-all">
+						${data.invite_url}
+					</div>
+					<p class="mt-2 text-xs text-ctp-subtext0">
+						This invite expires in ${hours} hours.
+					</p>
+				`;
+				successDiv.classList.remove("hidden");
+				errorDiv.classList.add("hidden");
+
+				// Refresh the page after a short delay to show the new invite
+				setTimeout(() => window.location.reload(), 1000);
+			} else {
+				const text = await response.text();
+				errorDiv.textContent = text || "Failed to create invite";
+				errorDiv.classList.remove("hidden");
+				successDiv.classList.add("hidden");
+			}
+		} catch (error) {
+			errorDiv.textContent = error.message || "Network error. Please try again.";
+			errorDiv.classList.remove("hidden");
+			successDiv.classList.add("hidden");
+		}
+	});
+
+	// Handle copy buttons
+	document.querySelectorAll(".copy-btn").forEach(btn => {
+		btn.addEventListener("click", async () => {
+			const inviteUrl = btn.dataset.inviteUrl;
+
+			try {
+				await navigator.clipboard.writeText(inviteUrl);
+
+				// Show feedback
+				const originalText = btn.textContent;
+				btn.textContent = "Copied!";
+				btn.classList.remove("bg-ctp-blue", "hover:bg-ctp-sapphire");
+				btn.classList.add("bg-ctp-green");
+
+				// Reset after 2 seconds
+				setTimeout(() => {
+					btn.textContent = originalText;
+					btn.classList.remove("bg-ctp-green");
+					btn.classList.add("bg-ctp-blue", "hover:bg-ctp-sapphire");
+				}, 2000);
+			} catch (err) {
+				// Fallback for older browsers
+				const textArea = document.createElement("textarea");
+				textArea.value = inviteUrl;
+				document.body.appendChild(textArea);
+				textArea.select();
+				document.execCommand("copy");
+				document.body.removeChild(textArea);
+
+				// Show feedback
+				const originalText = btn.textContent;
+				btn.textContent = "Copied!";
+				setTimeout(() => {
+					btn.textContent = originalText;
+				}, 2000);
+			}
+		});
+	});
+
+	// Handle discard buttons
+	document.querySelectorAll(".discard-btn").forEach(btn => {
+		btn.addEventListener("click", async () => {
+			if (!confirm("Are you sure you want to revoke this invitation? This action cannot be undone.")) {
+				return;
+			}
+
+			const token = btn.dataset.token;
+
+			try {
+				const formData = new FormData();
+				formData.append("token", token);
+
+				const response = await fetch("/api/invites/revoke", {
+					method: "POST",
+					body: formData,
+					credentials: "same-origin"
+				});
+
+				if (response.ok) {
+					// Remove the row or reload the page
+					window.location.reload();
+				} else {
+					const text = await response.text();
+					alert("Failed to revoke invite: " + (text || "Unknown error"));
+				}
+			} catch (error) {
+				alert(error.message || "Network error. Please try again.");
+			}
+		});
+	});
+}
+
+templ Invites() {
+	if !IsLoggedIn(ctx) {
+		@layout("Unauthorized") {
+			@components.Header(nil)
+			@components.Main() {
+				<h1 class="text-2xl font-bold mb-4">Unauthorized</h1>
+				<p>You must be logged in to manage invitations.</p>
+			}
+		}
+	} else {
+		{{ user := GetUser(ctx) }}
+		@layout("User Invitations - Pogo") {
+			@components.Header(user)
+			@components.Main() {
+				<div class="max-w-4xl mx-auto">
+					<h1 class="text-2xl font-bold mb-6">Manage Invitations</h1>
+					<!-- Create New Invite Section -->
+					<section class="mb-8 p-4 bg-ctp-mantle rounded-lg">
+						<h2 class="text-xl font-semibold mb-4">Create New Invitation</h2>
+						<form id="createInviteForm" class="space-y-4">
+							<div>
+								<label for="hours" class="block text-sm font-medium mb-2">Expires in (hours)</label>
+								<select
+									id="hours"
+									name="hours"
+									class="w-full px-3 py-2 bg-ctp-surface0 rounded-md border border-ctp-surface1 focus:outline-none focus:ring-2 focus:ring-ctp-blue focus:border-transparent"
+								>
+									<option value="24">1 day (24 hours)</option>
+									<option value="72">3 days (72 hours)</option>
+									<option value="168" selected>1 week (168 hours)</option>
+									<option value="336">2 weeks (336 hours)</option>
+									<option value="720">1 month (720 hours)</option>
+								</select>
+							</div>
+							<button
+								type="submit"
+								class="cursor-pointer px-4 py-2 bg-ctp-blue text-ctp-base font-medium rounded-md hover:bg-ctp-sapphire focus:outline-none focus:ring-2 focus:ring-ctp-blue focus:ring-offset-2 focus:ring-offset-ctp-base"
+							>
+								Create Invite
+							</button>
+						</form>
+						<div id="successMessage" class="hidden mt-4 p-4 bg-ctp-green/10 border border-ctp-green rounded-md text-ctp-green"></div>
+						<div id="errorMessage" class="hidden mt-4 text-ctp-red text-sm"></div>
+					</section>
+					<!-- Existing Invites Section -->
+					<section class="p-4 bg-ctp-mantle rounded-lg">
+						<h2 class="text-xl font-semibold mb-4">Your Invitations</h2>
+						if invites, err := db.Q.GetAllInvitesByUser(ctx, user.ID); err == nil {
+							if len(invites) > 0 {
+								<div class="overflow-x-auto">
+									<table class="min-w-full">
+										<thead class="border-b border-ctp-surface1">
+											<tr class="text-left">
+												<th class="py-2 px-3 font-medium">Token</th>
+												<th class="py-2 px-3 font-medium">Created</th>
+												<th class="py-2 px-3 font-medium">Expires</th>
+												<th class="py-2 px-3 font-medium">Status</th>
+												<th class="py-2 px-3 font-medium">Used By</th>
+												<th class="py-2 px-3 font-medium">Actions</th>
+											</tr>
+										</thead>
+										<tbody class="divide-y divide-ctp-surface1">
+											for _, invite := range invites {
+												{{
+													tokenDisplay := db.EncodeToken(invite.Token)
+													fullToken := db.EncodeToken(invite.Token)
+													if len(tokenDisplay) > 16 {
+														tokenDisplay = tokenDisplay[:16] + "..."
+													}
+
+													status := "Active"
+													statusClass := "text-ctp-green"
+													usedBy := "-"
+													isActive := true
+
+													if invite.UsedAt.Valid {
+														status = "Used"
+														statusClass = "text-ctp-blue"
+														isActive = false
+														if invite.UsedByUsername != nil {
+															usedBy = *invite.UsedByUsername
+														}
+													} else if time.Now().After(invite.ExpiresAt.Time) {
+														status = "Expired"
+														statusClass = "text-ctp-red"
+														isActive = false
+													}
+
+													inviteURL := fmt.Sprintf("%s/register?invite=%s", env.PublicAddress, fullToken)
+												}}
+												<tr class="hover:bg-ctp-surface0/50">
+													<td class="py-2 px-3 font-mono text-sm">{ tokenDisplay }</td>
+													<td class="py-2 px-3 text-sm">{ invite.CreatedAt.Time.Format("Jan 2, 2006 15:04") }</td>
+													<td class="py-2 px-3 text-sm">{ invite.ExpiresAt.Time.Format("Jan 2, 2006 15:04") }</td>
+													<td class="py-2 px-3 text-sm">
+														<span class={ statusClass }>{ status }</span>
+													</td>
+													<td class="py-2 px-3 text-sm">{ usedBy }</td>
+													<td class="py-2 px-3 text-sm">
+														if isActive {
+															<div class="flex gap-2">
+																<button
+																	class="copy-btn px-2 py-1 bg-ctp-blue text-ctp-base text-xs rounded hover:bg-ctp-sapphire cursor-pointer"
+																	data-invite-url={ inviteURL }
+																	title="Copy invitation link"
+																>
+																	Copy
+																</button>
+																<button
+																	class="discard-btn px-2 py-1 bg-ctp-red text-ctp-base text-xs rounded hover:bg-ctp-maroon cursor-pointer"
+																	data-token={ fullToken }
+																	title="Revoke this invitation"
+																>
+																	Discard
+																</button>
+															</div>
+														} else {
+															<span class="text-ctp-subtext0 text-xs">-</span>
+														}
+													</td>
+												</tr>
+											}
+										</tbody>
+									</table>
+								</div>
+							} else {
+								<p class="text-ctp-subtext0">You have not created any invitations yet.</p>
+							}
+						} else {
+							<p class="text-ctp-red">Failed to load invitations.</p>
+						}
+					</section>
+				</div>
+			}
+			@inviteScript()
+		}
+	}
+}

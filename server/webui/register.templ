@@ -1,0 +1,137 @@
+package webui
+
+import "github.com/pogo-vcs/pogo/server/webui/components"
+
+script registerScript() {
+	// Username validation function
+	function validateUsername(username) {
+		if (!username) {
+			return "Username is required";
+		}
+		if (username.length < 3) {
+			return "Username must be at least 3 characters long";
+		}
+		if (username.length > 32) {
+			return "Username must be no more than 32 characters long";
+		}
+		const pattern = /^[a-zA-Z0-9_-]+$/;
+		if (!pattern.test(username)) {
+			return "Username can only contain letters, numbers, underscores, and hyphens";
+		}
+		return null;
+	}
+
+	document.getElementById("registerForm").addEventListener("submit", async (e) => {
+		e.preventDefault();
+
+		const username = document.getElementById("username").value.trim();
+		const inviteToken = document.getElementById("inviteToken").value;
+		const errorDiv = document.getElementById("errorMessage");
+		const successDiv = document.getElementById("successMessage");
+
+		// Client-side validation
+		const validationError = validateUsername(username);
+		if (validationError) {
+			errorDiv.textContent = validationError;
+			errorDiv.classList.remove("hidden");
+			successDiv.classList.add("hidden");
+			return;
+		}
+
+		try {
+			const formData = new FormData();
+			formData.append("username", username);
+			formData.append("invite_token", inviteToken);
+
+			const response = await fetch("/api/register", {
+				method: "POST",
+				body: formData,
+				credentials: "same-origin"
+			});
+
+			if (response.ok) {
+				const data = await response.json();
+				successDiv.innerHTML = `
+					<h3 class="font-bold text-lg">Registration Successful!</h3>
+					<p class="mt-2">Welcome, ${username}! You have been automatically logged in.</p>
+					<p class="mt-4 text-sm">Your personal access token is:</p>
+					<div class="mt-2 p-3 bg-ctp-surface0 rounded font-mono text-sm break-all select-all">${data.token}</div>
+					<p class="mt-2 text-xs text-ctp-yellow">
+						⚠️ Important: Save this token somewhere secure! You'll need it to access Pogo from the command line.
+						This is the only time we'll show it to you.
+					</p>
+					<p class="mt-4">
+						<a href="/" class="text-ctp-mauve hover:underline">Continue to repositories →</a>
+					</p>
+				`;
+				successDiv.classList.remove("hidden");
+				document.getElementById("registerForm").classList.add("hidden");
+			} else {
+				const text = await response.text();
+				errorDiv.textContent = text || "Registration failed";
+				errorDiv.classList.remove("hidden");
+				successDiv.classList.add("hidden");
+			}
+		} catch (error) {
+			errorDiv.textContent = error.message || "Network error. Please try again.";
+			errorDiv.classList.remove("hidden");
+			successDiv.classList.add("hidden");
+		}
+	});
+}
+
+templ Register(inviteToken string) {
+	@layout("Register - Pogo") {
+		@components.Header(GetUser(ctx))
+		@components.Main() {
+			<div class="max-w-md mx-auto">
+				<h1 class="text-2xl font-bold mb-6">Create Account</h1>
+				<div id="registerForm">
+					<form>
+						<input type="hidden" id="inviteToken" value={ inviteToken }/>
+						<label for="username" class="block mb-4">
+							<p class="text-ctp-subtext0 text-xs font-medium mb-2">
+								Username
+							</p>
+							<input
+								type="text"
+								id="username"
+								name="username"
+								class="w-full px-3 py-2 border border-ctp-surface0 rounded-md focus:outline-none focus:ring-2 focus:ring-ctp-mauve bg-ctp-base text-ctp-text"
+								required
+								placeholder="Enter your username"
+								pattern="^[a-zA-Z0-9_-]+$"
+								minlength="3"
+								maxlength="32"
+								title="Username must be 3-32 characters and contain only letters, numbers, underscores, and hyphens"
+							/>
+						</label>
+						<button
+							type="submit"
+							class="w-full px-4 py-2 bg-ctp-mauve text-ctp-base rounded-md cursor-pointer hover:bg-ctp-mauve-700 focus:outline-none focus:ring-2 focus:ring-ctp-mauve transition-colors"
+						>
+							Create Account
+						</button>
+					</form>
+					<div class="mt-6 p-4 bg-ctp-surface0 rounded-md">
+						<h3 class="font-semibold text-sm mb-2">About Login with Pogo</h3>
+						<p class="text-xs text-ctp-subtext0">
+							Pogo uses personal access tokens for authentication. After registration, you'll receive a unique token that you'll use to:
+						</p>
+						<ul class="text-xs text-ctp-subtext0 mt-2 list-disc list-inside">
+							<li>Access Pogo from the command line</li>
+							<li>Log into the web interface</li>
+							<li>Authenticate API requests</li>
+						</ul>
+						<p class="text-xs text-ctp-subtext0 mt-2">
+							Keep your token secure and don't share it with others.
+						</p>
+					</div>
+				</div>
+				<div id="successMessage" class="hidden p-4 bg-ctp-green/10 border border-ctp-green rounded-md text-ctp-green"></div>
+				<div id="errorMessage" class="hidden text-ctp-red text-sm mt-4"></div>
+			</div>
+		}
+		@registerScript()
+	}
+}

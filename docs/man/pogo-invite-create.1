@@ -1,0 +1,32 @@
+.nh
+.TH "pogo" "1" "Sep 2025" "pogo/dev" "Pogo Manual"
+
+.SH NAME
+pogo-invite-create - Create a new invitation link
+
+
+.SH SYNOPSIS
+\fBpogo invite create [expires-in-hours] [flags]\fP
+
+
+.SH DESCRIPTION
+Create a new invitation link that can be used to register a new user.
+The invitation will expire after the specified number of hours (default: 168 hours = 1 week).
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for create
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--time\fP[=false]
+	Measure command execution time
+
+.PP
+\fB-v\fP, \fB--verbose\fP[=false]
+	Enable verbose debug logging
+
+
+.SH SEE ALSO
+\fBpogo-invite(1)\fP
