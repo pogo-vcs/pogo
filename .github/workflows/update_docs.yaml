@@ -56,6 +56,8 @@ jobs:
           fetch-depth: 0
       - name: Run generator
         run: go run ./scripts md ./homepage/src/content/docs/reference/
+      - name: Generate dependencies documentation
+        run: go run ./scripts deps ./homepage/src/content/docs/dependencies.md
       - name: Detect changes in homepage repo
         id: detect
         run: |

@@ -10,16 +10,22 @@ func main() {
 		return
 	}
 	command := os.Args[1]
-	targetDir := os.Args[2]
+	targetPath := os.Args[2]
 	switch command {
 	case "man":
-		if err := Man(targetDir); err != nil {
+		if err := Man(targetPath); err != nil {
 			os.Exit(1)
 			return
 		}
 		os.Exit(0)
 	case "md":
-		if err := Md(targetDir); err != nil {
+		if err := Md(targetPath); err != nil {
+			os.Exit(1)
+			return
+		}
+		os.Exit(0)
+	case "deps":
+		if err := Deps(targetPath); err != nil {
 			os.Exit(1)
 			return
 		}
