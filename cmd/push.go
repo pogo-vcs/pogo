@@ -55,6 +55,6 @@ pogo push -f`,
 }
 
 func init() {
-	rootCmd.AddCommand(pushCmd)
+	RootCmd.AddCommand(pushCmd)
 	pushCmd.Flags().BoolVarP(&forcePush, "force", "f", false, "Force push even if the change is readonly")
 }

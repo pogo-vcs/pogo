@@ -81,5 +81,5 @@ Requirements:
 }
 
 func init() {
-	rootCmd.AddCommand(gcCmd)
+	RootCmd.AddCommand(gcCmd)
 }

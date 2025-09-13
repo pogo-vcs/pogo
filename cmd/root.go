@@ -17,7 +17,7 @@ var (
 	globalTimeStart time.Time
 	globalVerbose   bool
 
-	rootCmd = &cobra.Command{
+	RootCmd = &cobra.Command{
 		Use:   "pogo",
 		Short: "A centralized version control system that is simple and easy to use",
 		Long: `Pogo is a centralized version control system designed to be straightforward and efficient.
@@ -61,12 +61,12 @@ func isUnder(cmd *cobra.Command, targets ...*cobra.Command) bool {
 }
 
 func init() {
-	rootCmd.SilenceUsage = true
-	rootCmd.DisableAutoGenTag = true
+	RootCmd.SilenceUsage = true
+	RootCmd.DisableAutoGenTag = true
 
 	// Add global flags
-	rootCmd.PersistentFlags().BoolVar(&globalTimer, "time", false, "Measure command execution time")
-	rootCmd.PersistentFlags().BoolVarP(&globalVerbose, "verbose", "v", false, "Enable verbose debug logging")
+	RootCmd.PersistentFlags().BoolVar(&globalTimer, "time", false, "Measure command execution time")
+	RootCmd.PersistentFlags().BoolVarP(&globalVerbose, "verbose", "v", false, "Enable verbose debug logging")
 }
 
 func configureClientOutputs(cmd *cobra.Command, c *client.Client) {
@@ -78,8 +78,8 @@ func configureClientOutputs(cmd *cobra.Command, c *client.Client) {
 }
 
 func Execute() {
-	rootCmd.Version = Version
-	err := rootCmd.Execute()
+	RootCmd.Version = Version
+	err := RootCmd.Execute()
 	if err != nil {
 		os.Exit(1)
 	}

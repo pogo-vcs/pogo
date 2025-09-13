@@ -80,5 +80,5 @@ pogo rm main  # Error: cannot remove bookmarked change`,
 
 func init() {
 	rmCmd.Flags().Bool("keep-children", false, "Only remove the specified change and move its children to its parents")
-	rootCmd.AddCommand(rmCmd)
+	RootCmd.AddCommand(rmCmd)
 }

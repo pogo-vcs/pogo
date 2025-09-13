@@ -192,5 +192,5 @@ func init() {
 	bookmarkCmd.AddCommand(bookmarkListCmd)
 	bookmarkCmd.AddCommand(bookmarkRemoveCmd)
 
-	rootCmd.AddCommand(bookmarkCmd)
+	RootCmd.AddCommand(bookmarkCmd)
 }

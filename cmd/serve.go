@@ -101,5 +101,5 @@ docker run -p 8080:8080 -e DATABASE_URL=... ghcr.io/pogo-vcs/pogo:alpine`,
 }
 
 func init() {
-	rootCmd.AddCommand(serveCmd)
+	RootCmd.AddCommand(serveCmd)
 }

@@ -1,54 +1,53 @@
-package cmd
+package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/pogo-vcs/pogo/cmd"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-var genMdCmd = &cobra.Command{
-	Use:    "gen-md [target-dir]",
-	Short:  "Generate markdown documentation from Cobra commands",
-	Hidden: true,
-	Args:   cobra.MaximumNArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		targetDir := "src/content/docs/reference/"
-		if len(args) > 0 {
-			targetDir = args[0]
-		}
-
-		if err := os.MkdirAll(targetDir, 0755); err != nil {
-			return fmt.Errorf("failed to create target directory: %w", err)
-		}
-
-		entries, err := os.ReadDir(targetDir)
-		if err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("failed to read target directory: %w", err)
-		}
-		for _, entry := range entries {
-			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
-				path := filepath.Join(targetDir, entry.Name())
-				if err := os.Remove(path); err != nil {
-					return fmt.Errorf("failed to remove file %s: %w", path, err)
-				}
-			}
-		}
-
-		if err := generateMarkdownDocs(rootCmd, targetDir); err != nil {
-			return err
-		}
-
-		// Generate commands.md
-		return generateCommandsIndex(rootCmd, targetDir)
-	},
+func main() {
+	if err := Main(); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %s\n", err)
+		os.Exit(1)
+	}
 }
 
-func init() {
-	rootCmd.AddCommand(genMdCmd)
+func Main() error {
+	if len(os.Args) <= 1 {
+		return errors.New("missing target directory")
+	}
+	targetDir := os.Args[1]
+
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return fmt.Errorf("failed to create target directory: %w", err)
+	}
+
+	entries, err := os.ReadDir(targetDir)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to read target directory: %w", err)
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
+			path := filepath.Join(targetDir, entry.Name())
+			if err := os.Remove(path); err != nil {
+				return fmt.Errorf("failed to remove file %s: %w", path, err)
+			}
+		}
+	}
+
+	if err := generateMarkdownDocs(cmd.RootCmd, targetDir); err != nil {
+		return err
+	}
+
+	// Generate commands.md
+	return generateCommandsIndex(cmd.RootCmd, targetDir)
 }
 
 func generateMarkdownDocs(cmd *cobra.Command, targetDir string) error {

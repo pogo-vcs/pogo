@@ -127,5 +127,5 @@ pogo commit  # Finalize and start new change`,
 func init() {
 	commitCmd.Flags().StringP("description", "m", "", "Description for the change")
 	commitCmd.Flags().Bool("no-edit", false, "Skip the describe step")
-	rootCmd.AddCommand(commitCmd)
+	RootCmd.AddCommand(commitCmd)
 }

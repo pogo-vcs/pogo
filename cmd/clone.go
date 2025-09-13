@@ -16,14 +16,14 @@ var cloneCmd = &cobra.Command{
 
 This command creates a new directory (or uses the specified directory) and downloads
 all files from the specified repository. By default, it will download the "main"
-bookmark if it exists, otherwise it will use the root change (the first change 
+bookmark if it exists, otherwise it will use the root change (the first change
 without any parent).
 
 You can specify a specific revision (change name or bookmark) to clone instead of
 the default behavior. The revision parameter uses the same fuzzy matching as the
 edit command:
 - Exact bookmark matches take priority
-- Then exact change name matches  
+- Then exact change name matches
 - Finally, change name prefix matches
 
 The cloned repository will be configured to track the original repository, allowing
@@ -155,5 +155,5 @@ func init() {
 
 	cloneCmd.Flags().String("revision", "", "specific revision to clone (bookmark or change name)")
 
-	rootCmd.AddCommand(cloneCmd)
+	RootCmd.AddCommand(cloneCmd)
 }

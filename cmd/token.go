@@ -216,5 +216,5 @@ func init() {
 	tokenCmd.AddCommand(tokenRemoveCmd)
 
 	// Add token command to root
-	rootCmd.AddCommand(tokenCmd)
+	RootCmd.AddCommand(tokenCmd)
 }

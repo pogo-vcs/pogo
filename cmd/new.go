@@ -89,5 +89,5 @@ pogo new main`,
 
 func init() {
 	newCmd.Flags().StringP("description", "m", "", "Description for the new change")
-	rootCmd.AddCommand(newCmd)
+	RootCmd.AddCommand(newCmd)
 }

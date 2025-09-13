@@ -72,5 +72,5 @@ func init() {
 
 	initCmd.Flags().Bool("public", false, "make repository public")
 
-	rootCmd.AddCommand(initCmd)
+	RootCmd.AddCommand(initCmd)
 }

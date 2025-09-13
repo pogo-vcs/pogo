@@ -91,5 +91,5 @@ pogo rephrase -m "docs: update API documentation"`,
 
 func init() {
 	describeCmd.Flags().StringP("description", "m", "", "Description for the change")
-	rootCmd.AddCommand(describeCmd)
+	RootCmd.AddCommand(describeCmd)
 }

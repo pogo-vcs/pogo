@@ -69,5 +69,5 @@ pogo log --color=false`,
 func init() {
 	logCmd.Flags().BoolVar(&logColorFlag, "color", tty.IsInteractive(), "Enable colored output")
 	logCmd.Flags().Int32VarP(&logNumberFlag, "number", "n", 10, "Maximum number of changes to display")
-	rootCmd.AddCommand(logCmd)
+	RootCmd.AddCommand(logCmd)
 }

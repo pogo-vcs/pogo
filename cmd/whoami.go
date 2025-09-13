@@ -67,5 +67,5 @@ pogo whoami
 }
 
 func init() {
-	rootCmd.AddCommand(whoamiCmd)
+	RootCmd.AddCommand(whoamiCmd)
 }

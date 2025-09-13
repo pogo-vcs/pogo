@@ -69,5 +69,5 @@ pogo checkout feature-branch`,
 }
 
 func init() {
-	rootCmd.AddCommand(editCmd)
+	RootCmd.AddCommand(editCmd)
 }
