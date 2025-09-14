@@ -17,6 +17,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+const keyringServiceName = "com.pogo-vcs.pogo"
+
 type Client struct {
 	ctx        context.Context
 	Token      []byte

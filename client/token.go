@@ -1,6 +1,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/charmbracelet/huh"
@@ -14,7 +15,7 @@ func getKeyringKey(server string) string {
 
 func GetToken(server string) ([]byte, error) {
 	key := getKeyringKey(server)
-	tokenStr, err := keyringGet("pogo", key)
+	tokenStr, err := keyringGet(keyringServiceName, key)
 	if err != nil {
 		return nil, fmt.Errorf("get token from keyring: %w", err)
 	}
@@ -28,7 +29,7 @@ func GetToken(server string) ([]byte, error) {
 func SetToken(server string, token []byte) error {
 	key := getKeyringKey(server)
 	tokenStr := auth.Encode(token)
-	if err := keyringSet("pogo", key, tokenStr); err != nil {
+	if err := keyringSet(keyringServiceName, key, tokenStr); err != nil {
 		return fmt.Errorf("set token in keyring: %w", err)
 	}
 	return nil
@@ -36,11 +37,15 @@ func SetToken(server string, token []byte) error {
 
 func RemoveToken(server string) error {
 	key := getKeyringKey(server)
-	if err := keyringDelete("pogo", key); err != nil {
+	if err := keyringDelete(keyringServiceName, key); err != nil {
 		return fmt.Errorf("remove token from keyring: %w", err)
 	}
 	return nil
 }
+
+var (
+	ErrNotTty = errors.New("no token found and not running in interactive mode")
+)
 
 func GetOrCreateToken(server string) ([]byte, error) {
 	// Try to get existing token
@@ -50,7 +55,7 @@ func GetOrCreateToken(server string) ([]byte, error) {
 	}
 
 	if !tty.IsInteractive() {
-		return nil, fmt.Errorf("no token found and not running in interactive mode")
+		return nil, ErrNotTty
 	}
 
 	// No token exists, ask user to provide one

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Disabled</key>
+	<false/>
+	{{- if .EnvVars}}
+	<key>EnvironmentVariables</key>
+	<dict>
+		{{- range $k, $v := .EnvVars}}
+		<key>{{html $k}}</key>
+		<string>{{html $v}}</string>
+		{{- end}}
+	</dict>
+	{{- end}}
+	<key>KeepAlive</key>
+	<{{bool .KeepAlive}}/>
+	<key>Label</key>
+	<string>{{html .Name}}</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>{{html .Path}}</string>
+		{{- if .Arguments}}
+		{{- range .Arguments}}
+		<string>{{html .}}</string>
+		{{- end}}
+	{{- end}}
+	</array>
+	<key>RunAtLoad</key>
+	<{{bool .RunAtLoad}}/>
+	{{- if .StandardErrorPath}}
+	<key>StandardErrorPath</key>
+	<string>{{html .StandardErrorPath}}</string>
+	{{- end}}
+	{{- if .StandardOutPath}}
+	<key>StandardOutPath</key>
+	<string>{{html .StandardOutPath}}</string>
+	{{- end}}
+	{{- if .WorkingDirectory}}
+	<key>WorkingDirectory</key>
+	<string>{{html .WorkingDirectory}}</string>
+	{{- end}}
+	<key>LimitLoadToSessionType</key>
+	<string>Aqua</string>
+</dict>
+</plist>

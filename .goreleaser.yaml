@@ -91,6 +91,12 @@ homebrew_casks:
       - docs/man/pogo-completion-powershell.1
       - docs/man/pogo-completion-zsh.1
       - docs/man/pogo-completion.1
+      - docs/man/pogo-daemon-install.1
+      - docs/man/pogo-daemon-run.1
+      - docs/man/pogo-daemon-start.1
+      - docs/man/pogo-daemon-stop.1
+      - docs/man/pogo-daemon-uninstall.1
+      - docs/man/pogo-daemon.1
       - docs/man/pogo-describe.1
       - docs/man/pogo-edit.1
       - docs/man/pogo-gc.1

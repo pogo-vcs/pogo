@@ -1,0 +1,35 @@
+.nh
+.TH "pogo" "1" "Sep 2025" "pogo/dev" "Pogo Manual"
+
+.SH NAME
+pogo-daemon-run - Run the Pogo daemon service
+
+
+.SH SYNOPSIS
+\fBpogo daemon run [flags]\fP
+
+
+.SH DESCRIPTION
+Run the Pogo daemon service process.
+
+.PP
+This command starts the daemon and waits for SIGTERM to gracefully shutdown.
+It is typically called by the system service manager, not directly by users.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for run
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--time\fP[=false]
+	Measure command execution time
+
+.PP
+\fB-v\fP, \fB--verbose\fP[=false]
+	Enable verbose debug logging
+
+
+.SH SEE ALSO
+\fBpogo-daemon(1)\fP
