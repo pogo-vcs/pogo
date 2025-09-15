@@ -21,6 +21,8 @@ var daemonCmd = &cobra.Command{
 	Short:   "Manage Pogo daemon service",
 	Long: `Manage the Pogo daemon service for automatic operations.
 
+This is currently only implemented for macOS. Windows and Linux will follow soon.
+
 The daemon service can be installed to run automatically and provides
 background functionality for Pogo operations.
 
