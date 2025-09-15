@@ -347,6 +347,12 @@ WHERE
   src.change_id = @source_change
 ON CONFLICT (change_id, file_id) DO NOTHING;
 
+-- name: GetChangeFiles :many
+SELECT f.id, f.content_hash
+FROM files f
+JOIN change_files cf ON f.id = cf.file_id
+WHERE cf.change_id = $1;
+
 -- name: ClearChangeFiles :exec
 DELETE FROM change_files WHERE change_id = $1;
 
@@ -552,6 +558,19 @@ SELECT DISTINCT content_hash FROM files ORDER BY content_hash;
 
 -- name: CountFiles :one
 SELECT COUNT(DISTINCT content_hash) AS count FROM files;
+
+-- name: GetOrphanedFileIds :many
+SELECT f.id, f.content_hash
+FROM files f
+WHERE f.id = ANY(@file_ids::BIGINT[])
+AND NOT EXISTS (
+    SELECT 1 FROM change_files cf
+    WHERE cf.file_id = f.id
+);
+
+-- name: DeleteFilesByIds :exec
+DELETE FROM files
+WHERE id = ANY(@file_ids::BIGINT[]);
 
 -- name: CheckFileHashExists :one
 SELECT EXISTS(SELECT 1 FROM files WHERE content_hash = $1) AS exists;

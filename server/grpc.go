@@ -99,188 +99,217 @@ func (a *Server) Init(ctx context.Context, req *protos.InitRequest) (*protos.Ini
 
 // func (a *Server) PushFull(stream protos.Pogo_PushFullServer) error {
 func (a *Server) PushFull(stream grpc.ClientStreamingServer[protos.PushFullRequest, protos.PushFullResponse]) error {
-	gcMutex.RLock()
-	defer gcMutex.RUnlock()
+	var previousFiles []db.GetChangeFilesRow
 
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 
-	tx, err := db.Q.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("open db transaction: %w", err)
-	}
-	defer tx.Close()
+	if err := func() error {
+		gcMutex.RLock()
+		defer gcMutex.RUnlock()
 
-	// read auth
-	req, err := stream.Recv()
-	if err != nil {
-		return fmt.Errorf("recv request auth: %w", err)
-	}
-	auth, ok := req.Payload.(*protos.PushFullRequest_Auth)
-	if !ok || auth == nil || auth.Auth == nil {
-		return errors.New("invalid request auth payload")
-	}
-
-	// read change id
-	req, err = stream.Recv()
-	if err != nil {
-		return fmt.Errorf("recv request change id: %w", err)
-	}
-	changeId, ok := req.Payload.(*protos.PushFullRequest_ChangeId)
-	if !ok || changeId == nil {
-		return errors.New("invalid request change id payload")
-	}
-
-	// read force flag
-	req, err = stream.Recv()
-	if err != nil {
-		return fmt.Errorf("recv request force flag: %w", err)
-	}
-	forceFlag, ok := req.Payload.(*protos.PushFullRequest_Force)
-	if !ok || forceFlag == nil {
-		return errors.New("invalid request force flag payload")
-	}
-
-	// Get the repository ID from the change
-	change, err := tx.GetChange(ctx, changeId.ChangeId)
-	if err != nil {
-		return fmt.Errorf("get change: %w", err)
-	}
-
-	// Check repository access
-	userId, err := checkRepositoryAccessFromAuth(ctx, auth.Auth, change.RepositoryID)
-	if err != nil {
-		return fmt.Errorf("check repository access: %w", err)
-	}
-
-	// Check if change is readonly
-	if !forceFlag.Force {
-		isReadonly, err := tx.IsReadonly(ctx, changeId.ChangeId, userId)
+		tx, err := db.Q.Begin(ctx)
 		if err != nil {
-			return fmt.Errorf("check readonly: %w", err)
+			return fmt.Errorf("open db transaction: %w", err)
 		}
-		if isReadonly {
-			return errors.New("cannot push to readonly change (has bookmarks, children, or different author). Use --force to override")
-		}
-	}
+		defer tx.Close()
 
-	if err := tx.ClearChangeFiles(ctx, changeId.ChangeId); err != nil {
-		return fmt.Errorf("clear change files: %w", err)
-	}
-
-	tempDir, err := os.MkdirTemp("", "pogo-*")
-	if err != nil {
-		return fmt.Errorf("create temp dir: %w", err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	fileMeta := make(map[string]*protos.FileHeader)
-	filesWithContent := make(map[string]bool)
-files_loop:
-	for {
+		// read auth
 		req, err := stream.Recv()
 		if err != nil {
-			return fmt.Errorf("recv request file header: %w", err)
+			return fmt.Errorf("recv request auth: %w", err)
 		}
-		var fileHeader *protos.FileHeader
-		var hasContent bool
-		// next file or end of files?
-		switch v := req.Payload.(type) {
-		case *protos.PushFullRequest_FileHeader:
-			if v == nil || v.FileHeader == nil {
-				return errors.New("invalid request file header payload")
-			}
-			fileHeader = v.FileHeader
-		case *protos.PushFullRequest_EndOfFiles:
-			break files_loop
-		default:
-			return fmt.Errorf("invalid request payload %T", v)
+		auth, ok := req.Payload.(*protos.PushFullRequest_Auth)
+		if !ok || auth == nil || auth.Auth == nil {
+			return errors.New("invalid request auth payload")
 		}
 
-		relPath := filepath.FromSlash(fileHeader.Name)
-		fileMeta[relPath] = fileHeader
-
-		// Check if content follows
+		// read change id
 		req, err = stream.Recv()
 		if err != nil {
-			return fmt.Errorf("recv has_content flag: %w", err)
+			return fmt.Errorf("recv request change id: %w", err)
 		}
-		switch v := req.Payload.(type) {
-		case *protos.PushFullRequest_HasContent:
-			hasContent = v.HasContent
-		default:
-			return fmt.Errorf("expected has_content flag, got %T", v)
+		changeId, ok := req.Payload.(*protos.PushFullRequest_ChangeId)
+		if !ok || changeId == nil {
+			return errors.New("invalid request change id payload")
 		}
 
-		if hasContent {
-			// File content follows, read and store it
-			absPath := filepath.Join(tempDir, relPath)
-			_ = os.MkdirAll(filepath.Dir(absPath), 0755)
-			f, err := os.Create(absPath)
+		// read force flag
+		req, err = stream.Recv()
+		if err != nil {
+			return fmt.Errorf("recv request force flag: %w", err)
+		}
+		forceFlag, ok := req.Payload.(*protos.PushFullRequest_Force)
+		if !ok || forceFlag == nil {
+			return errors.New("invalid request force flag payload")
+		}
+
+		// Get the repository ID from the change
+		change, err := tx.GetChange(ctx, changeId.ChangeId)
+		if err != nil {
+			return fmt.Errorf("get change: %w", err)
+		}
+
+		// Check repository access
+		userId, err := checkRepositoryAccessFromAuth(ctx, auth.Auth, change.RepositoryID)
+		if err != nil {
+			return fmt.Errorf("check repository access: %w", err)
+		}
+
+		// Check if change is readonly
+		if !forceFlag.Force {
+			isReadonly, err := tx.IsReadonly(ctx, changeId.ChangeId, userId)
 			if err != nil {
-				return fmt.Errorf("create file %s: %w", absPath, err)
+				return fmt.Errorf("check readonly: %w", err)
 			}
-
-			if _, err := io.Copy(f, PushFull_StreamReader{stream}); err != nil {
-				f.Close()
-				return fmt.Errorf("copy file %s: %w", absPath, err)
+			if isReadonly {
+				return errors.New("cannot push to readonly change (has bookmarks, children, or different author). Use --force to override")
 			}
-			// Close file immediately after writing to avoid Windows file locking issues
-			if err := f.Close(); err != nil {
-				return fmt.Errorf("close file %s: %w", absPath, err)
-			}
-			filesWithContent[relPath] = true
-		}
-	}
-
-	// Move new files to permanent store
-	moved, err := filecontents.MoveAllFiles(tempDir)
-	if err != nil {
-		return fmt.Errorf("move files to permanent store: %w", err)
-	}
-
-	// Process all file metadata
-	for relPath, header := range fileMeta {
-		exec := false
-		if header.Executable != nil {
-			exec = *header.Executable
 		}
 
-		var hash []byte
-		if filesWithContent[relPath] {
-			// Use hash from newly stored file
-			hash = moved[relPath]
-		} else {
-			// File already exists, use hash from metadata
-			hash = header.ContentHash
+		// Get files currently in the change before clearing them
+		// These are potential candidates for garbage collection
+		previousFiles, err = tx.GetChangeFiles(ctx, changeId.ChangeId)
+		if err != nil {
+			return fmt.Errorf("get current change files: %w", err)
 		}
 
-		// Check for conflicts
-		hasConflicts := filecontents.IsBinaryConflictFileName(relPath)
-		if !hasConflicts {
-			hashStr := base64.URLEncoding.EncodeToString(hash)
-			filePath := filecontents.GetFilePathFromHash(hashStr)
-			if hasConflicts = filecontents.IsBinaryConflictFileName(relPath); !hasConflicts {
-				hasConflicts, err = filecontents.HasConflictMarkers(filePath)
+		if err := tx.ClearChangeFiles(ctx, changeId.ChangeId); err != nil {
+			return fmt.Errorf("clear change files: %w", err)
+		}
+
+		tempDir, err := os.MkdirTemp("", "pogo-*")
+		if err != nil {
+			return fmt.Errorf("create temp dir: %w", err)
+		}
+		defer os.RemoveAll(tempDir)
+
+		fileMeta := make(map[string]*protos.FileHeader)
+		filesWithContent := make(map[string]bool)
+	files_loop:
+		for {
+			req, err := stream.Recv()
+			if err != nil {
+				return fmt.Errorf("recv request file header: %w", err)
+			}
+			var fileHeader *protos.FileHeader
+			var hasContent bool
+			// next file or end of files?
+			switch v := req.Payload.(type) {
+			case *protos.PushFullRequest_FileHeader:
+				if v == nil || v.FileHeader == nil {
+					return errors.New("invalid request file header payload")
+				}
+				fileHeader = v.FileHeader
+			case *protos.PushFullRequest_EndOfFiles:
+				break files_loop
+			default:
+				return fmt.Errorf("invalid request payload %T", v)
+			}
+
+			relPath := filepath.FromSlash(fileHeader.Name)
+			fileMeta[relPath] = fileHeader
+
+			// Check if content follows
+			req, err = stream.Recv()
+			if err != nil {
+				return fmt.Errorf("recv has_content flag: %w", err)
+			}
+			switch v := req.Payload.(type) {
+			case *protos.PushFullRequest_HasContent:
+				hasContent = v.HasContent
+			default:
+				return fmt.Errorf("expected has_content flag, got %T", v)
+			}
+
+			if hasContent {
+				// File content follows, read and store it
+				absPath := filepath.Join(tempDir, relPath)
+				_ = os.MkdirAll(filepath.Dir(absPath), 0755)
+				f, err := os.Create(absPath)
 				if err != nil {
-					return fmt.Errorf("check conflict markers for file %s: %w", relPath, err)
+					return fmt.Errorf("create file %s: %w", absPath, err)
+				}
+
+				if _, err := io.Copy(f, PushFull_StreamReader{stream}); err != nil {
+					f.Close()
+					return fmt.Errorf("copy file %s: %w", absPath, err)
+				}
+				// Close file immediately after writing to avoid Windows file locking issues
+				if err := f.Close(); err != nil {
+					return fmt.Errorf("close file %s: %w", absPath, err)
+				}
+				filesWithContent[relPath] = true
+			}
+		}
+
+		// Move new files to permanent store
+		moved, err := filecontents.MoveAllFiles(tempDir)
+		if err != nil {
+			return fmt.Errorf("move files to permanent store: %w", err)
+		}
+
+		// Process all file metadata
+		for relPath, header := range fileMeta {
+			exec := false
+			if header.Executable != nil {
+				exec = *header.Executable
+			}
+
+			var hash []byte
+			if filesWithContent[relPath] {
+				// Use hash from newly stored file
+				hash = moved[relPath]
+			} else {
+				// File already exists, use hash from metadata
+				hash = header.ContentHash
+			}
+
+			// Check for conflicts
+			hasConflicts := filecontents.IsBinaryConflictFileName(relPath)
+			if !hasConflicts {
+				hashStr := base64.URLEncoding.EncodeToString(hash)
+				filePath := filecontents.GetFilePathFromHash(hashStr)
+				if hasConflicts = filecontents.IsBinaryConflictFileName(relPath); !hasConflicts {
+					hasConflicts, err = filecontents.HasConflictMarkers(filePath)
+					if err != nil {
+						return fmt.Errorf("check conflict markers for file %s: %w", relPath, err)
+					}
 				}
 			}
+
+			fmt.Printf("AddFileToChange ChangeId: %d, relPath: %s, exec: %t, hash: %x, hasConflicts: %t, hadContent: %t\n", changeId.ChangeId, relPath, exec, hash, hasConflicts, filesWithContent[relPath])
+			if err := tx.AddFileToChange(ctx, changeId.ChangeId, relPath, exec, hash, hasConflicts); err != nil {
+				return fmt.Errorf("add file %s to change: %w", relPath, err)
+			}
 		}
 
-		fmt.Printf("AddFileToChange ChangeId: %d, relPath: %s, exec: %t, hash: %x, hasConflicts: %t, hadContent: %t\n", changeId.ChangeId, relPath, exec, hash, hasConflicts, filesWithContent[relPath])
-		if err := tx.AddFileToChange(ctx, changeId.ChangeId, relPath, exec, hash, hasConflicts); err != nil {
-			return fmt.Errorf("add file %s to change: %w", relPath, err)
+		if err := stream.SendAndClose(&protos.PushFullResponse{}); err != nil {
+			return fmt.Errorf("send response: %w", err)
 		}
-	}
 
-	if err := stream.SendAndClose(&protos.PushFullResponse{}); err != nil {
-		return fmt.Errorf("send response: %w", err)
-	}
+		if err = tx.Commit(ctx); err != nil {
+			return fmt.Errorf("commit transaction: %w", err)
+		}
 
-	if err = tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit transaction: %w", err)
+		return nil
+	}(); err != nil {
+		return err
 	}
+	// After successful commit, perform garbage collection on potentially orphaned files
+	// Release read lock and acquire write lock for GC operations
+	func() {
+		gcMutex.Lock()
+		defer gcMutex.Unlock()
+
+		// Clean up orphaned files from the previous change state
+		if len(previousFiles) > 0 {
+			if err := cleanupOrphanedFiles(ctx, previousFiles); err != nil {
+				// Log error but don't fail the push operation
+				fmt.Printf("warning: failed to cleanup orphaned files after push: %v\n", err)
+			}
+		}
+	}()
 
 	return nil
 }
@@ -1290,4 +1319,83 @@ func (a *Server) GetInvites(ctx context.Context, req *protos.GetInvitesRequest) 
 	return &protos.GetInvitesResponse{
 		Invites: protoInvites,
 	}, nil
+}
+
+// cleanupOrphanedFiles removes files from both database and filesystem that are no longer referenced by any change
+func cleanupOrphanedFiles(ctx context.Context, candidateFiles []db.GetChangeFilesRow) error {
+	if len(candidateFiles) == 0 {
+		return nil
+	}
+
+	// Extract file IDs for batch processing
+	fileIds := make([]int64, len(candidateFiles))
+	for i, file := range candidateFiles {
+		fileIds[i] = file.ID
+	}
+
+	// Start a new transaction for cleanup operations
+	tx, err := db.Q.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin cleanup transaction: %w", err)
+	}
+	defer tx.Close()
+
+	// Check which of these files are actually orphaned (not referenced by any change)
+	orphanedFiles, err := db.Q.GetOrphanedFileIds(ctx, fileIds)
+	if err != nil {
+		return fmt.Errorf("get orphaned file ids: %w", err)
+	}
+
+	// Log only if there are actually orphaned files to clean up
+	if len(orphanedFiles) > 0 {
+		fmt.Printf("GC during push: cleaning up %d orphaned files\n", len(orphanedFiles))
+	}
+
+	if len(orphanedFiles) == 0 {
+		// No orphaned files, nothing to clean up
+		return nil
+	}
+
+	// Delete orphaned files from database first
+	orphanedFileIds := make([]int64, len(orphanedFiles))
+	for i, file := range orphanedFiles {
+		orphanedFileIds[i] = file.ID
+	}
+
+	if err := tx.DeleteFilesByIds(ctx, orphanedFileIds); err != nil {
+		return fmt.Errorf("delete orphaned files from database: %w", err)
+	}
+
+	// Commit database transaction before filesystem cleanup
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit cleanup transaction: %w", err)
+	}
+
+	// Now remove files from filesystem
+	var deletedCount int
+	var totalSize int64
+
+	for _, file := range orphanedFiles {
+		hashStr := base64.URLEncoding.EncodeToString(file.ContentHash)
+		filePath := filecontents.GetFilePathFromHash(hashStr)
+
+		// Get file size before deletion for reporting
+		if info, err := os.Stat(filePath); err == nil {
+			totalSize += info.Size()
+		}
+
+		// Delete the file from storage
+		if err := os.Remove(filePath); err == nil {
+			deletedCount++
+		} else if !os.IsNotExist(err) {
+			// Log non-critical filesystem errors but continue
+			fmt.Printf("warning: failed to delete file %s: %v\n", filePath, err)
+		}
+	}
+
+	if deletedCount > 0 {
+		fmt.Printf("GC: deleted %d orphaned files during push (%d bytes freed)\n", deletedCount, totalSize)
+	}
+
+	return nil
 }
