@@ -86,5 +86,5 @@ jobs:
         with:
           file: ./Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository }}:latest,ghcr.io/${{ github.repository }}:alpine,ghcr.io/${{ github.repository }}:${{ steps.find_tag.outputs.tag }},ghcr.io/${{ github.repository }}:alpine-${{ steps.find_tag.outputs.tag }}
+          tags: ghcr.io/${{ github.repository }}:latest,ghcr.io/${{ github.repository }}:alpine,ghcr.io/${{ github.repository }}:${{ github.ref_name }},ghcr.io/${{ github.repository }}:alpine-${{ github.ref_name }}
           platforms: linux/amd64,linux/arm64/v8
