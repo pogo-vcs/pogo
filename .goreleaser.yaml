@@ -43,6 +43,9 @@ archives:
     format_overrides:
       - goos: windows
         formats: [zip]
+    files:
+      - docs/completions/*
+      - docs/man/*
 
 changelog:
   sort: asc
