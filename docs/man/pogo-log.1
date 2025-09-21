@@ -30,12 +30,16 @@ This command pushes any changes before running.
 
 
 .SH OPTIONS
-\fB--color\fP[=true]
+\fB--color\fP[=false]
 	Enable colored output
 
 .PP
 \fB-h\fP, \fB--help\fP[=false]
 	help for log
+
+.PP
+\fB--json\fP[=false]
+	Output log data as JSON
 
 .PP
 \fB-n\fP, \fB--number\fP=10
@@ -61,6 +65,9 @@ pogo log -n 50
 
 # Disable colored output
 pogo log --color=false
+
+# Output as JSON
+pogo log --json
 .EE
 
 

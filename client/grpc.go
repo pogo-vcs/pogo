@@ -306,6 +306,22 @@ func (c *Client) Log(maxChanges int32, coloredOutput bool) (string, error) {
 	return RenderLog(response, coloredOutput), nil
 }
 
+func (c *Client) LogJSON(maxChanges int32) (string, error) {
+	request := &protos.LogRequest{
+		Auth:               c.GetAuth(),
+		RepoId:             c.repoId,
+		CheckedOutChangeId: c.changeId,
+		MaxChanges:         maxChanges,
+	}
+
+	response, err := c.Pogo.Log(c.ctx, request)
+	if err != nil {
+		return "", errors.Join(errors.New("get log"), err)
+	}
+
+	return RenderLogAsJSON(response)
+}
+
 func (c *Client) Info() (*protos.InfoResponse, error) {
 	request := &protos.InfoRequest{
 		Auth:               c.GetAuth(),

@@ -205,6 +205,7 @@ SELECT
   id,
   name,
   description,
+  created_at,
   updated_at,
   get_unique_prefix(id) AS unique_prefix
 FROM changes

@@ -145,6 +145,8 @@ message LogChange {
   string unique_prefix = 3;
   optional string description = 4;
   repeated string conflict_files = 5;
+  string created_at = 6;
+  string updated_at = 7;
 }
 
 message LogRelation {

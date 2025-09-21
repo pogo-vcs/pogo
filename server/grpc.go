@@ -894,6 +894,8 @@ func (a *Server) Log(ctx context.Context, req *protos.LogRequest) (*protos.LogRe
 			Id:           change.ID,
 			Name:         change.Name,
 			UniquePrefix: change.UniquePrefix,
+			CreatedAt:    change.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
+			UpdatedAt:    change.UpdatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
 		}
 		if change.Description != nil {
 			logChange.Description = change.Description

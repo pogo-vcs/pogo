@@ -37,7 +37,7 @@ For more information, visit: https://github.com/pogo-vcs/pogo`,
 			if globalTimer {
 				globalTimeStart = time.Now()
 			}
-			if isUnder(cmd, bookmarkCmd, describeCmd, editCmd, logCmd, rmCmd) {
+			if isUnder(cmd, bookmarkCmd, describeCmd, editCmd, logCmd, rmCmd, newCmd) {
 				_ = pushCmd.RunE(cmd, nil)
 			}
 		},
