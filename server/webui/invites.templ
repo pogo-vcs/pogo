@@ -62,36 +62,62 @@ script inviteScript() {
 		btn.addEventListener("click", async () => {
 			const inviteUrl = btn.dataset.inviteUrl;
 
-			try {
-				await navigator.clipboard.writeText(inviteUrl);
-
-				// Show feedback
+			// Helper function to show feedback
+			const showFeedback = (message, isSuccess = true) => {
 				const originalText = btn.textContent;
-				btn.textContent = "Copied!";
+				btn.textContent = message;
 				btn.classList.remove("bg-ctp-blue", "hover:bg-ctp-sapphire");
-				btn.classList.add("bg-ctp-green");
+				
+				if (isSuccess) {
+					btn.classList.add("bg-ctp-green");
+				} else {
+					btn.classList.add("bg-ctp-red");
+				}
 
-				// Reset after 2 seconds
 				setTimeout(() => {
 					btn.textContent = originalText;
-					btn.classList.remove("bg-ctp-green");
+					if (isSuccess) {
+						btn.classList.remove("bg-ctp-green");
+					} else {
+						btn.classList.remove("bg-ctp-red");
+					}
 					btn.classList.add("bg-ctp-blue", "hover:bg-ctp-sapphire");
 				}, 2000);
-			} catch (err) {
-				// Fallback for older browsers
+			};
+
+			// Try modern clipboard API first
+			if (navigator.clipboard && navigator.clipboard.writeText) {
+				try {
+					await navigator.clipboard.writeText(inviteUrl);
+					showFeedback("Copied!");
+					return;
+				} catch (err) {
+					console.warn('Clipboard API failed, trying fallback:', err);
+				}
+			}
+
+			// Fallback for older browsers or when clipboard API is not available
+			try {
 				const textArea = document.createElement("textarea");
 				textArea.value = inviteUrl;
+				textArea.style.position = "fixed";
+				textArea.style.left = "-999999px";
+				textArea.style.top = "-999999px";
 				document.body.appendChild(textArea);
+				textArea.focus();
 				textArea.select();
-				document.execCommand("copy");
+				
+				const successful = document.execCommand("copy");
 				document.body.removeChild(textArea);
-
-				// Show feedback
-				const originalText = btn.textContent;
-				btn.textContent = "Copied!";
-				setTimeout(() => {
-					btn.textContent = originalText;
-				}, 2000);
+				
+				if (successful) {
+					showFeedback("Copied!");
+				} else {
+					showFeedback("Copy failed", false);
+				}
+			} catch (fallbackErr) {
+				console.error('All copy methods failed:', fallbackErr);
+				showFeedback("Copy failed", false);
 			}
 		});
 	});

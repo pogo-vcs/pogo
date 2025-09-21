@@ -28,9 +28,8 @@ templ CodeButton(repoId int32, repoName string) {
 							id={ "clone-command-" + strconv.Itoa(int(repoId)) }
 						/>
 						<button
-							data-copy-target={ "clone-command-" + strconv.Itoa(int(repoId)) }
 							class="copy-button cursor-pointer flex-shrink-0 px-3 py-[calc(var(--spacing)*2.5)] bg-ctp-surface1 hover:bg-ctp-surface2 border border-ctp-surface2 rounded-md text-ctp-text"
-							title="Copy clone command"
+							onclick="navigator.clipboard.writeText(this.parentElement.querySelector('input').value);"
 						>
 							@icons.Copy()
 						</button>
@@ -50,23 +49,4 @@ templ CodeButton(repoId int32, repoName string) {
 			</div>
 		</div>
 	</details>
-	<script>
-		document.addEventListener('click', function(e) {
-			if (e.target.classList.contains('copy-button')) {
-				const targetId = e.target.getAttribute('data-copy-target');
-				const element = document.getElementById(targetId);
-				if (element) {
-					element.select();
-					element.setSelectionRange(0, 99999);
-					document.execCommand('copy');
-					
-					const originalTitle = e.target.title;
-					e.target.title = 'Copied!';
-					setTimeout(() => {
-						e.target.title = originalTitle;
-					}, 2000);
-				}
-			}
-		});
-	</script>
 }
