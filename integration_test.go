@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -1227,4 +1228,134 @@ func bytesEqual(a, b []byte) bool {
 		}
 	}
 	return true
+}
+
+func TestServerSideCIContainerWithRepoContent(t *testing.T) {
+	if !isDockerAvailable() {
+		t.Skip("Docker not available")
+	}
+
+	testEnv := setupTestEnvironment(t)
+	defer testEnv.cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	tmpDir, err := os.MkdirTemp("", "pogo-test-ci-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	if err := setupToken(testEnv.serverAddr); err != nil {
+		t.Fatalf("Failed to setup token: %v", err)
+	}
+
+	repoName := fmt.Sprintf("test-ci-%d", time.Now().Unix())
+	c, err := client.OpenNew(ctx, testEnv.serverAddr, tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+	defer c.Close()
+
+	repoId, changeId, err := c.Init(repoName, false)
+	if err != nil {
+		t.Fatalf("Failed to initialize repository: %v", err)
+	}
+	t.Logf("Created repository %s (ID: %d, Initial change: %d)", repoName, repoId, changeId)
+
+	config := client.Repo{
+		Server:   testEnv.serverAddr,
+		RepoId:   repoId,
+		ChangeId: changeId,
+	}
+	if err := config.Save(filepath.Join(tmpDir, ".pogo.yaml")); err != nil {
+		t.Fatalf("Failed to save config: %v", err)
+	}
+
+	testFilePath := filepath.Join(tmpDir, "test.txt")
+	if err := os.WriteFile(testFilePath, []byte("Hello from CI test"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	scriptPath := filepath.Join(tmpDir, "test.sh")
+	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\necho 'Script executed'\n"), 0755); err != nil {
+		t.Fatalf("Failed to create test script: %v", err)
+	}
+
+	ciDir := filepath.Join(tmpDir, ".pogo", "ci")
+	if err := os.MkdirAll(ciDir, 0755); err != nil {
+		t.Fatalf("Failed to create CI directory: %v", err)
+	}
+
+	ciConfig := `version: 1
+on:
+  push:
+    bookmarks: ["main"]
+do:
+  - type: container
+    container:
+      image: alpine:latest
+      commands:
+        - sh
+        - -c
+        - |
+          echo "=== CI Container Started ==="
+          echo "Working directory: $(pwd)"
+          echo "Files in workspace:"
+          ls -la
+          echo "=== Checking test.txt ==="
+          if [ -f test.txt ]; then
+            echo "✓ test.txt exists"
+            cat test.txt
+          else
+            echo "✗ test.txt NOT FOUND"
+            exit 1
+          fi
+          echo "=== Checking test.sh ==="
+          if [ -f test.sh ]; then
+            echo "✓ test.sh exists"
+            if [ -x test.sh ]; then
+              echo "✓ test.sh is executable"
+            else
+              echo "✗ test.sh is NOT executable"
+              exit 1
+            fi
+          else
+            echo "✗ test.sh NOT FOUND"
+            exit 1
+          fi
+          echo "=== CI Container Success ==="
+`
+
+	ciConfigPath := filepath.Join(ciDir, "main.yaml")
+	if err := os.WriteFile(ciConfigPath, []byte(ciConfig), 0644); err != nil {
+		t.Fatalf("Failed to create CI config: %v", err)
+	}
+
+	c2, err := client.OpenFromFile(ctx, tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to open client from file: %v", err)
+	}
+	defer c2.Close()
+
+	t.Log("Pushing initial files with CI config...")
+	if err := c2.PushFull(false); err != nil {
+		t.Fatalf("Failed to push files: %v", err)
+	}
+
+	t.Log("Setting main bookmark (this should trigger CI)...")
+	if err := c2.SetBookmark("main", nil); err != nil {
+		t.Fatalf("Failed to set bookmark: %v", err)
+	}
+
+	t.Log("Waiting for CI to complete...")
+	time.Sleep(15 * time.Second)
+
+	t.Log("CI test completed successfully")
+}
+
+func isDockerAvailable() bool {
+	cmd := exec.Command("docker", "version")
+	return cmd.Run() == nil
 }

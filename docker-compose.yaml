@@ -14,7 +14,9 @@ services:
       - ROOT_TOKEN=HP9X+pubni2ufsXTeDreWsxcY+MyxFHBgM+py1hWOks=
       - GC_MEMORY_THRESHOLD=${GC_MEMORY_THRESHOLD:-10000000}
       - PUBLIC_ADDRESS=http://localhost:4321
-    # volumes:
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     #   - ./pogo_data/:/data/
     tmpfs:
       - /data/

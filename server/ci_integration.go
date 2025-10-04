@@ -5,7 +5,9 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/pogo-vcs/pogo/db"
 	"github.com/pogo-vcs/pogo/filecontents"
@@ -51,24 +53,70 @@ func readFileContent(contentHash []byte) ([]byte, error) {
 	return io.ReadAll(reader)
 }
 
+func extractRepositoryContentToTemp(ctx context.Context, repositoryId int32, bookmarkName string) (string, error) {
+	vcsFiles, err := db.Q.GetRepositoryFilesForRevisionFuzzy(ctx, repositoryId, bookmarkName)
+	if err != nil {
+		return "", fmt.Errorf("get repository files: %w", err)
+	}
+
+	tempDir := filepath.Join(os.TempDir(), fmt.Sprintf("pogo-ci-%d-%d", time.Now().UnixNano(), repositoryId))
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		return "", fmt.Errorf("create temp directory: %w", err)
+	}
+
+	for _, vcsFile := range vcsFiles {
+		hashStr := base64.URLEncoding.EncodeToString(vcsFile.ContentHash)
+		reader, err := filecontents.OpenFileByHash(hashStr)
+		if err != nil {
+			os.RemoveAll(tempDir)
+			return "", fmt.Errorf("open file %s: %w", vcsFile.Name, err)
+		}
+
+		destPath := filepath.Join(tempDir, vcsFile.Name)
+		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+			reader.Close()
+			os.RemoveAll(tempDir)
+			return "", fmt.Errorf("create directory for %s: %w", vcsFile.Name, err)
+		}
+
+		perm := os.FileMode(0644)
+		if vcsFile.Executable {
+			perm = 0755
+		}
+
+		destFile, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
+		if err != nil {
+			reader.Close()
+			os.RemoveAll(tempDir)
+			return "", fmt.Errorf("create file %s: %w", vcsFile.Name, err)
+		}
+
+		_, err = io.Copy(destFile, reader)
+		reader.Close()
+		destFile.Close()
+		if err != nil {
+			os.RemoveAll(tempDir)
+			return "", fmt.Errorf("copy file %s: %w", vcsFile.Name, err)
+		}
+	}
+
+	return tempDir, nil
+}
+
 func executeCIForBookmarkEvent(ctx context.Context, changeId int64, bookmarkName string, eventType ci.EventType) {
 	configFiles, err := getCIConfigFiles(ctx, changeId)
 	if err != nil || len(configFiles) == 0 {
-		// No CI configuration or error reading it - silently continue
 		return
 	}
 
-	// Get repository info to build archive URL
 	change, err := db.Q.GetChange(ctx, changeId)
 	if err != nil {
-		// Log error but don't fail
 		fmt.Printf("CI execution error: failed to get change: %v\n", err)
 		return
 	}
 
 	repo, err := db.Q.GetRepository(ctx, change.RepositoryID)
 	if err != nil {
-		// Log error but don't fail
 		fmt.Printf("CI execution error: failed to get repository: %v\n", err)
 		return
 	}
@@ -80,10 +128,18 @@ func executeCIForBookmarkEvent(ctx context.Context, changeId int64, bookmarkName
 		ArchiveUrl: archiveUrl,
 	}
 
-	// Execute CI in a goroutine to avoid blocking the bookmark operation
 	go func() {
-		if err := ciExecutor.ExecuteForBookmarkEvent(context.Background(), configFiles, event, eventType); err != nil {
-			// Log error but don't fail the bookmark operation
+		tempDir, err := extractRepositoryContentToTemp(context.Background(), change.RepositoryID, bookmarkName)
+		if err != nil {
+			fmt.Printf("CI execution error: failed to extract repository content: %v\n", err)
+			return
+		}
+		defer os.RemoveAll(tempDir)
+
+		executor := ci.NewExecutor()
+		executor.SetRepoContentDir(tempDir)
+
+		if err := executor.ExecuteForBookmarkEvent(context.Background(), configFiles, event, eventType); err != nil {
 			fmt.Printf("CI execution error: %v\n", err)
 		}
 	}()

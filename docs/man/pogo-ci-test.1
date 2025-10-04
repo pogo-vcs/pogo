@@ -1,0 +1,52 @@
+.nh
+.TH "pogo" "1" "Oct 2025" "pogo/dev" "Pogo Manual"
+
+.SH NAME
+pogo-ci-test - Test a CI pipeline configuration
+
+
+.SH SYNOPSIS
+\fBpogo ci test [config-file] [flags]\fP
+
+
+.SH DESCRIPTION
+Test a CI pipeline configuration by executing it with a synthetic event.
+
+.PP
+This command allows you to test your CI pipeline locally before pushing it to the server.
+It will execute the pipeline using the same logic as the server would, allowing you to verify
+that your configuration works as expected.
+
+.PP
+The config file should be a YAML file in the .pogo/ci/ directory.
+If no config file is specified, all CI config files in .pogo/ci/ will be tested.
+
+
+.SH OPTIONS
+\fB-a\fP, \fB--archive-url\fP="https://example.com/archive"
+	Archive URL for the event
+
+.PP
+\fB-t\fP, \fB--event-type\fP="push"
+	Event type to simulate (push or remove)
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for test
+
+.PP
+\fB-r\fP, \fB--rev\fP="main"
+	Revision name for the event
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--time\fP[=false]
+	Measure command execution time
+
+.PP
+\fB-v\fP, \fB--verbose\fP[=false]
+	Enable verbose debug logging
+
+
+.SH SEE ALSO
+\fBpogo-ci(1)\fP
