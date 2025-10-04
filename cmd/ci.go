@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/pogo-vcs/pogo/client"
 	"github.com/pogo-vcs/pogo/server/ci"
 	"github.com/spf13/cobra"
 )
@@ -30,6 +31,17 @@ The config file should be a YAML file in the .pogo/ci/ directory.
 If no config file is specified, all CI config files in .pogo/ci/ will be tested.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("get working directory: %w", err)
+			}
+
+			repoFile, err := client.FindRepoFile(cwd)
+			if err != nil {
+				return fmt.Errorf("find repository: %w", err)
+			}
+			repoRoot := filepath.Dir(repoFile)
+
 			configFiles := make(map[string][]byte)
 
 			if len(args) == 1 {
@@ -40,7 +52,7 @@ If no config file is specified, all CI config files in .pogo/ci/ will be tested.
 				}
 				configFiles[filepath.Base(configPath)] = content
 			} else {
-				ciDir := filepath.Join(".pogo", "ci")
+				ciDir := filepath.Join(repoRoot, ".pogo", "ci")
 				entries, err := os.ReadDir(ciDir)
 				if err != nil {
 					return fmt.Errorf("read CI directory: %w", err)
@@ -74,11 +86,7 @@ If no config file is specified, all CI config files in .pogo/ci/ will be tested.
 			}
 
 			executor := ci.NewExecutor()
-
-			cwd, err := os.Getwd()
-			if err == nil {
-				executor.SetRepoContentDir(cwd)
-			}
+			executor.SetRepoContentDir(repoRoot)
 
 			eventType := ci.EventTypePush
 			if ciTestEventType == "remove" {
