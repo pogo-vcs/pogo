@@ -56,10 +56,12 @@ on:
   push:
     bookmarks: ["main"]
 do:
-  - url: %s/webhook
-    method: POST
-    headers:
-      X-Event-Type: bookmark-push
+  - type: webhook
+    webhook:
+      url: %s/webhook
+      method: POST
+      headers:
+        X-Event-Type: bookmark-push
 `, testServer.URL)),
 			},
 			event: Event{
@@ -78,10 +80,12 @@ on:
   remove:
     bookmarks: ["v*"]
 do:
-  - url: %s/webhook
-    method: DELETE
-    headers:
-      X-Event-Type: bookmark-remove
+  - type: webhook
+    webhook:
+      url: %s/webhook
+      method: DELETE
+      headers:
+        X-Event-Type: bookmark-remove
 `, testServer.URL)),
 			},
 			event: Event{
@@ -100,8 +104,10 @@ on:
   push:
     bookmarks: ["production"]
 do:
-  - url: %s/webhook
-    method: POST
+  - type: webhook
+    webhook:
+      url: %s/webhook
+      method: POST
 `, testServer.URL)),
 			},
 			event: Event{
@@ -120,10 +126,14 @@ on:
   push:
     bookmarks: ["*"]
 do:
-  - url: %s/webhook1
-    method: POST
-  - url: %s/webhook2
-    method: PUT
+  - type: webhook
+    webhook:
+      url: %s/webhook1
+      method: POST
+  - type: webhook
+    webhook:
+      url: %s/webhook2
+      method: PUT
 `, testServer.URL, testServer.URL)),
 			},
 			event: Event{
@@ -142,8 +152,10 @@ on:
   push:
     bookmarks: ["main"]
 do:
-  - url: %s/webhook
-    method: POST
+  - type: webhook
+    webhook:
+      url: %s/webhook
+      method: POST
 `, testServer.URL)),
 			},
 			event: Event{
@@ -209,10 +221,12 @@ on:
   push:
     bookmarks: ["main"]
 do:
-  - url: %s/webhook
-    method: POST
-    retry_policy:
-      max_attempts: 3
+  - type: webhook
+    webhook:
+      url: %s/webhook
+      method: POST
+      retry_policy:
+        max_attempts: 3
 `, testServer.URL)),
 	}
 
@@ -259,10 +273,12 @@ on:
   push:
     bookmarks: ["main"]
 do:
-  - url: %s/webhook
-    method: POST
-    retry_policy:
-      max_attempts: 2
+  - type: webhook
+    webhook:
+      url: %s/webhook
+      method: POST
+      retry_policy:
+        max_attempts: 2
 `, testServer.URL)),
 	}
 
@@ -319,14 +335,16 @@ on:
   push:
     bookmarks: ["{{ .Rev }}"]
 do:
-  - url: https://api.example.com/webhook
-    method: POST
-    body: |
-      {
-        "event": "bookmark_push",
-        "bookmark": "{{ .Rev }}",
-        "archive_url": "{{ .ArchiveUrl }}"
-      }
+  - type: webhook
+    webhook:
+      url: https://api.example.com/webhook
+      method: POST
+      body: |
+        {
+          "event": "bookmark_push",
+          "bookmark": "{{ .Rev }}",
+          "archive_url": "{{ .ArchiveUrl }}"
+        }
 `)
 
 	event := Event{
@@ -343,14 +361,18 @@ do:
 		t.Errorf("Expected bookmark pattern 'main', got %q", config.On.Push.Bookmarks[0])
 	}
 
+	if config.Do[0].Webhook == nil {
+		t.Fatal("Expected webhook task but got nil")
+	}
+
 	expectedBody := `{
   "event": "bookmark_push",
   "bookmark": "main",
   "archive_url": "https://example.com/archive.zip"
 }`
 
-	if strings.TrimSpace(config.Do[0].Body) != strings.TrimSpace(expectedBody) {
-		t.Errorf("Expected body:\n%s\nGot:\n%s", expectedBody, config.Do[0].Body)
+	if strings.TrimSpace(config.Do[0].Webhook.Body) != strings.TrimSpace(expectedBody) {
+		t.Errorf("Expected body:\n%s\nGot:\n%s", expectedBody, config.Do[0].Webhook.Body)
 	}
 }
 

@@ -93,6 +93,37 @@
     "Task": {
       "type": "object",
       "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["webhook", "container"]
+        },
+        "webhook": {
+          "$ref": "#/$defs/WebhookTask"
+        },
+        "container": {
+          "$ref": "#/$defs/ContainerTask"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "type": { "const": "webhook" }
+          },
+          "required": ["webhook"]
+        },
+        {
+          "properties": {
+            "type": { "const": "container" }
+          },
+          "required": ["container"]
+        }
+      ]
+    },
+    "WebhookTask": {
+      "type": "object",
+      "additionalProperties": false,
       "required": ["url", "method"],
       "properties": {
         "url": {
@@ -114,6 +145,51 @@
         "retry_policy": {
           "$ref": "#/$defs/RetryPolicy",
           "default": { "max_attempts": 1 }
+        }
+      }
+    },
+    "ContainerTask": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["image"],
+      "properties": {
+        "image": {
+          "type": "string",
+          "minLength": 1
+        },
+        "commands": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "environment": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "working_dir": {
+          "type": "string"
+        },
+        "services": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Service" }
+        }
+      }
+    },
+    "Service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "image"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "image": {
+          "type": "string",
+          "minLength": 1
+        },
+        "environment": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
         }
       }
     },

@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
 	"time"
 
+	"github.com/pogo-vcs/pogo/server/ci/docker"
 	"gopkg.in/yaml.v3"
 )
 
@@ -52,6 +54,14 @@ type (
 		Bookmarks []string `yaml:"bookmarks" json:"bookmarks"`
 	}
 	Task struct {
+		// Type of task: "webhook" or "container"
+		Type string `yaml:"type" json:"type"`
+		// Webhook-specific fields
+		Webhook *WebhookTask `yaml:"webhook,omitempty" json:"webhook,omitempty"`
+		// Container-specific fields
+		Container *ContainerTask `yaml:"container,omitempty" json:"container,omitempty"`
+	}
+	WebhookTask struct {
 		// Url to make a HTTP request to
 		Url string `yaml:"url" json:"url"`
 		// HTTP Method to use for the request
@@ -62,6 +72,26 @@ type (
 		Body string `yaml:"body,omitempty" json:"body,omitempty"`
 		// Retry policy to use when the request fails
 		Retry *RetryPolicy `yaml:"retry_policy,omitempty" json:"retry_policy,omitempty"`
+	}
+	ContainerTask struct {
+		// Image to use, either from registry (e.g. "alpine:latest") or Dockerfile path in repo (e.g. "./Dockerfile")
+		Image string `yaml:"image" json:"image"`
+		// Commands to run inside the container
+		Commands []string `yaml:"commands,omitempty" json:"commands,omitempty"`
+		// Environment variables to set in the container
+		Environment map[string]string `yaml:"environment,omitempty" json:"environment,omitempty"`
+		// Working directory inside the container
+		WorkingDir string `yaml:"working_dir,omitempty" json:"working_dir,omitempty"`
+		// Services to start alongside the main container
+		Services []Service `yaml:"services,omitempty" json:"services,omitempty"`
+	}
+	Service struct {
+		// Name of the service (used for network hostname)
+		Name string `yaml:"name" json:"name"`
+		// Image to use for the service
+		Image string `yaml:"image" json:"image"`
+		// Environment variables for the service
+		Environment map[string]string `yaml:"environment,omitempty" json:"environment,omitempty"`
 	}
 	RetryPolicy struct {
 		// Maximum number of attempts to make before giving up including the first attempt
@@ -114,15 +144,23 @@ func UnmarshalConfig(yamlString []byte, data Event) (*Config, error) {
 }
 
 type Executor struct {
-	httpClient *http.Client
+	httpClient     *http.Client
+	dockerClient   docker.Client
+	repoContentDir string
 }
 
 func NewExecutor() *Executor {
+	dockerClient, _ := docker.NewClient()
 	return &Executor{
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
+		dockerClient: dockerClient,
 	}
+}
+
+func (e *Executor) SetRepoContentDir(dir string) {
+	e.repoContentDir = dir
 }
 
 func (e *Executor) ExecuteForBookmarkEvent(ctx context.Context, configFiles map[string][]byte, event Event, eventType EventType) error {
@@ -169,6 +207,23 @@ func (e *Executor) executeTasks(ctx context.Context, tasks []Task) error {
 }
 
 func (e *Executor) executeTask(ctx context.Context, task Task) error {
+	switch task.Type {
+	case "webhook":
+		if task.Webhook == nil {
+			return fmt.Errorf("webhook task missing webhook configuration")
+		}
+		return e.executeWebhookTask(ctx, *task.Webhook)
+	case "container":
+		if task.Container == nil {
+			return fmt.Errorf("container task missing container configuration")
+		}
+		return e.executeContainerTask(ctx, *task.Container)
+	default:
+		return fmt.Errorf("unknown task type: %s", task.Type)
+	}
+}
+
+func (e *Executor) executeWebhookTask(ctx context.Context, task WebhookTask) error {
 	attempts := 1
 	if task.Retry != nil && task.Retry.MaxAttempts > 1 {
 		attempts = task.Retry.MaxAttempts
@@ -188,7 +243,78 @@ func (e *Executor) executeTask(ctx context.Context, task Task) error {
 	return lastErr
 }
 
-func (e *Executor) makeHTTPRequest(ctx context.Context, task Task) error {
+func (e *Executor) executeContainerTask(ctx context.Context, task ContainerTask) error {
+	if e.dockerClient == nil {
+		return fmt.Errorf("docker not available")
+	}
+
+	networkName := fmt.Sprintf("pogo-ci-%d", time.Now().UnixNano())
+
+	if err := e.dockerClient.CreateNetwork(ctx, networkName); err != nil {
+		return fmt.Errorf("create network: %w", err)
+	}
+	defer e.dockerClient.RemoveNetwork(context.Background(), networkName)
+
+	var serviceContainers []string
+	for _, service := range task.Services {
+		serviceID := fmt.Sprintf("%s-%d", service.Name, time.Now().UnixNano())
+
+		if err := e.dockerClient.PullImage(ctx, service.Image); err != nil {
+			return fmt.Errorf("pull service image %s: %w", service.Image, err)
+		}
+
+		go func(svc Service, svcID string) {
+			runOpts := docker.RunOptions{
+				Image:       svc.Image,
+				Name:        svc.Name,
+				Environment: svc.Environment,
+				NetworkName: networkName,
+			}
+			e.dockerClient.RunContainer(context.Background(), runOpts)
+		}(service, serviceID)
+
+		serviceContainers = append(serviceContainers, service.Name)
+		time.Sleep(2 * time.Second)
+	}
+
+	defer func() {
+		for _, containerName := range serviceContainers {
+			e.dockerClient.StopContainer(context.Background(), containerName)
+			e.dockerClient.RemoveContainer(context.Background(), containerName)
+		}
+	}()
+
+	if err := e.dockerClient.PullImage(ctx, task.Image); err != nil {
+		return fmt.Errorf("pull image: %w", err)
+	}
+
+	runOpts := docker.RunOptions{
+		Image:       task.Image,
+		Commands:    task.Commands,
+		Environment: task.Environment,
+		WorkingDir:  task.WorkingDir,
+		NetworkName: networkName,
+		Stdout:      os.Stdout,
+		Stderr:      os.Stderr,
+	}
+
+	if e.repoContentDir != "" {
+		runOpts.Volumes = map[string]string{
+			e.repoContentDir: "/workspace",
+		}
+		if runOpts.WorkingDir == "" {
+			runOpts.WorkingDir = "/workspace"
+		}
+	}
+
+	if err := e.dockerClient.RunContainer(ctx, runOpts); err != nil {
+		return fmt.Errorf("run container: %w", err)
+	}
+
+	return nil
+}
+
+func (e *Executor) makeHTTPRequest(ctx context.Context, task WebhookTask) error {
 	var body io.Reader
 	if task.Body != "" {
 		body = strings.NewReader(task.Body)

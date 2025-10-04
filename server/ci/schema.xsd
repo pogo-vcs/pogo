@@ -72,11 +72,87 @@
 
   <xs:complexType name="Task">
     <xs:sequence>
+      <xs:element name="type" type="ci:TaskType" />
+      <xs:choice>
+        <xs:element name="webhook" type="ci:WebhookTask" />
+        <xs:element name="container" type="ci:ContainerTask" />
+      </xs:choice>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="TaskType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="webhook" />
+      <xs:enumeration value="container" />
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="WebhookTask">
+    <xs:sequence>
       <xs:element name="url" type="ci:Url" />
       <xs:element name="method" type="ci:NonEmptyString" />
       <xs:element name="headers" type="ci:Headers" minOccurs="0" />
       <xs:element name="body" type="xs:string" minOccurs="0" />
       <xs:element name="retry_policy" type="ci:RetryPolicy" minOccurs="0" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ContainerTask">
+    <xs:sequence>
+      <xs:element name="image" type="ci:NonEmptyString" />
+      <xs:element name="commands" type="ci:Commands" minOccurs="0" />
+      <xs:element name="environment" type="ci:Environment" minOccurs="0" />
+      <xs:element name="working_dir" type="xs:string" minOccurs="0" />
+      <xs:element name="services" type="ci:Services" minOccurs="0" />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Commands">
+    <xs:sequence>
+      <xs:element
+        name="command"
+        type="xs:string"
+        minOccurs="0"
+        maxOccurs="unbounded"
+      />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Environment">
+    <xs:sequence>
+      <xs:element
+        name="var"
+        type="ci:EnvironmentVar"
+        minOccurs="0"
+        maxOccurs="unbounded"
+      />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="EnvironmentVar">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="name" type="xs:string" use="required" />
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:complexType name="Services">
+    <xs:sequence>
+      <xs:element
+        name="service"
+        type="ci:Service"
+        minOccurs="0"
+        maxOccurs="unbounded"
+      />
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Service">
+    <xs:sequence>
+      <xs:element name="name" type="ci:NonEmptyString" />
+      <xs:element name="image" type="ci:NonEmptyString" />
+      <xs:element name="environment" type="ci:Environment" minOccurs="0" />
     </xs:sequence>
   </xs:complexType>
 
