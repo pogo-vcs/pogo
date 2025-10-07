@@ -1076,9 +1076,9 @@ func HasConflictMarkers(filePath string) (bool, error) {
 			}
 
 			content := scanner.Bytes()
-			hasStart := bytes.Contains(content, []byte("<<<<<<<"))
-			hasSeparator := bytes.Contains(content, []byte("======="))
-			hasEnd := bytes.Contains(content, []byte(">>>>>>>"))
+			hasStart := bytes.Contains(content, []byte(ConflictMarkerStart))
+			hasSeparator := bytes.Contains(content, []byte(ConflictMarkerSep))
+			hasEnd := bytes.Contains(content, []byte(ConflictMarkerEnd))
 
 			return hasStart && hasSeparator && hasEnd, nil
 		}
@@ -1138,9 +1138,9 @@ func HasConflictMarkers(filePath string) (bool, error) {
 
 	content := scanner.Bytes()
 
-	hasStart := bytes.Contains(content, []byte("<<<<<<<"))
-	hasSeparator := bytes.Contains(content, []byte("======="))
-	hasEnd := bytes.Contains(content, []byte(">>>>>>>"))
+	hasStart := bytes.Contains(content, []byte(ConflictMarkerStart))
+	hasSeparator := bytes.Contains(content, []byte(ConflictMarkerSep))
+	hasEnd := bytes.Contains(content, []byte(ConflictMarkerEnd))
 
 	return hasStart && hasSeparator && hasEnd, nil
 }

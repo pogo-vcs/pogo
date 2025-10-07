@@ -9,8 +9,15 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/pogo-vcs/pogo/compressions"
+)
+
+var (
+	ConflictMarkerStart = strings.Repeat("<", 7)
+	ConflictMarkerEnd   = strings.Repeat(">", 7)
+	ConflictMarkerSep   = strings.Repeat("=", 7)
 )
 
 // HashFile computes the SHA-256 hash of a file at the given path and returns it as URL-safe base64.

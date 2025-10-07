@@ -229,27 +229,27 @@ func TestHasConflictMarkers(t *testing.T) {
 		},
 		{
 			name:     "has all conflict markers",
-			content:  "line 1\n<<<<<<< HEAD\nchanged in HEAD\n=======\nchanged in branch\n>>>>>>> branch\nline 2\n",
+			content:  "line 1\n" + filecontents.ConflictMarkerStart + " HEAD\nchanged in HEAD\n" + filecontents.ConflictMarkerSep + "\nchanged in branch\n" + filecontents.ConflictMarkerEnd + " branch\nline 2\n",
 			expected: true,
 		},
 		{
 			name:     "missing start marker",
-			content:  "line 1\nchanged in HEAD\n=======\nchanged in branch\n>>>>>>> branch\nline 2\n",
+			content:  "line 1\nchanged in HEAD\n" + filecontents.ConflictMarkerSep + "\nchanged in branch\n" + filecontents.ConflictMarkerEnd + " branch\nline 2\n",
 			expected: false,
 		},
 		{
 			name:     "missing separator",
-			content:  "line 1\n<<<<<<< HEAD\nchanged in HEAD\nchanged in branch\n>>>>>>> branch\nline 2\n",
+			content:  "line 1\n" + filecontents.ConflictMarkerStart + " HEAD\nchanged in HEAD\nchanged in branch\n" + filecontents.ConflictMarkerEnd + " branch\nline 2\n",
 			expected: false,
 		},
 		{
 			name:     "missing end marker",
-			content:  "line 1\n<<<<<<< HEAD\nchanged in HEAD\n=======\nchanged in branch\nline 2\n",
+			content:  "line 1\n" + filecontents.ConflictMarkerStart + " HEAD\nchanged in HEAD\n" + filecontents.ConflictMarkerSep + "\nchanged in branch\nline 2\n",
 			expected: false,
 		},
 		{
 			name:     "binary file should return false",
-			content:  "\x00\x01\x02\x03<<<<<<< HEAD\n=======\n>>>>>>> branch",
+			content:  "\x00\x01\x02\x03" + filecontents.ConflictMarkerStart + " HEAD\n" + filecontents.ConflictMarkerSep + "\n" + filecontents.ConflictMarkerEnd + " branch",
 			expected: false, // Binary files are skipped
 		},
 	}

@@ -17,6 +17,7 @@ import (
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/pogo-vcs/pogo/client"
 	"github.com/pogo-vcs/pogo/db"
+	"github.com/pogo-vcs/pogo/filecontents"
 	"github.com/pogo-vcs/pogo/server"
 	"github.com/pogo-vcs/pogo/server/env"
 	"google.golang.org/grpc"
@@ -719,7 +720,7 @@ func testMergeConflicts(t *testing.T, ctx context.Context, serverAddr string) {
 
 	// Check for conflict markers
 	content := string(conflictContent)
-	if !strings.Contains(content, "<<<<<<<") || !strings.Contains(content, ">>>>>>>") {
+	if !strings.Contains(content, filecontents.ConflictMarkerStart) || !strings.Contains(content, filecontents.ConflictMarkerEnd) {
 		t.Logf("File content:\n%s", content)
 		t.Error("Expected conflict markers not found in file")
 	}
