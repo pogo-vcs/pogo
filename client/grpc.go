@@ -480,3 +480,18 @@ func (c *Client) GetRepositoryInfo(repoName string) (*protos.GetRepositoryInfoRe
 
 	return response, nil
 }
+
+func (c *Client) SetRepositoryVisibility(public bool) error {
+	request := &protos.SetRepositoryVisibilityRequest{
+		Auth:   c.GetAuth(),
+		RepoId: c.repoId,
+		Public: public,
+	}
+
+	_, err := c.Pogo.SetRepositoryVisibility(c.ctx, request)
+	if err != nil {
+		return errors.Join(errors.New("set repository visibility"), err)
+	}
+
+	return nil
+}

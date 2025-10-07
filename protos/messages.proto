@@ -22,6 +22,7 @@ service Pogo {
   rpc GetRepositoryInfo(GetRepositoryInfoRequest) returns (GetRepositoryInfoResponse);
   rpc CreateInvite(CreateInviteRequest) returns (CreateInviteResponse);
   rpc GetInvites(GetInvitesRequest) returns (GetInvitesResponse);
+  rpc SetRepositoryVisibility(SetRepositoryVisibilityRequest) returns (SetRepositoryVisibilityResponse);
 }
 
 message Auth {
@@ -254,3 +255,11 @@ message Invite {
 message GetInvitesResponse {
   repeated Invite invites = 1;
 }
+
+message SetRepositoryVisibilityRequest {
+  Auth auth = 1;
+  int32 repo_id = 2;
+  bool public = 3;
+}
+
+message SetRepositoryVisibilityResponse {}

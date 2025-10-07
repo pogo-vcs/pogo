@@ -1,0 +1,46 @@
+.nh
+.TH "pogo" "1" "Oct 2025" "pogo/dev" "Pogo Manual"
+
+.SH NAME
+pogo-visibility - Set repository visibility to public or private
+
+
+.SH SYNOPSIS
+\fBpogo visibility  [flags]\fP
+
+
+.SH DESCRIPTION
+Set the repository's visibility to either public or private.
+
+.PP
+Public repositories can be accessed by anyone, while private repositories
+require explicit access grants. Only users with access to the repository
+can change its visibility.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for visibility
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--time\fP[=false]
+	Measure command execution time
+
+.PP
+\fB-v\fP, \fB--verbose\fP[=false]
+	Enable verbose debug logging
+
+
+.SH EXAMPLE
+.EX
+# Make repository public
+pogo visibility public
+
+# Make repository private
+pogo visibility private
+.EE
+
+
+.SH SEE ALSO
+\fBpogo(1)\fP

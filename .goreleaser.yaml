@@ -118,6 +118,7 @@ homebrew_casks:
       - docs/man/pogo-token-remove.1
       - docs/man/pogo-token-set.1
       - docs/man/pogo-token.1
+      - docs/man/pogo-visibility.1
       - docs/man/pogo-whoami.1
       - docs/man/pogo.1
     completions:

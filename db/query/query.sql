@@ -519,6 +519,9 @@ ORDER BY change_depth DESC;  -- Delete deepest children first
 -- name: UpdateRepositoryName :exec
 UPDATE repositories SET name = $2 WHERE id = $1;
 
+-- name: UpdateRepositoryVisibility :exec
+UPDATE repositories SET public = $2 WHERE id = $1;
+
 -- name: GrantRepositoryAccessByUsername :exec
 INSERT INTO repository_access (repository_id, user_id)
 SELECT $1, u.id

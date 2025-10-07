@@ -108,11 +108,12 @@ For running the server, you need to have a PostgreSQL database running and the f
 | `pogo describe` |            | `desc`, `rephrase` | Set the description for the current change.                                                 |
 | `pogo edit`     |            | `checkout`         | Sets the specified revision as the working-copy revision.                                   |
 | `pogo gc`       |            |                    | Run garbage collection on the server.                                                       |
-| `pogo info`     |            |                    | Display the current working copy status.                                                    |
-| `pogo init`     |            |                    | Initialize a new repository.                                                                |
-| `pogo log`      |            |                    | Show the change history.                                                                    |
-| `pogo new`      |            |                    | Create a new change based on one or more parent changes.                                    |
-| `pogo push`     |            |                    | Push a change to the repository.                                                            |
+| `pogo info`       |            |                    | Display the current working copy status.                                                    |
+| `pogo init`       |            |                    | Initialize a new repository.                                                                |
+| `pogo log`        |            |                    | Show the change history.                                                                    |
+| `pogo new`        |            |                    | Create a new change based on one or more parent changes.                                    |
+| `pogo visibility` |            |                    | Set repository visibility to public or private.                                             |
+| `pogo push`       |            |                    | Push a change to the repository.                                                            |
 | `pogo rm`       |            |                    | Remove a change from the repository.                                                        |
 | `pogo serve`    |            |                    | Start the Pogo server.                                                                      |
 | `pogo whoami`   |            |                    | Show the personal access token being used for the current repository.                       |

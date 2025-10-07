@@ -1401,3 +1401,19 @@ func cleanupOrphanedFiles(ctx context.Context, candidateFiles []db.GetChangeFile
 
 	return nil
 }
+
+func (a *Server) SetRepositoryVisibility(ctx context.Context, req *protos.SetRepositoryVisibilityRequest) (*protos.SetRepositoryVisibilityResponse, error) {
+	gcMutex.RLock()
+	defer gcMutex.RUnlock()
+
+	_, err := checkRepositoryAccessFromAuth(ctx, req.Auth, req.RepoId)
+	if err != nil {
+		return nil, fmt.Errorf("check repository access: %w", err)
+	}
+
+	if err := db.Q.UpdateRepositoryVisibility(ctx, req.RepoId, req.Public); err != nil {
+		return nil, fmt.Errorf("update repository visibility: %w", err)
+	}
+
+	return &protos.SetRepositoryVisibilityResponse{}, nil
+}

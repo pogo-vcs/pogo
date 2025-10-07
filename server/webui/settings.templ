@@ -69,6 +69,45 @@ templ Settings() {
 									</form>
 								</section>
 								<section class="mb-8 p-4 bg-ctp-mantle rounded-lg">
+									<h2 class="text-xl font-semibold mb-4">Visibility Settings</h2>
+									<div class="space-y-4">
+										<div>
+											<p class="text-sm text-ctp-subtext0 mb-2">
+												Current visibility: 
+												<span class="font-semibold">
+													if repo.Public {
+														Public
+													} else {
+														Private
+													}
+												</span>
+											</p>
+											<p class="text-sm text-ctp-subtext1 mb-4">
+												if repo.Public {
+													Public repositories can be accessed by anyone. Making it private will restrict access to users you explicitly grant access to.
+												} else {
+													Private repositories can only be accessed by users you explicitly grant access to. Making it public will allow anyone to access it.
+												}
+											</p>
+										</div>
+										<button
+											type="button"
+											onclick={ confirmVisibilityChange(repo.Public, int(repo.ID)) }
+											if repo.Public {
+												class="cursor-pointer px-4 py-2 font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-ctp-base bg-ctp-yellow text-ctp-base hover:bg-ctp-peach focus:ring-ctp-yellow"
+											} else {
+												class="cursor-pointer px-4 py-2 font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-ctp-base bg-ctp-green text-ctp-base hover:bg-ctp-teal focus:ring-ctp-green"
+											}
+										>
+											if repo.Public {
+												Make Private
+											} else {
+												Make Public
+											}
+										</button>
+									</div>
+								</section>
+								<section class="mb-8 p-4 bg-ctp-mantle rounded-lg">
 									<h2 class="text-xl font-semibold mb-4">User Access</h2>
 									<div class="mb-6">
 										<h3 class="text-lg font-medium mb-3">Current Users with Access</h3>
@@ -154,5 +193,28 @@ templ Settings() {
 				}
 			}
 		}
+	}
+}
+
+script confirmVisibilityChange(isPublic bool, repoId int) {
+	const action = isPublic ? "private" : "public";
+	const actionText = isPublic ? "make this repository private" : "make this repository public";
+	const warning = isPublic 
+		? "This will restrict access to only users you have explicitly granted access to."
+		: "This will allow anyone to access this repository, including cloning and viewing its contents.";
+	
+	if (confirm(`Are you sure you want to ${actionText}?\n\n${warning}`)) {
+		const form = document.createElement('form');
+		form.method = 'POST';
+		form.action = `/api/repository/${repoId}/visibility`;
+		
+		const input = document.createElement('input');
+		input.type = 'hidden';
+		input.name = 'public';
+		input.value = isPublic ? 'false' : 'true';
+		
+		form.appendChild(input);
+		document.body.appendChild(form);
+		form.submit();
 	}
 }
