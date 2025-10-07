@@ -94,8 +94,7 @@ func RegisterWebUI(s *Server) {
 	s.httpMux.HandleFunc("/repository/{id}", authMiddleware(templComponentToHandler(webui.Repository())))
 	s.httpMux.HandleFunc("/repository/{id}/settings", authMiddleware(templComponentToHandler(webui.Settings())))
 	s.httpMux.HandleFunc("/repository/{repo}/archive/{rev}", authMiddleware(handleZipDownload))
-	s.httpMux.HandleFunc("/objects/{hash}", handleObjectServe)
-	s.httpMux.HandleFunc("/objects/{hash}/{filename}", handleObjectServe)
+	s.httpMux.HandleFunc("/objects/{hash}/", handleObjectServe)
 
 	// Auth routes
 	s.httpMux.HandleFunc("/login", authMiddleware(templComponentToHandler(webui.Login())))
