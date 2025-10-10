@@ -18,6 +18,7 @@ SELECT EXISTS (
 SELECT r.* FROM repositories r
 LEFT JOIN repository_access ra ON r.id = ra.repository_id
 WHERE r.public = TRUE OR ra.user_id = $1
+GROUP BY r.id
 ORDER BY r.name;
 
 -- name: GetRepositoryUsers :many

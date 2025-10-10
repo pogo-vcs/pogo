@@ -6,6 +6,7 @@ data/
 /pogo.exe
 /tmp/
 node_modules/
+.pogo.yaml
 
 # generated files
 *.pb.go
