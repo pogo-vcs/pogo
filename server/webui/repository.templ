@@ -9,6 +9,48 @@ import (
 	"strconv"
 )
 
+templ renderFileNode(node *FileNode) {
+	if node.IsDir {
+		<li>
+			<details>
+				<summary class="cursor-pointer">
+					<span class="inline-grid grid-cols-[1em_1fr] gap-x-1 items-center">
+						@icons.Folder()
+						<span>{ node.Name }</span>
+					</span>
+				</summary>
+				<ul class="pl-4">
+					for _, child := range node.Children {
+						@renderFileNode(child)
+					}
+				</ul>
+			</details>
+		</li>
+	} else {
+		<li>
+			{{ color := "text-ctp-text" }}
+			if node.File.Conflict {
+				{{ color = "text-ctp-red" }}
+			} else if node.File.Executable {
+				{{ color = "text-ctp-blue" }}
+			}
+			<a
+				class={ "w-full grid grid-cols-[1em_1fr] gap-x-1 items-center " + color }
+				href={ path.Join("/objects", base64.URLEncoding.EncodeToString(node.File.ContentHash), node.File.Name) }
+			>
+				if node.File.Conflict {
+					@icons.ExclamationTriangle()
+				} else if node.File.Executable {
+					@icons.LightningBolt()
+				} else {
+					@icons.File()
+				}
+				<span>{ node.Name }</span>
+			</a>
+		</li>
+	}
+}
+
 templ Repository() {
 	if repoId, ok := GetParamI32(ctx, "id"); ok {
 		if repo, err := db.Q.GetRepository(ctx, repoId); err == nil {
@@ -61,29 +103,10 @@ templ Repository() {
 									<h2 class="mt-8 mb-2 text-lg font-bold">
 										Files
 									</h2>
+									{{ tree := BuildFileTree(files) }}
 									<ul>
-										for _, file := range files {
-											<li>
-												{{ color := "text-ctp-text" }}
-												if file.Conflict {
-													{{ color = "text-ctp-red" }}
-												} else if file.Executable {
-													{{ color = "text-ctp-blue" }}
-												}
-												<a
-													class={ "w-full grid grid-cols-[1em_1fr] gap-x-1 items-center " + color }
-													href={ path.Join("/objects", base64.URLEncoding.EncodeToString(file.ContentHash), file.Name) }
-												>
-													if file.Conflict {
-														@icons.ExclamationTriangle()
-													} else if file.Executable {
-														@icons.LightningBolt()
-													} else {
-														@icons.File()
-													}
-													<span>{ file.Name }</span>
-												</a>
-											</li>
+										for _, child := range tree.Children {
+											@renderFileNode(child)
 										}
 									</ul>
 								} else {
