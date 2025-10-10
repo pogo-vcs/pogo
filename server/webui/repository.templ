@@ -38,17 +38,22 @@ templ Repository() {
 					}
 					@components.Main() {
 						if readme, err := db.Q.GetRepositoryBookmarkFileByName(ctx, repoId, "main", "readme"); err == nil {
-							<section class="readme">
+							<details class="readme my-8">
+								<summary>
+									<h2 class="mt-8 mb-2 text-lg font-bold inline w-fit cursor-pointer">Readme</h2>
+								</summary>
 								@RenderFileComponent(readme.Name, base64.URLEncoding.EncodeToString(readme.ContentHash))
-							</section>
+							</details>
 						} else {
 							<h1 class="text-2xl font-bold">{ repo.Name }</h1>
 						}
 						if license, err := db.Q.GetRepositoryBookmarkFileByName(ctx, repoId, "main", "license"); err == nil {
-							<section class="readme">
-								<h2 class="mt-8 mb-2 text-lg font-bold">License</h2>
+							<details class="readme my-8">
+								<summary>
+									<h2 class="mt-8 mb-2 text-lg font-bold inline w-fit cursor-pointer">License</h2>
+								</summary>
 								@RenderFileComponent(license.Name, base64.URLEncoding.EncodeToString(license.ContentHash))
-							</section>
+							</details>
 						}
 						<section class="files">
 							if files, err := db.Q.GetRepositoryFiles(ctx, repoId, "main"); err == nil {
