@@ -145,6 +145,11 @@ graph TB
             RmCmd[rm.go]
             TokenCmd[token.go]
             WhoamiCmd[whoami.go]
+            CiCmd[ci.go]
+            CloneCmd[clone.go]
+            DaemonCmd[daemon.go]
+            InviteCmd[invite.go]
+            SecretsCmd[secrets.go]
         end
 
         subgraph "client/"
@@ -238,6 +243,11 @@ graph TB
     rootCmd --> RmCmd
     rootCmd --> TokenCmd
     rootCmd --> WhoamiCmd
+    rootCmd --> CiCmd
+    rootCmd --> CloneCmd
+    rootCmd --> DaemonCmd
+    rootCmd --> InviteCmd
+    rootCmd --> SecretsCmd
 
     ServeCmd --> Server
     ServeCmd --> Database
@@ -256,6 +266,11 @@ graph TB
     RmCmd --> Client
     TokenCmd --> Client
     WhoamiCmd --> Client
+    CiCmd --> Client
+    CloneCmd --> Client
+    DaemonCmd --> Client
+    InviteCmd --> Client
+    SecretsCmd --> Client
 
     Client --> ClientGrpc
     Client --> ClientFiles

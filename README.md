@@ -104,18 +104,37 @@ For running the server, you need to have a PostgreSQL database running and the f
 | `pogo bookmark` |            | `b`                | Manage bookmarks.                                                                           |
 |                 | `set`      | `s`                | Set a bookmark to a specific change. If no change is specified, the current change is used. |
 |                 | `list`     | `l`                | List all bookmarks.                                                                         |
+| `pogo ci`       |            |                    | Manage CI pipelines.                                                                        |
+|                 | `test`     |                    | Test a CI pipeline configuration.                                                           |
+| `pogo clone`    |            |                    | Clone a repository from a Pogo server.                                                      |
 | `pogo commit`   |            |                    | Combines `describe`, `push`, and `new` into a single command.                               |
+| `pogo daemon`   |            | `service`          | Manage Pogo daemon service.                                                                 |
+|                 | `install`  |                    | Install Pogo daemon service.                                                                |
+|                 | `stop`     |                    | Stop the Pogo daemon service.                                                               |
+|                 | `start`    |                    | Start the Pogo daemon service.                                                              |
+|                 | `uninstall`|                    | Uninstall Pogo daemon service.                                                              |
 | `pogo describe` |            | `desc`, `rephrase` | Set the description for the current change.                                                 |
 | `pogo edit`     |            | `checkout`         | Sets the specified revision as the working-copy revision.                                   |
 | `pogo gc`       |            |                    | Run garbage collection on the server.                                                       |
-| `pogo info`       |            |                    | Display the current working copy status.                                                    |
-| `pogo init`       |            |                    | Initialize a new repository.                                                                |
-| `pogo log`        |            |                    | Show the change history.                                                                    |
-| `pogo new`        |            |                    | Create a new change based on one or more parent changes.                                    |
-| `pogo visibility` |            |                    | Set repository visibility to public or private.                                             |
-| `pogo push`       |            |                    | Push a change to the repository.                                                            |
+| `pogo info`     |            |                    | Display the current working copy status.                                                    |
+| `pogo init`     |            |                    | Initialize a new repository.                                                                |
+| `pogo invite`   |            | `inv`              | Manage user invitations.                                                                    |
+|                 | `create`   |                    | Create a new invitation link.                                                               |
+|                 | `list`     | `ls`, `l`          | List all invitations you have created.                                                      |
+| `pogo log`      |            |                    | Show the change history.                                                                    |
+| `pogo new`      |            |                    | Create a new change based on one or more parent changes.                                    |
+| `pogo visibility` |          |                    | Set repository visibility to public or private.                                             |
+| `pogo push`     |            |                    | Push a change to the repository.                                                            |
 | `pogo rm`       |            |                    | Remove a change from the repository.                                                        |
+| `pogo secrets`  |            |                    | Manage repository secrets for CI pipelines.                                                 |
+|                 | `list`     | `l`                | List all secrets in the repository.                                                         |
+|                 | `get`      | `g`                | Get the value of a secret.                                                                  |
+|                 | `set`      | `s`                | Set a secret value.                                                                         |
+|                 | `delete`   | `d`, `rm`, `remove`| Delete a secret.                                                                            |
 | `pogo serve`    |            |                    | Start the Pogo server.                                                                      |
+| `pogo token`    |            |                    | Manage personal access tokens.                                                              |
+|                 | `set`      |                    | Set or update a personal access token for a server.                                         |
+|                 | `remove`   |                    | Remove a personal access token for a server.                                                |
 | `pogo whoami`   |            |                    | Show the personal access token being used for the current repository.                       |
 
 ## 🏗️ Architecture
@@ -139,6 +158,19 @@ The garbage collection system uses an adaptive strategy based on the total numbe
 - **Large-scale (≥ 10 million files):** Uses a batch processing strategy that scales to billions of files with constant memory usage.
 
 The threshold can be configured via the `GC_MEMORY_THRESHOLD` environment variable.
+
+## 🔐 Secrets Management
+
+Pogo provides a secure way to manage secrets for your CI pipelines. Secrets are encrypted values that can be referenced in your CI pipeline YAML files using the `{{ secret "KEY" }}` template function. They are useful for storing sensitive data like API tokens, deployment keys, and credentials.
+
+Secrets are scoped to a repository and can only be accessed by users with access to that repository.
+
+### How to Use
+
+- **Set a secret:** `pogo secrets set MY_SECRET_KEY "my_secret_value"`
+- **Get a secret:** `pogo secrets get MY_SECRET_KEY`
+- **List secrets:** `pogo secrets list`
+- **Delete a secret:** `pogo secrets delete MY_SECRET_KEY`
 
 ## 📜 License
 
