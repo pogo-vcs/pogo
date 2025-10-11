@@ -495,3 +495,63 @@ func (c *Client) SetRepositoryVisibility(public bool) error {
 
 	return nil
 }
+
+func (c *Client) SetSecret(key, value string) error {
+	request := &protos.SetSecretRequest{
+		Auth:   c.GetAuth(),
+		RepoId: c.repoId,
+		Key:    key,
+		Value:  value,
+	}
+
+	_, err := c.Pogo.SetSecret(c.ctx, request)
+	if err != nil {
+		return errors.Join(errors.New("set secret"), err)
+	}
+
+	return nil
+}
+
+func (c *Client) GetSecret(key string) (string, error) {
+	request := &protos.GetSecretRequest{
+		Auth:   c.GetAuth(),
+		RepoId: c.repoId,
+		Key:    key,
+	}
+
+	response, err := c.Pogo.GetSecret(c.ctx, request)
+	if err != nil {
+		return "", errors.Join(errors.New("get secret"), err)
+	}
+
+	return response.Value, nil
+}
+
+func (c *Client) GetAllSecrets() ([]*protos.Secret, error) {
+	request := &protos.GetAllSecretsRequest{
+		Auth:   c.GetAuth(),
+		RepoId: c.repoId,
+	}
+
+	response, err := c.Pogo.GetAllSecrets(c.ctx, request)
+	if err != nil {
+		return nil, errors.Join(errors.New("get all secrets"), err)
+	}
+
+	return response.Secrets, nil
+}
+
+func (c *Client) DeleteSecret(key string) error {
+	request := &protos.DeleteSecretRequest{
+		Auth:   c.GetAuth(),
+		RepoId: c.repoId,
+		Key:    key,
+	}
+
+	_, err := c.Pogo.DeleteSecret(c.ctx, request)
+	if err != nil {
+		return errors.Join(errors.New("delete secret"), err)
+	}
+
+	return nil
+}

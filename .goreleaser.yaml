@@ -114,6 +114,11 @@ homebrew_casks:
       - docs/man/pogo-new.1
       - docs/man/pogo-push.1
       - docs/man/pogo-rm.1
+      - docs/man/pogo-secrets-delete.1
+      - docs/man/pogo-secrets-get.1
+      - docs/man/pogo-secrets-list.1
+      - docs/man/pogo-secrets-set.1
+      - docs/man/pogo-secrets.1
       - docs/man/pogo-serve.1
       - docs/man/pogo-token-remove.1
       - docs/man/pogo-token-set.1

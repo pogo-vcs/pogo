@@ -111,6 +111,8 @@ func RegisterWebUI(s *Server) {
 	s.httpMux.HandleFunc("/api/repository/{id}/grant", authMiddleware(handleGrantAccess))
 	s.httpMux.HandleFunc("/api/repository/{id}/revoke", authMiddleware(handleRevokeAccess))
 	s.httpMux.HandleFunc("/api/repository/{id}/visibility", authMiddleware(handleSetRepositoryVisibility))
+	s.httpMux.HandleFunc("/api/repository/{id}/secrets/set", authMiddleware(handleSetSecret))
+	s.httpMux.HandleFunc("/api/repository/{id}/secrets/delete", authMiddleware(handleDeleteSecret))
 }
 
 func newGoProxy() *goproxy.Goproxy {
@@ -867,6 +869,105 @@ func handleSetRepositoryVisibility(w http.ResponseWriter, r *http.Request) {
 
 	if err := db.Q.UpdateRepositoryVisibility(ctx, int32(repoId), public); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to update repository visibility: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("/repository/%d/settings", repoId), http.StatusSeeOther)
+}
+
+func handleSetSecret(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	ctx := r.Context()
+	userInterface := ctx.Value(auth.UserCtxKey)
+	if userInterface == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	user, ok := userInterface.(*db.User)
+	if !ok || user == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	repoIdStr := r.PathValue("id")
+	repoId, err := strconv.ParseInt(repoIdStr, 10, 32)
+	if err != nil {
+		http.Error(w, "Invalid repository ID", http.StatusBadRequest)
+		return
+	}
+
+	hasAccess, err := db.Q.CheckUserRepositoryAccess(ctx, int32(repoId), user.ID)
+	if err != nil || !hasAccess {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		return
+	}
+	key := r.FormValue("key")
+	value := r.FormValue("value")
+	if key == "" || value == "" {
+		http.Error(w, "Key and value are required", http.StatusBadRequest)
+		return
+	}
+
+	if err := db.Q.SetSecret(ctx, int32(repoId), key, value); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to set secret: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("/repository/%d/settings", repoId), http.StatusSeeOther)
+}
+
+func handleDeleteSecret(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	ctx := r.Context()
+	userInterface := ctx.Value(auth.UserCtxKey)
+	if userInterface == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	user, ok := userInterface.(*db.User)
+	if !ok || user == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	repoIdStr := r.PathValue("id")
+	repoId, err := strconv.ParseInt(repoIdStr, 10, 32)
+	if err != nil {
+		http.Error(w, "Invalid repository ID", http.StatusBadRequest)
+		return
+	}
+
+	hasAccess, err := db.Q.CheckUserRepositoryAccess(ctx, int32(repoId), user.ID)
+	if err != nil || !hasAccess {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		return
+	}
+	key := r.FormValue("key")
+	if key == "" {
+		http.Error(w, "Key is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := db.Q.DeleteSecret(ctx, int32(repoId), key); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to delete secret: %v", err), http.StatusInternalServerError)
 		return
 	}
 

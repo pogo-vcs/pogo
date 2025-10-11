@@ -1417,3 +1417,77 @@ func (a *Server) SetRepositoryVisibility(ctx context.Context, req *protos.SetRep
 
 	return &protos.SetRepositoryVisibilityResponse{}, nil
 }
+
+func (a *Server) SetSecret(ctx context.Context, req *protos.SetSecretRequest) (*protos.SetSecretResponse, error) {
+	gcMutex.RLock()
+	defer gcMutex.RUnlock()
+
+	_, err := checkRepositoryAccessFromAuth(ctx, req.Auth, req.RepoId)
+	if err != nil {
+		return nil, fmt.Errorf("check repository access: %w", err)
+	}
+
+	if err := db.Q.SetSecret(ctx, req.RepoId, req.Key, req.Value); err != nil {
+		return nil, fmt.Errorf("set secret: %w", err)
+	}
+
+	return &protos.SetSecretResponse{}, nil
+}
+
+func (a *Server) GetSecret(ctx context.Context, req *protos.GetSecretRequest) (*protos.GetSecretResponse, error) {
+	gcMutex.RLock()
+	defer gcMutex.RUnlock()
+
+	_, err := checkRepositoryAccessFromAuth(ctx, req.Auth, req.RepoId)
+	if err != nil {
+		return nil, fmt.Errorf("check repository access: %w", err)
+	}
+
+	value, err := db.Q.GetSecret(ctx, req.RepoId, req.Key)
+	if err != nil {
+		return nil, fmt.Errorf("get secret: %w", err)
+	}
+
+	return &protos.GetSecretResponse{Value: value}, nil
+}
+
+func (a *Server) GetAllSecrets(ctx context.Context, req *protos.GetAllSecretsRequest) (*protos.GetAllSecretsResponse, error) {
+	gcMutex.RLock()
+	defer gcMutex.RUnlock()
+
+	_, err := checkRepositoryAccessFromAuth(ctx, req.Auth, req.RepoId)
+	if err != nil {
+		return nil, fmt.Errorf("check repository access: %w", err)
+	}
+
+	secrets, err := db.Q.GetAllSecrets(ctx, req.RepoId)
+	if err != nil {
+		return nil, fmt.Errorf("get all secrets: %w", err)
+	}
+
+	protoSecrets := make([]*protos.Secret, len(secrets))
+	for i, s := range secrets {
+		protoSecrets[i] = &protos.Secret{
+			Key:   s.Key,
+			Value: s.Value,
+		}
+	}
+
+	return &protos.GetAllSecretsResponse{Secrets: protoSecrets}, nil
+}
+
+func (a *Server) DeleteSecret(ctx context.Context, req *protos.DeleteSecretRequest) (*protos.DeleteSecretResponse, error) {
+	gcMutex.RLock()
+	defer gcMutex.RUnlock()
+
+	_, err := checkRepositoryAccessFromAuth(ctx, req.Auth, req.RepoId)
+	if err != nil {
+		return nil, fmt.Errorf("check repository access: %w", err)
+	}
+
+	if err := db.Q.DeleteSecret(ctx, req.RepoId, req.Key); err != nil {
+		return nil, fmt.Errorf("delete secret: %w", err)
+	}
+
+	return &protos.DeleteSecretResponse{}, nil
+}

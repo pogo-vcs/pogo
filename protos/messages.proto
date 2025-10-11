@@ -23,6 +23,10 @@ service Pogo {
   rpc CreateInvite(CreateInviteRequest) returns (CreateInviteResponse);
   rpc GetInvites(GetInvitesRequest) returns (GetInvitesResponse);
   rpc SetRepositoryVisibility(SetRepositoryVisibilityRequest) returns (SetRepositoryVisibilityResponse);
+  rpc SetSecret(SetSecretRequest) returns (SetSecretResponse);
+  rpc GetSecret(GetSecretRequest) returns (GetSecretResponse);
+  rpc GetAllSecrets(GetAllSecretsRequest) returns (GetAllSecretsResponse);
+  rpc DeleteSecret(DeleteSecretRequest) returns (DeleteSecretResponse);
 }
 
 message Auth {
@@ -263,3 +267,44 @@ message SetRepositoryVisibilityRequest {
 }
 
 message SetRepositoryVisibilityResponse {}
+
+message SetSecretRequest {
+  Auth auth = 1;
+  int32 repo_id = 2;
+  string key = 3;
+  string value = 4;
+}
+
+message SetSecretResponse {}
+
+message GetSecretRequest {
+  Auth auth = 1;
+  int32 repo_id = 2;
+  string key = 3;
+}
+
+message GetSecretResponse {
+  string value = 1;
+}
+
+message GetAllSecretsRequest {
+  Auth auth = 1;
+  int32 repo_id = 2;
+}
+
+message Secret {
+  string key = 1;
+  string value = 2;
+}
+
+message GetAllSecretsResponse {
+  repeated Secret secrets = 1;
+}
+
+message DeleteSecretRequest {
+  Auth auth = 1;
+  int32 repo_id = 2;
+  string key = 3;
+}
+
+message DeleteSecretResponse {}

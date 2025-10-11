@@ -33,6 +33,10 @@ func TestExecutor_ExecuteForBookmarkEvent(t *testing.T) {
 			}
 		}
 
+		body := make([]byte, 4096)
+		n, _ := r.Body.Read(body)
+		req.Body = string(body[:n])
+
 		receivedRequests = append(receivedRequests, req)
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -380,4 +384,5 @@ type TestRequest struct {
 	Method  string
 	URL     string
 	Headers map[string]string
+	Body    string
 }

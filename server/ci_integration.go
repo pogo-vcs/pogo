@@ -136,8 +136,20 @@ func executeCIForBookmarkEvent(ctx context.Context, changeId int64, bookmarkName
 		}
 		defer os.RemoveAll(tempDir)
 
+		secrets, err := db.Q.GetAllSecrets(context.Background(), change.RepositoryID)
+		if err != nil {
+			fmt.Printf("CI execution error: failed to get secrets: %v\n", err)
+			return
+		}
+
+		secretsMap := make(map[string]string)
+		for _, secret := range secrets {
+			secretsMap[secret.Key] = secret.Value
+		}
+
 		executor := ci.NewExecutor()
 		executor.SetRepoContentDir(tempDir)
+		executor.SetSecrets(secretsMap)
 
 		if err := executor.ExecuteForBookmarkEvent(context.Background(), configFiles, event, eventType); err != nil {
 			fmt.Printf("CI execution error: %v\n", err)

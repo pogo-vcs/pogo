@@ -106,19 +106,31 @@ type Event struct {
 	ArchiveUrl string
 }
 
-var unmarshalConfigFuncs = template.FuncMap{
-	"toUpper": strings.ToUpper,
-	"toLower": strings.ToLower,
-	"trim":    strings.TrimSpace,
-	"btoa":    func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) },
-	"atob":    func(s string) string { b, _ := base64.StdEncoding.DecodeString(s); return string(b) },
+func makeUnmarshalConfigFuncs(secrets map[string]string) template.FuncMap {
+	return template.FuncMap{
+		"toUpper": strings.ToUpper,
+		"toLower": strings.ToLower,
+		"trim":    strings.TrimSpace,
+		"btoa":    func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) },
+		"atob":    func(s string) string { b, _ := base64.StdEncoding.DecodeString(s); return string(b) },
+		"secret": func(key string) string {
+			if secrets == nil {
+				return ""
+			}
+			return secrets[key]
+		},
+	}
 }
 
 func UnmarshalConfig(yamlString []byte, data Event) (*Config, error) {
+	return UnmarshalConfigWithSecrets(yamlString, data, nil)
+}
+
+func UnmarshalConfigWithSecrets(yamlString []byte, data Event, secrets map[string]string) (*Config, error) {
 	var c Config
 
 	t, err := template.New("ci_config").
-		Funcs(unmarshalConfigFuncs).
+		Funcs(makeUnmarshalConfigFuncs(secrets)).
 		Parse(string(yamlString))
 
 	if err != nil {
@@ -128,6 +140,7 @@ func UnmarshalConfig(yamlString []byte, data Event) (*Config, error) {
 				fmt.Errorf("parse template: %w", err),
 			)
 		}
+		return &c, nil
 	}
 
 	sb := strings.Builder{}
@@ -147,6 +160,7 @@ type Executor struct {
 	httpClient     *http.Client
 	dockerClient   docker.Client
 	repoContentDir string
+	secrets        map[string]string
 }
 
 func NewExecutor() *Executor {
@@ -163,13 +177,17 @@ func (e *Executor) SetRepoContentDir(dir string) {
 	e.repoContentDir = dir
 }
 
+func (e *Executor) SetSecrets(secrets map[string]string) {
+	e.secrets = secrets
+}
+
 func (e *Executor) ExecuteForBookmarkEvent(ctx context.Context, configFiles map[string][]byte, event Event, eventType EventType) error {
 	for filename, configData := range configFiles {
 		if !isYAMLFile(filename) {
 			continue
 		}
 
-		config, err := UnmarshalConfig(configData, event)
+		config, err := UnmarshalConfigWithSecrets(configData, event, e.secrets)
 		if err != nil {
 			return fmt.Errorf("unmarshal config %s: %w", filename, err)
 		}

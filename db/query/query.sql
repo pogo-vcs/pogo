@@ -636,3 +636,17 @@ DELETE FROM invites WHERE expires_at < CURRENT_TIMESTAMP;
 
 -- name: RevokeInvite :exec
 DELETE FROM invites WHERE token = $1 AND created_by_user_id = $2 AND used_at IS NULL;
+
+-- name: SetSecret :exec
+INSERT INTO secrets (repository_id, key, value)
+VALUES ($1, $2, $3)
+ON CONFLICT (repository_id, key) DO UPDATE SET value = $3;
+
+-- name: GetSecret :one
+SELECT value FROM secrets WHERE repository_id = $1 AND key = $2;
+
+-- name: GetAllSecrets :many
+SELECT key, value FROM secrets WHERE repository_id = $1 ORDER BY key;
+
+-- name: DeleteSecret :exec
+DELETE FROM secrets WHERE repository_id = $1 AND key = $2;

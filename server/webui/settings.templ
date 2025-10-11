@@ -163,6 +163,83 @@ templ Settings() {
 										</form>
 									</div>
 								</section>
+								<section class="mb-8 p-4 bg-ctp-mantle rounded-lg">
+									<h2 class="text-xl font-semibold mb-4">Secrets</h2>
+									<p class="text-sm text-ctp-subtext1 mb-4">
+										Secrets can be used in CI pipeline configurations using the <code class="bg-ctp-surface0 px-1 rounded">{"{{ secret \"KEY\" }}"}</code> template function.
+										They are useful for storing sensitive data like API tokens and credentials.
+									</p>
+									<div class="mb-6">
+										<h3 class="text-lg font-medium mb-3">Current Secrets</h3>
+										if secrets, err := db.Q.GetAllSecrets(ctx, repo.ID); err == nil {
+											if len(secrets) > 0 {
+												<ul class="space-y-2">
+													for _, s := range secrets {
+														<li class="flex items-center gap-4 p-3 bg-ctp-surface0 rounded-md">
+															<span class="font-medium flex-1">{ s.Key }</span>
+															<button
+																type="button"
+																onclick={ toggleSecretVisibility(s.Key) }
+																class="cursor-pointer px-3 py-1 bg-ctp-blue text-ctp-base text-sm font-medium rounded-md hover:bg-ctp-sapphire focus:outline-none focus:ring-2 focus:ring-ctp-blue focus:ring-offset-2 focus:ring-offset-ctp-base"
+															>
+																Show
+															</button>
+															<div id={ "secret-value-" + s.Key } class="hidden flex-1 font-mono text-sm bg-ctp-surface1 p-2 rounded">
+																{ s.Value }
+															</div>
+															<form method="POST" action={ templ.URL("/api/repository/" + strconv.Itoa(int(repo.ID)) + "/secrets/delete") } class="inline">
+																<input type="hidden" name="key" value={ s.Key }/>
+																<button
+																	type="submit"
+																	class="cursor-pointer px-3 py-1 bg-ctp-red text-ctp-base text-sm font-medium rounded-md hover:bg-ctp-maroon focus:outline-none focus:ring-2 focus:ring-ctp-red focus:ring-offset-2 focus:ring-offset-ctp-base"
+																>
+																	Delete
+																</button>
+															</form>
+														</li>
+													}
+												</ul>
+											} else {
+												<p class="text-ctp-subtext0">No secrets configured.</p>
+											}
+										} else {
+											<p class="text-ctp-red">Failed to load secrets.</p>
+										}
+									</div>
+									<div>
+										<h3 class="text-lg font-medium mb-3">Add or Update Secret</h3>
+										<form method="POST" action={ templ.URL("/api/repository/" + strconv.Itoa(int(repo.ID)) + "/secrets/set") } class="space-y-4">
+											<div>
+												<label for="secret-key" class="block text-sm font-medium mb-2">Key</label>
+												<input
+													type="text"
+													id="secret-key"
+													name="key"
+													required
+													placeholder="DEPLOY_TOKEN"
+													class="w-full px-3 py-2 bg-ctp-surface0 rounded-md border border-ctp-surface1 focus:outline-none focus:ring-2 focus:ring-ctp-blue focus:border-transparent"
+												/>
+											</div>
+											<div>
+												<label for="secret-value" class="block text-sm font-medium mb-2">Value</label>
+												<input
+													type="password"
+													id="secret-value"
+													name="value"
+													required
+													placeholder="Enter secret value"
+													class="w-full px-3 py-2 bg-ctp-surface0 rounded-md border border-ctp-surface1 focus:outline-none focus:ring-2 focus:ring-ctp-blue focus:border-transparent"
+												/>
+											</div>
+											<button
+												type="submit"
+												class="cursor-pointer px-4 py-2 bg-ctp-green text-ctp-base font-medium rounded-md hover:bg-ctp-teal focus:outline-none focus:ring-2 focus:ring-ctp-green focus:ring-offset-2 focus:ring-offset-ctp-base"
+											>
+												Save Secret
+											</button>
+										</form>
+									</div>
+								</section>
 							}
 						}
 					}
@@ -216,5 +293,18 @@ script confirmVisibilityChange(isPublic bool, repoId int) {
 		form.appendChild(input);
 		document.body.appendChild(form);
 		form.submit();
+	}
+}
+
+script toggleSecretVisibility(key string) {
+	const valueEl = document.getElementById('secret-value-' + key);
+	const btn = event.target;
+	
+	if (valueEl.classList.contains('hidden')) {
+		valueEl.classList.remove('hidden');
+		btn.textContent = 'Hide';
+	} else {
+		valueEl.classList.add('hidden');
+		btn.textContent = 'Show';
 	}
 }
