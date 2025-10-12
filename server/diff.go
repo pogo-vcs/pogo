@@ -370,7 +370,7 @@ func generateDiffBlocks(oldContent, newContent string) ([]protos.DiffBlock, erro
 		}
 
 		var contextBefore []string
-		for j := hunkOldStart; j < oldLineNum; j++ {
+		for j := hunkOldStart; j < oldLineNum && j < len(oldLines); j++ {
 			contextBefore = append(contextBefore, oldLines[j])
 		}
 
@@ -401,12 +401,16 @@ func generateDiffBlocks(oldContent, newContent string) ([]protos.DiffBlock, erro
 			i++
 		}
 
-		contextEnd := oldLineNum + contextLines
+		startContextAfter := oldLineNum
+		if startContextAfter > len(oldLines) {
+			startContextAfter = len(oldLines)
+		}
+		contextEnd := startContextAfter + contextLines
 		if contextEnd > len(oldLines) {
 			contextEnd = len(oldLines)
 		}
 		var contextAfter []string
-		for j := oldLineNum; j < contextEnd; j++ {
+		for j := startContextAfter; j < contextEnd; j++ {
 			contextAfter = append(contextAfter, oldLines[j])
 			hunkOldLineCount++
 			hunkNewLineCount++
@@ -460,6 +464,10 @@ func generateDiffBlocks(oldContent, newContent string) ([]protos.DiffBlock, erro
 	}
 
 	return blocks, nil
+}
+
+func GenerateDiffBlocks(oldContent, newContent string) ([]protos.DiffBlock, error) {
+	return generateDiffBlocks(oldContent, newContent)
 }
 
 func (s *Server) Diff(req *protos.DiffRequest, stream protos.Pogo_DiffServer) error {

@@ -781,3 +781,97 @@ func TestGenerateUnifiedDiff_EmptyHash(t *testing.T) {
 		t.Fatalf("GenerateUnifiedDiff with empty hash failed: %v", err)
 	}
 }
+
+func TestGenerateDiffBlocks_ContentWithoutTrailingNewline(t *testing.T) {
+	oldContent := "line1\nline2\nline3"
+	newContent := "line1\nline2 modified\nline3"
+
+	blocks, err := server.GenerateDiffBlocks(oldContent, newContent)
+	if err != nil {
+		t.Fatalf("GenerateDiffBlocks failed: %v", err)
+	}
+
+	if len(blocks) == 0 {
+		t.Fatal("Expected at least one block")
+	}
+}
+
+func TestGenerateDiffBlocks_LargeFileWithManyChanges(t *testing.T) {
+	var oldLines, newLines []string
+	for i := 1; i <= 100; i++ {
+		if i%10 == 5 {
+			oldLines = append(oldLines, fmt.Sprintf("line %d old", i))
+			newLines = append(newLines, fmt.Sprintf("line %d new", i))
+		} else {
+			line := fmt.Sprintf("line %d", i)
+			oldLines = append(oldLines, line)
+			newLines = append(newLines, line)
+		}
+	}
+
+	oldContent := ""
+	for i, line := range oldLines {
+		oldContent += line
+		if i < len(oldLines)-1 {
+			oldContent += "\n"
+		}
+	}
+
+	newContent := ""
+	for i, line := range newLines {
+		newContent += line
+		if i < len(newLines)-1 {
+			newContent += "\n"
+		}
+	}
+
+	blocks, err := server.GenerateDiffBlocks(oldContent, newContent)
+	if err != nil {
+		t.Fatalf("GenerateDiffBlocks failed: %v", err)
+	}
+
+	if len(blocks) == 0 {
+		t.Fatal("Expected at least one block")
+	}
+}
+
+func TestGenerateDiffBlocks_MultipleHunksNearEndOfFile(t *testing.T) {
+	var oldLines []string
+	for i := 1; i <= 75; i++ {
+		oldLines = append(oldLines, fmt.Sprintf("line %d", i))
+	}
+
+	var newLines []string
+	for i := 1; i <= 75; i++ {
+		if i == 73 {
+			newLines = append(newLines, "line 73 modified")
+		} else {
+			newLines = append(newLines, fmt.Sprintf("line %d", i))
+		}
+	}
+
+	oldContent := ""
+	for i, line := range oldLines {
+		oldContent += line
+		if i < len(oldLines)-1 {
+			oldContent += "\n"
+		}
+	}
+
+	newContent := ""
+	for i, line := range newLines {
+		newContent += line
+		if i < len(newLines)-1 {
+			newContent += "\n"
+		}
+	}
+
+	blocks, err := server.GenerateDiffBlocks(oldContent, newContent)
+	if err != nil {
+		t.Fatalf("GenerateDiffBlocks failed with 75 line file: %v", err)
+	}
+
+	if len(blocks) == 0 {
+		t.Fatal("Expected at least one block")
+	}
+}
