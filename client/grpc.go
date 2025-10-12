@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/pogo-vcs/pogo/colors"
 	"github.com/pogo-vcs/pogo/filecontents"
 	"github.com/pogo-vcs/pogo/protos"
 )
@@ -190,6 +191,74 @@ func (c *Client) PushFull(force bool) error {
 	return nil
 }
 
+func (c *Client) renderDiffHeader(out io.Writer, header *protos.DiffFileHeader, colored bool) {
+	gray := ""
+	reset := ""
+	if colored {
+		gray = colors.BrightBlack
+		reset = colors.Reset
+	}
+
+	fmt.Fprintf(out, "%sdiff --git a/%s b/%s%s\n", gray, header.Path, header.Path, reset)
+
+	switch header.Status {
+	case protos.DiffFileStatus_DIFF_FILE_STATUS_ADDED:
+		fmt.Fprintf(out, "%snew file mode 100644%s\n", gray, reset)
+		fmt.Fprintf(out, "%s--- /dev/null%s\n", gray, reset)
+		fmt.Fprintf(out, "%s+++ b/%s%s\n", gray, header.Path, reset)
+		fmt.Fprintf(out, "%s@@ -0,0 +1,%d @@%s\n", gray, header.NewLineCount, reset)
+
+	case protos.DiffFileStatus_DIFF_FILE_STATUS_DELETED:
+		fmt.Fprintf(out, "%sdeleted file mode 100644%s\n", gray, reset)
+		fmt.Fprintf(out, "%s--- a/%s%s\n", gray, header.Path, reset)
+		fmt.Fprintf(out, "%s+++ /dev/null%s\n", gray, reset)
+		fmt.Fprintf(out, "%s@@ -1,%d +0,0 @@%s\n", gray, header.OldLineCount, reset)
+
+	case protos.DiffFileStatus_DIFF_FILE_STATUS_BINARY:
+		fmt.Fprintf(out, "%sindex %s..%s%s\n", gray, header.OldHash, header.NewHash, reset)
+
+	case protos.DiffFileStatus_DIFF_FILE_STATUS_MODIFIED:
+		fmt.Fprintf(out, "%sindex %s..%s%s\n", gray, header.OldHash, header.NewHash, reset)
+		fmt.Fprintf(out, "%s--- a/%s%s\n", gray, header.Path, reset)
+		fmt.Fprintf(out, "%s+++ b/%s%s\n", gray, header.Path, reset)
+	}
+}
+
+func (c *Client) renderDiffBlock(out io.Writer, block *protos.DiffBlock, colored bool) {
+	gray := ""
+	green := ""
+	red := ""
+	reset := ""
+	if colored {
+		gray = colors.BrightBlack
+		green = colors.Green
+		red = colors.Red
+		reset = colors.Reset
+	}
+
+	switch block.Type {
+	case protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA:
+		for _, line := range block.Lines {
+			fmt.Fprintf(out, "%s%s%s\n", gray, line, reset)
+		}
+
+	case protos.DiffBlockType_DIFF_BLOCK_TYPE_UNCHANGED:
+		for _, line := range block.Lines {
+			fmt.Fprintf(out, " %s\n", line)
+		}
+
+	case protos.DiffBlockType_DIFF_BLOCK_TYPE_REMOVED:
+		for _, line := range block.Lines {
+			fmt.Fprintf(out, "%s-%s%s\n", red, line, reset)
+		}
+
+	case protos.DiffBlockType_DIFF_BLOCK_TYPE_ADDED:
+		for _, line := range block.Lines {
+			fmt.Fprintf(out, "%s+%s%s\n", green, line, reset)
+		}
+	}
+}
+
 func (c *Client) SetBookmark(bookmarkName string, changeName *string) error {
 	request := &protos.SetBookmarkRequest{
 		Auth:         c.GetAuth(),
@@ -197,6 +266,7 @@ func (c *Client) SetBookmark(bookmarkName string, changeName *string) error {
 		BookmarkName: bookmarkName,
 		ChangeName:   changeName,
 	}
+
 	if changeName == nil {
 		request.CheckedOutChangeId = &c.changeId
 	}
@@ -585,7 +655,7 @@ func (c *Client) GetCIRun(runID int64) (*protos.GetCIRunResponse, error) {
 	return resp, nil
 }
 
-func (c *Client) Diff(rev1, rev2 *string, out io.Writer) error {
+func (c *Client) Diff(rev1, rev2 *string, out io.Writer, colored bool) error {
 	request := &protos.DiffRequest{
 		Auth:               c.GetAuth(),
 		RepoId:             c.repoId,
@@ -604,6 +674,8 @@ func (c *Client) Diff(rev1, rev2 *string, out io.Writer) error {
 		return errors.Join(errors.New("call diff"), err)
 	}
 
+	var currentHeader *protos.DiffFileHeader
+
 	for {
 		msg, err := stream.Recv()
 		if err == io.EOF {
@@ -615,10 +687,12 @@ func (c *Client) Diff(rev1, rev2 *string, out io.Writer) error {
 
 		switch payload := msg.Payload.(type) {
 		case *protos.DiffResponse_FileHeader:
-		case *protos.DiffResponse_DiffChunk:
-			if _, err := fmt.Fprint(out, payload.DiffChunk); err != nil {
-				return errors.Join(errors.New("write diff chunk"), err)
-			}
+			currentHeader = payload.FileHeader
+			c.renderDiffHeader(out, currentHeader, colored)
+
+		case *protos.DiffResponse_DiffBlock:
+			c.renderDiffBlock(out, payload.DiffBlock, colored)
+
 		case *protos.DiffResponse_EndOfFile:
 		}
 	}

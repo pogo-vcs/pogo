@@ -331,6 +331,137 @@ func readFileContentForDiff(hash string) (string, error) {
 	return content, nil
 }
 
+func generateDiffBlocks(oldContent, newContent string) ([]protos.DiffBlock, error) {
+	oldLines := strings.Split(oldContent, "\n")
+
+	dmp := diffmp.New()
+	chars1, chars2, lineArray := dmp.DiffLinesToChars(oldContent, newContent)
+	lineDiffs := dmp.DiffMain(chars1, chars2, false)
+	lineDiffs = dmp.DiffCharsToLines(lineDiffs, lineArray)
+
+	var blocks []protos.DiffBlock
+	contextLines := 3
+	oldLineNum := 0
+	newLineNum := 0
+
+	i := 0
+	for i < len(lineDiffs) {
+		for i < len(lineDiffs) && lineDiffs[i].Type == diffmp.DiffEqual {
+			equalLines := strings.Split(lineDiffs[i].Text, "\n")
+			if len(equalLines) > 0 && equalLines[len(equalLines)-1] == "" {
+				equalLines = equalLines[:len(equalLines)-1]
+			}
+			oldLineNum += len(equalLines)
+			newLineNum += len(equalLines)
+			i++
+		}
+
+		if i >= len(lineDiffs) {
+			break
+		}
+
+		hunkOldStart := oldLineNum - contextLines
+		if hunkOldStart < 0 {
+			hunkOldStart = 0
+		}
+		hunkNewStart := newLineNum - contextLines
+		if hunkNewStart < 0 {
+			hunkNewStart = 0
+		}
+
+		var contextBefore []string
+		for j := hunkOldStart; j < oldLineNum; j++ {
+			contextBefore = append(contextBefore, oldLines[j])
+		}
+
+		hunkOldLineCount := oldLineNum - hunkOldStart
+		hunkNewLineCount := newLineNum - hunkNewStart
+
+		var removed, added []string
+
+		for i < len(lineDiffs) && lineDiffs[i].Type != diffmp.DiffEqual {
+			switch lineDiffs[i].Type {
+			case diffmp.DiffDelete:
+				deleteLines := strings.Split(lineDiffs[i].Text, "\n")
+				if len(deleteLines) > 0 && deleteLines[len(deleteLines)-1] == "" {
+					deleteLines = deleteLines[:len(deleteLines)-1]
+				}
+				removed = append(removed, deleteLines...)
+				hunkOldLineCount += len(deleteLines)
+				oldLineNum += len(deleteLines)
+			case diffmp.DiffInsert:
+				insertLines := strings.Split(lineDiffs[i].Text, "\n")
+				if len(insertLines) > 0 && insertLines[len(insertLines)-1] == "" {
+					insertLines = insertLines[:len(insertLines)-1]
+				}
+				added = append(added, insertLines...)
+				hunkNewLineCount += len(insertLines)
+				newLineNum += len(insertLines)
+			}
+			i++
+		}
+
+		contextEnd := oldLineNum + contextLines
+		if contextEnd > len(oldLines) {
+			contextEnd = len(oldLines)
+		}
+		var contextAfter []string
+		for j := oldLineNum; j < contextEnd; j++ {
+			contextAfter = append(contextAfter, oldLines[j])
+			hunkOldLineCount++
+			hunkNewLineCount++
+		}
+
+		if i < len(lineDiffs) && lineDiffs[i].Type == diffmp.DiffEqual {
+			equalLines := strings.Split(lineDiffs[i].Text, "\n")
+			if len(equalLines) > 0 && equalLines[len(equalLines)-1] == "" {
+				equalLines = equalLines[:len(equalLines)-1]
+			}
+			addedContext := 0
+			for addedContext < contextLines && addedContext < len(equalLines) {
+				oldLineNum++
+				newLineNum++
+				addedContext++
+			}
+		}
+
+		blocks = append(blocks, protos.DiffBlock{
+			Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
+			Lines: []string{fmt.Sprintf("@@ -%d,%d +%d,%d @@", hunkOldStart+1, hunkOldLineCount, hunkNewStart+1, hunkNewLineCount)},
+		})
+
+		if len(contextBefore) > 0 {
+			blocks = append(blocks, protos.DiffBlock{
+				Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_UNCHANGED,
+				Lines: contextBefore,
+			})
+		}
+
+		if len(removed) > 0 {
+			blocks = append(blocks, protos.DiffBlock{
+				Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_REMOVED,
+				Lines: removed,
+			})
+		}
+
+		if len(added) > 0 {
+			blocks = append(blocks, protos.DiffBlock{
+				Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_ADDED,
+				Lines: added,
+			})
+		}
+
+		if len(contextAfter) > 0 {
+			blocks = append(blocks, protos.DiffBlock{
+				Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_UNCHANGED,
+				Lines: contextAfter,
+			})
+		}
+	}
+
+	return blocks, nil
+}
+
 func (s *Server) Diff(req *protos.DiffRequest, stream protos.Pogo_DiffServer) error {
 	ctx := stream.Context()
 
@@ -366,6 +497,52 @@ func (s *Server) Diff(req *protos.DiffRequest, stream protos.Pogo_DiffServer) er
 	}
 
 	for _, diff := range diffs {
+		oldHash := base64.URLEncoding.EncodeToString(diff.OldContentHash)
+		newHash := base64.URLEncoding.EncodeToString(diff.NewContentHash)
+
+		oldHashShort := oldHash
+		if len(oldHash) > 7 {
+			oldHashShort = oldHash[:7]
+		}
+		newHashShort := newHash
+		if len(newHash) > 7 {
+			newHashShort = newHash[:7]
+		}
+
+		var oldLineCount, newLineCount int32
+
+		switch diff.Status {
+		case protos.DiffFileStatus_DIFF_FILE_STATUS_ADDED:
+			content, err := readFileContentForDiff(newHash)
+			if err != nil {
+				return fmt.Errorf("read new file content: %w", err)
+			}
+			lines := strings.Split(content, "\n")
+			newLineCount = int32(len(lines))
+
+		case protos.DiffFileStatus_DIFF_FILE_STATUS_DELETED:
+			content, err := readFileContentForDiff(oldHash)
+			if err != nil {
+				return fmt.Errorf("read old file content: %w", err)
+			}
+			lines := strings.Split(content, "\n")
+			oldLineCount = int32(len(lines))
+
+		case protos.DiffFileStatus_DIFF_FILE_STATUS_MODIFIED:
+			oldContent, err := readFileContentForDiff(oldHash)
+			if err != nil {
+				return fmt.Errorf("read old file content: %w", err)
+			}
+			newContent, err := readFileContentForDiff(newHash)
+			if err != nil {
+				return fmt.Errorf("read new file content: %w", err)
+			}
+			oldLines := strings.Split(oldContent, "\n")
+			newLines := strings.Split(newContent, "\n")
+			oldLineCount = int32(len(oldLines))
+			newLineCount = int32(len(newLines))
+		}
+
 		if err := stream.Send(&protos.DiffResponse{
 			Payload: &protos.DiffResponse_FileHeader{
 				FileHeader: &protos.DiffFileHeader{
@@ -373,6 +550,10 @@ func (s *Server) Diff(req *protos.DiffRequest, stream protos.Pogo_DiffServer) er
 					OldChangeName: diff.OldChangeName,
 					NewChangeName: diff.NewChangeName,
 					Status:        diff.Status,
+					OldHash:       oldHashShort,
+					NewHash:       newHashShort,
+					OldLineCount:  oldLineCount,
+					NewLineCount:  newLineCount,
 				},
 			},
 		}); err != nil {
@@ -381,105 +562,98 @@ func (s *Server) Diff(req *protos.DiffRequest, stream protos.Pogo_DiffServer) er
 
 		switch diff.Status {
 		case protos.DiffFileStatus_DIFF_FILE_STATUS_ADDED:
-			content, err := readFileContentForDiff(base64.URLEncoding.EncodeToString(diff.NewContentHash))
+			content, err := readFileContentForDiff(newHash)
 			if err != nil {
 				return fmt.Errorf("read new file content: %w", err)
 			}
-
 			lines := strings.Split(content, "\n")
-			var result strings.Builder
-			result.WriteString(fmt.Sprintf("diff --git a/%s b/%s\n", diff.Path, diff.Path))
-			result.WriteString("new file mode 100644\n")
-			result.WriteString("--- /dev/null\n")
-			result.WriteString(fmt.Sprintf("+++ b/%s\n", diff.Path))
-			result.WriteString(fmt.Sprintf("@@ -0,0 +1,%d @@\n", len(lines)))
-			for _, line := range lines {
-				result.WriteString(fmt.Sprintf("+%s\n", line))
+
+			if err := stream.Send(&protos.DiffResponse{
+				Payload: &protos.DiffResponse_DiffBlock{
+					DiffBlock: &protos.DiffBlock{
+						Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
+						Lines: []string{"new file mode 100644"},
+					},
+				},
+			}); err != nil {
+				return fmt.Errorf("send metadata block: %w", err)
 			}
 
 			if err := stream.Send(&protos.DiffResponse{
-				Payload: &protos.DiffResponse_DiffChunk{
-					DiffChunk: result.String(),
+				Payload: &protos.DiffResponse_DiffBlock{
+					DiffBlock: &protos.DiffBlock{
+						Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_ADDED,
+						Lines: lines,
+					},
 				},
 			}); err != nil {
-				return fmt.Errorf("send diff chunk: %w", err)
+				return fmt.Errorf("send added block: %w", err)
 			}
 
 		case protos.DiffFileStatus_DIFF_FILE_STATUS_DELETED:
-			content, err := readFileContentForDiff(base64.URLEncoding.EncodeToString(diff.OldContentHash))
+			content, err := readFileContentForDiff(oldHash)
 			if err != nil {
 				return fmt.Errorf("read old file content: %w", err)
 			}
-
 			lines := strings.Split(content, "\n")
-			var result strings.Builder
-			result.WriteString(fmt.Sprintf("diff --git a/%s b/%s\n", diff.Path, diff.Path))
-			result.WriteString("deleted file mode 100644\n")
-			result.WriteString(fmt.Sprintf("--- a/%s\n", diff.Path))
-			result.WriteString("+++ /dev/null\n")
-			result.WriteString(fmt.Sprintf("@@ -1,%d +0,0 @@\n", len(lines)))
-			for _, line := range lines {
-				result.WriteString(fmt.Sprintf("-%s\n", line))
+
+			if err := stream.Send(&protos.DiffResponse{
+				Payload: &protos.DiffResponse_DiffBlock{
+					DiffBlock: &protos.DiffBlock{
+						Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
+						Lines: []string{"deleted file mode 100644"},
+					},
+				},
+			}); err != nil {
+				return fmt.Errorf("send metadata block: %w", err)
 			}
 
 			if err := stream.Send(&protos.DiffResponse{
-				Payload: &protos.DiffResponse_DiffChunk{
-					DiffChunk: result.String(),
+				Payload: &protos.DiffResponse_DiffBlock{
+					DiffBlock: &protos.DiffBlock{
+						Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_REMOVED,
+						Lines: lines,
+					},
 				},
 			}); err != nil {
-				return fmt.Errorf("send diff chunk: %w", err)
+				return fmt.Errorf("send removed block: %w", err)
 			}
 
 		case protos.DiffFileStatus_DIFF_FILE_STATUS_BINARY:
-			var result strings.Builder
-			result.WriteString(fmt.Sprintf("diff --git a/%s b/%s\n", diff.Path, diff.Path))
-			oldHash := base64.URLEncoding.EncodeToString(diff.OldContentHash)
-			newHash := base64.URLEncoding.EncodeToString(diff.NewContentHash)
-
-			oldHashShort := oldHash
-			if len(oldHash) > 7 {
-				oldHashShort = oldHash[:7]
-			}
-			newHashShort := newHash
-			if len(newHash) > 7 {
-				newHashShort = newHash[:7]
-			}
-
-			result.WriteString(fmt.Sprintf("index %s..%s\n", oldHashShort, newHashShort))
-			result.WriteString("Binary files differ\n")
-
 			if err := stream.Send(&protos.DiffResponse{
-				Payload: &protos.DiffResponse_DiffChunk{
-					DiffChunk: result.String(),
+				Payload: &protos.DiffResponse_DiffBlock{
+					DiffBlock: &protos.DiffBlock{
+						Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
+						Lines: []string{"Binary files differ"},
+					},
 				},
 			}); err != nil {
-				return fmt.Errorf("send diff chunk: %w", err)
+				return fmt.Errorf("send binary metadata: %w", err)
 			}
 
 		case protos.DiffFileStatus_DIFF_FILE_STATUS_MODIFIED:
-			oldContent, err := readFileContentForDiff(base64.URLEncoding.EncodeToString(diff.OldContentHash))
+			oldContent, err := readFileContentForDiff(oldHash)
 			if err != nil {
 				return fmt.Errorf("read old file content: %w", err)
 			}
-			newContent, err := readFileContentForDiff(base64.URLEncoding.EncodeToString(diff.NewContentHash))
+			newContent, err := readFileContentForDiff(newHash)
 			if err != nil {
 				return fmt.Errorf("read new file content: %w", err)
 			}
 
-			oldHash := base64.URLEncoding.EncodeToString(diff.OldContentHash)
-			newHash := base64.URLEncoding.EncodeToString(diff.NewContentHash)
-
-			unifiedDiff, err := GenerateUnifiedDiff(oldContent, newContent, oldHash, newHash, diff.Path)
+			blocks, err := generateDiffBlocks(oldContent, newContent)
 			if err != nil {
-				return fmt.Errorf("generate unified diff: %w", err)
+				return fmt.Errorf("generate diff blocks: %w", err)
 			}
 
-			if err := stream.Send(&protos.DiffResponse{
-				Payload: &protos.DiffResponse_DiffChunk{
-					DiffChunk: unifiedDiff,
-				},
-			}); err != nil {
-				return fmt.Errorf("send diff chunk: %w", err)
+			for _, block := range blocks {
+				if err := stream.Send(&protos.DiffResponse{
+					Payload: &protos.DiffResponse_DiffBlock{
+						DiffBlock: &block,
+					},
+				}); err != nil {
+					return fmt.Errorf("send diff block: %w", err)
+				}
 			}
 		}
 

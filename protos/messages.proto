@@ -357,7 +357,7 @@ message DiffRequest {
 message DiffResponse {
   oneof payload {
     DiffFileHeader file_header = 1;
-    string diff_chunk = 2;
+    DiffBlock diff_block = 2;
     EndOfFile end_of_file = 3;
   }
 }
@@ -367,6 +367,22 @@ message DiffFileHeader {
   string old_change_name = 2;
   string new_change_name = 3;
   DiffFileStatus status = 4;
+  string old_hash = 5;
+  string new_hash = 6;
+  int32 old_line_count = 7;
+  int32 new_line_count = 8;
+}
+
+message DiffBlock {
+  DiffBlockType type = 1;
+  repeated string lines = 2;
+}
+
+enum DiffBlockType {
+  DIFF_BLOCK_TYPE_METADATA = 0;
+  DIFF_BLOCK_TYPE_UNCHANGED = 1;
+  DIFF_BLOCK_TYPE_REMOVED = 2;
+  DIFF_BLOCK_TYPE_ADDED = 3;
 }
 
 enum DiffFileStatus {
