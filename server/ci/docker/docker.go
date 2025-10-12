@@ -14,6 +14,8 @@ type Client interface {
 	CreateNetwork(ctx context.Context, networkName string) error
 	RemoveNetwork(ctx context.Context, networkName string) error
 	RunContainer(ctx context.Context, opts RunOptions) error
+	CopyToContainer(ctx context.Context, containerID string, srcPath string, dstPath string) error
+	StartContainer(ctx context.Context, containerID string, stdout io.Writer, stderr io.Writer) error
 	StopContainer(ctx context.Context, containerID string) error
 	RemoveContainer(ctx context.Context, containerID string) error
 	Close() error
@@ -29,6 +31,7 @@ type RunOptions struct {
 	Volumes     map[string]string
 	Stdout      io.Writer
 	Stderr      io.Writer
+	CreateOnly  bool
 }
 
 func NewClient() (Client, error) {
@@ -37,15 +40,20 @@ func NewClient() (Client, error) {
 		dockerHost = getDefaultDockerSocket()
 	}
 
-	if isSocketAvailable(dockerHost) {
-		return newSocketClient(dockerHost)
+	sdkClient, err := newSDKClient(dockerHost)
+	if err == nil {
+		return sdkClient, nil
 	}
+	sdkErr := err
 
 	if isCLIAvailable() {
+		if dockerHost != "" {
+			return newSocketClient(dockerHost)
+		}
 		return newCLIClient()
 	}
 
-	return nil, fmt.Errorf("no Docker socket or CLI available")
+	return nil, fmt.Errorf("docker sdk unavailable: %w; docker CLI not found", sdkErr)
 }
 
 func isCLIAvailable() bool {

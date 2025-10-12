@@ -146,6 +146,7 @@ graph TB
             TokenCmd[token.go]
             WhoamiCmd[whoami.go]
             CiCmd[ci.go]
+            CiRunsCmd[ci_runs.go]
             CloneCmd[clone.go]
             DaemonCmd[daemon.go]
             InviteCmd[invite.go]
@@ -452,6 +453,13 @@ sequenceDiagram
 - Log command outputs to stdout for simple viewing
 - Color-coded output when running in an interactive terminal
 - Full log content displayed without pagination
+
+### 9. CI Execution Tracking
+
+- CI container and webhook tasks are persisted in the `ci_runs` table with repository, event, pattern, reason, type, status code, timestamps, and complete logs.
+- Logs capture full container output and webhook request/response data, enabling post-run analysis from the CLI and Web UI in future enhancements.
+- The CLI exposes `pogo ci runs list` for metadata summaries and `pogo ci runs inspect <id>` for full log review (access-gated by repository permissions).
+- A daily garbage-collection pass removes `ci_runs` records older than the configured retention window (`CI_RUN_RETENTION`, default 30 days).
 
 ## Technology Stack
 

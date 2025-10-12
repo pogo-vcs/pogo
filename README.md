@@ -95,6 +95,7 @@ For running the server, you need to have a PostgreSQL database running and the f
 - `PORT` or `HOST`: The port or host to listen on.
 - `ROOT_TOKEN`: *optional* The root token for the server.
 - `GC_MEMORY_THRESHOLD`: *optional* The number of files to use as the threshold for which garbage collection implementations will run (in memory vs batch processing).
+- `CI_RUN_RETENTION`: *optional* How long CI run logs are retained before being deleted during garbage collection (Go duration format, default `720h`).
 
 ## 📋 Commands
 
@@ -106,6 +107,9 @@ For running the server, you need to have a PostgreSQL database running and the f
 |                 | `list`     | `l`                | List all bookmarks.                                                                         |
 | `pogo ci`       |            |                    | Manage CI pipelines.                                                                        |
 |                 | `test`     |                    | Test a CI pipeline configuration.                                                           |
+|                 | `runs`     |                    | Inspect recorded CI runs.                                                                   |
+|                 | `runs list`|                    | List CI runs for the current repository.                                                    |
+|                 | `runs inspect` |                | Show the detailed log output for a CI run.                                                  |
 | `pogo clone`    |            |                    | Clone a repository from a Pogo server.                                                      |
 | `pogo commit`   |            |                    | Combines `describe`, `push`, and `new` into a single command.                               |
 | `pogo daemon`   |            | `service`          | Manage Pogo daemon service.                                                                 |
@@ -157,7 +161,7 @@ The garbage collection system uses an adaptive strategy based on the total numbe
 - **Small-scale (< 10 million files):** Uses an in-memory hash map strategy for fast O(1) lookups.
 - **Large-scale (≥ 10 million files):** Uses a batch processing strategy that scales to billions of files with constant memory usage.
 
-The threshold can be configured via the `GC_MEMORY_THRESHOLD` environment variable.
+The threshold can be configured via the `GC_MEMORY_THRESHOLD` environment variable. CI run logs are cleaned up during this process; the retention window is controlled by `CI_RUN_RETENTION` (default 30 days).
 
 ## 🔐 Secrets Management
 

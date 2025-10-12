@@ -9,7 +9,9 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pogo-vcs/pogo/db"
 	"github.com/pogo-vcs/pogo/protos"
 	"github.com/pogo-vcs/pogo/server/env"
@@ -39,6 +41,20 @@ func (s *Server) GarbageCollect(ctx context.Context, req *protos.GarbageCollectR
 
 // runGarbageCollectionInternal contains the actual GC logic
 func runGarbageCollectionInternal(ctx context.Context) (*protos.GarbageCollectResponse, error) {
+	if env.CiRunRetention > 0 {
+		cutoff := time.Now().Add(-env.CiRunRetention).UTC()
+		cutoffTS := pgtype.Timestamptz{
+			Time:  cutoff,
+			Valid: true,
+		}
+		deletedRuns, err := db.Q.DeleteExpiredCIRuns(ctx, cutoffTS)
+		if err != nil {
+			fmt.Printf("GC: failed to delete expired CI runs: %v\n", err)
+		} else if deletedRuns > 0 {
+			fmt.Printf("GC: deleted %d CI runs older than %s\n", deletedRuns, env.CiRunRetention)
+		}
+	}
+
 	// Start a database transaction for cleanup
 	tx, err := db.Q.Begin(ctx)
 	if err != nil {

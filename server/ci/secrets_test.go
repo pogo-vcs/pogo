@@ -59,9 +59,18 @@ do:
 		ArchiveUrl: "https://example.com/archive",
 	}
 
-	err := executor.ExecuteForBookmarkEvent(ctx, configFiles, event, EventTypePush)
+	results, err := executor.ExecuteForBookmarkEvent(ctx, configFiles, event, EventTypePush)
 	if err != nil {
 		t.Fatalf("ExecuteForBookmarkEvent() error = %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if !results[0].Success {
+		t.Fatal("expected webhook task to succeed")
+	}
+	if results[0].StatusCode != http.StatusOK {
+		t.Fatalf("expected status code %d, got %d", http.StatusOK, results[0].StatusCode)
 	}
 
 	mu.Lock()
@@ -115,9 +124,18 @@ do:
 		ArchiveUrl: "https://example.com/archive",
 	}
 
-	err := executor.ExecuteForBookmarkEvent(ctx, configFiles, event, EventTypePush)
+	results, err := executor.ExecuteForBookmarkEvent(ctx, configFiles, event, EventTypePush)
 	if err != nil {
 		t.Fatalf("ExecuteForBookmarkEvent() error = %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if !results[0].Success {
+		t.Fatal("expected webhook task to succeed with empty secret")
+	}
+	if results[0].StatusCode != http.StatusOK {
+		t.Fatalf("expected status code %d, got %d", http.StatusOK, results[0].StatusCode)
 	}
 
 	mu.Lock()
@@ -198,9 +216,18 @@ do:
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 
-	err = executor.ExecuteForBookmarkEvent(ctx, configFiles, event, EventTypePush)
+	results, err := executor.ExecuteForBookmarkEvent(ctx, configFiles, event, EventTypePush)
 	if err != nil {
 		t.Fatalf("ExecuteForBookmarkEvent() error = %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if !results[0].Success {
+		t.Fatal("expected container task to succeed")
+	}
+	if results[0].StatusCode != 0 {
+		t.Fatalf("expected container exit code 0, got %d", results[0].StatusCode)
 	}
 
 	mu.Lock()

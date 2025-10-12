@@ -555,3 +555,32 @@ func (c *Client) DeleteSecret(key string) error {
 
 	return nil
 }
+
+func (c *Client) ListCIRuns() ([]*protos.CIRunSummary, error) {
+	request := &protos.ListCIRunsRequest{
+		Auth:   c.GetAuth(),
+		RepoId: c.repoId,
+	}
+
+	resp, err := c.Pogo.ListCIRuns(c.ctx, request)
+	if err != nil {
+		return nil, errors.Join(errors.New("list CI runs"), err)
+	}
+
+	return resp.Runs, nil
+}
+
+func (c *Client) GetCIRun(runID int64) (*protos.GetCIRunResponse, error) {
+	request := &protos.GetCIRunRequest{
+		Auth:   c.GetAuth(),
+		RepoId: c.repoId,
+		RunId:  runID,
+	}
+
+	resp, err := c.Pogo.GetCIRun(c.ctx, request)
+	if err != nil {
+		return nil, errors.Join(errors.New("get CI run"), err)
+	}
+
+	return resp, nil
+}

@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
 )
@@ -56,6 +57,41 @@ func (c *socketClient) RemoveNetwork(ctx context.Context, networkName string) er
 }
 
 func (c *socketClient) RunContainer(ctx context.Context, opts RunOptions) error {
+	if opts.CreateOnly {
+		args := []string{"create"}
+
+		if opts.Name != "" {
+			args = append(args, "--name", opts.Name)
+		}
+
+		if opts.NetworkName != "" {
+			args = append(args, "--network", opts.NetworkName)
+		}
+
+		if opts.WorkingDir != "" {
+			args = append(args, "--workdir", opts.WorkingDir)
+		}
+
+		for key, value := range opts.Environment {
+			args = append(args, "-e", fmt.Sprintf("%s=%s", key, value))
+		}
+
+		for host, container := range opts.Volumes {
+			args = append(args, "-v", fmt.Sprintf("%s:%s", host, container))
+		}
+
+		args = append(args, opts.Image)
+		args = append(args, opts.Commands...)
+
+		cmd := exec.CommandContext(ctx, "docker", args...)
+		cmd.Env = append(cmd.Env, fmt.Sprintf("DOCKER_HOST=%s", c.dockerHost))
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("create container: %w: %s", err, string(output))
+		}
+		return nil
+	}
+
 	args := []string{"run", "--rm"}
 
 	if opts.Name != "" {
@@ -114,6 +150,33 @@ func (c *socketClient) RemoveContainer(ctx context.Context, containerID string) 
 	if err != nil {
 		return fmt.Errorf("remove container %s: %w: %s", containerID, err, string(output))
 	}
+	return nil
+}
+
+func (c *socketClient) CopyToContainer(ctx context.Context, containerID string, srcPath string, dstPath string) error {
+	cmd := exec.CommandContext(ctx, "docker", "cp", srcPath+"/.", containerID+":"+dstPath)
+	cmd.Env = append(cmd.Env, fmt.Sprintf("DOCKER_HOST=%s", c.dockerHost))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("copy %s to container %s:%s: %w: %s", srcPath, containerID, dstPath, err, string(output))
+	}
+	return nil
+}
+
+func (c *socketClient) StartContainer(ctx context.Context, containerID string, stdout io.Writer, stderr io.Writer) error {
+	cmd := exec.CommandContext(ctx, "docker", "start", "-a", containerID)
+	cmd.Env = append(cmd.Env, fmt.Sprintf("DOCKER_HOST=%s", c.dockerHost))
+	if stdout != nil {
+		cmd.Stdout = stdout
+	}
+	if stderr != nil {
+		cmd.Stderr = stderr
+	}
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("start container: %w", err)
+	}
+
 	return nil
 }
 

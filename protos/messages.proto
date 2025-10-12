@@ -27,6 +27,8 @@ service Pogo {
   rpc GetSecret(GetSecretRequest) returns (GetSecretResponse);
   rpc GetAllSecrets(GetAllSecretsRequest) returns (GetAllSecretsResponse);
   rpc DeleteSecret(DeleteSecretRequest) returns (DeleteSecretResponse);
+  rpc ListCIRuns(ListCIRunsRequest) returns (ListCIRunsResponse);
+  rpc GetCIRun(GetCIRunRequest) returns (GetCIRunResponse);
 }
 
 message Auth {
@@ -308,3 +310,37 @@ message DeleteSecretRequest {
 }
 
 message DeleteSecretResponse {}
+
+message ListCIRunsRequest {
+  Auth auth = 1;
+  int32 repo_id = 2;
+}
+
+message CIRunSummary {
+  int64 id = 1;
+  string config_filename = 2;
+  string event_type = 3;
+  string rev = 4;
+  optional string pattern = 5;
+  string reason = 6;
+  string task_type = 7;
+  int32 status_code = 8;
+  bool success = 9;
+  string started_at = 10;
+  string finished_at = 11;
+}
+
+message ListCIRunsResponse {
+  repeated CIRunSummary runs = 1;
+}
+
+message GetCIRunRequest {
+  Auth auth = 1;
+  int32 repo_id = 2;
+  int64 run_id = 3;
+}
+
+message GetCIRunResponse {
+  CIRunSummary run = 1;
+  string log = 2;
+}

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pogo-vcs/pogo/db"
 	"github.com/pogo-vcs/pogo/filecontents"
 	"github.com/pogo-vcs/pogo/server/ci"
@@ -79,6 +80,8 @@ func extractRepositoryContentToTemp(ctx context.Context, repositoryId int32, boo
 			return "", fmt.Errorf("create directory for %s: %w", vcsFile.Name, err)
 		}
 
+		_ = os.MkdirAll(filepath.Dir(destPath), 0755)
+
 		perm := os.FileMode(0644)
 		if vcsFile.Executable {
 			perm = 0755
@@ -131,14 +134,14 @@ func executeCIForBookmarkEvent(ctx context.Context, changeId int64, bookmarkName
 	go func() {
 		tempDir, err := extractRepositoryContentToTemp(context.Background(), change.RepositoryID, bookmarkName)
 		if err != nil {
-			fmt.Printf("CI execution error: failed to extract repository content: %v\n", err)
+			fmt.Printf("CI execution error: repo=%s change_id=%d bookmark=%s event=%s detail=extract repository content: %v\n", repo.Name, changeId, bookmarkName, eventType.String(), err)
 			return
 		}
 		defer os.RemoveAll(tempDir)
 
 		secrets, err := db.Q.GetAllSecrets(context.Background(), change.RepositoryID)
 		if err != nil {
-			fmt.Printf("CI execution error: failed to get secrets: %v\n", err)
+			fmt.Printf("CI execution error: repo=%s change_id=%d bookmark=%s event=%s detail=get secrets: %v\n", repo.Name, changeId, bookmarkName, eventType.String(), err)
 			return
 		}
 
@@ -151,8 +154,59 @@ func executeCIForBookmarkEvent(ctx context.Context, changeId int64, bookmarkName
 		executor.SetRepoContentDir(tempDir)
 		executor.SetSecrets(secretsMap)
 
-		if err := executor.ExecuteForBookmarkEvent(context.Background(), configFiles, event, eventType); err != nil {
-			fmt.Printf("CI execution error: %v\n", err)
+		fmt.Printf("CI execution started: repo=%s change_id=%d bookmark=%s event=%s\n", repo.Name, changeId, bookmarkName, eventType.String())
+
+		results, execErr := executor.ExecuteForBookmarkEvent(context.Background(), configFiles, event, eventType)
+
+		for _, res := range results {
+			start := res.StartedAt
+			if start.IsZero() {
+				start = time.Now()
+			}
+			finish := res.FinishedAt
+			if finish.IsZero() {
+				finish = start
+			}
+			start = start.UTC()
+			finish = finish.UTC()
+			var pattern *string
+			if res.Pattern != "" {
+				pattern = &res.Pattern
+			}
+
+			startTS := pgtype.Timestamptz{
+				Time:  start,
+				Valid: true,
+			}
+			finishTS := pgtype.Timestamptz{
+				Time:  finish,
+				Valid: true,
+			}
+
+			_, err := db.Q.CreateCIRun(context.Background(),
+				repo.ID,
+				res.ConfigFilename,
+				res.EventType.String(),
+				res.Rev,
+				pattern,
+				res.Reason,
+				res.TaskType,
+				int32(res.StatusCode),
+				res.Success,
+				startTS,
+				finishTS,
+				res.Log,
+			)
+			if err != nil {
+				fmt.Printf("CI execution error: repo=%s change_id=%d bookmark=%s event=%s detail=store ci run: %v\n", repo.Name, changeId, bookmarkName, eventType.String(), err)
+			}
 		}
+
+		if execErr != nil {
+			fmt.Printf("CI execution completed: status=failure repo=%s change_id=%d bookmark=%s event=%s error=%v\n", repo.Name, changeId, bookmarkName, eventType.String(), execErr)
+			return
+		}
+
+		fmt.Printf("CI execution completed: status=success repo=%s change_id=%d bookmark=%s event=%s runs=%d\n", repo.Name, changeId, bookmarkName, eventType.String(), len(results))
 	}()
 }

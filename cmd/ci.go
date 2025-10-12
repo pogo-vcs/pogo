@@ -96,7 +96,16 @@ If no config file is specified, all CI config files in .pogo/ci/ will be tested.
 			fmt.Fprintf(cmd.OutOrStdout(), "Testing CI pipeline with synthetic %s event (rev: %s)\n", ciTestEventType, ciTestEventRev)
 			fmt.Fprintf(cmd.OutOrStdout(), "Found %d configuration file(s)\n\n", len(configFiles))
 
-			err = executor.ExecuteForBookmarkEvent(context.Background(), configFiles, event, eventType)
+			results, err := executor.ExecuteForBookmarkEvent(context.Background(), configFiles, event, eventType)
+
+			for _, res := range results {
+				status := "failed"
+				if res.Success {
+					status = "passed"
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "- %s task (%s) status=%s code=%d\n", res.TaskType, res.ConfigFilename, status, res.StatusCode)
+			}
+
 			if err != nil {
 				return fmt.Errorf("execute CI: %w", err)
 			}

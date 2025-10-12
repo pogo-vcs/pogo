@@ -178,10 +178,13 @@ do:
 			receivedRequests = nil
 			mu.Unlock()
 
-			err := executor.ExecuteForBookmarkEvent(ctx, tt.configFiles, tt.event, tt.eventType)
+			results, err := executor.ExecuteForBookmarkEvent(ctx, tt.configFiles, tt.event, tt.eventType)
 			if err != nil {
 				t.Errorf("ExecuteForBookmarkEvent() error = %v", err)
 				return
+			}
+			if len(results) != tt.want {
+				t.Errorf("ExecuteForBookmarkEvent() got %d results, want %d", len(results), tt.want)
 			}
 
 			mu.Lock()
@@ -239,9 +242,18 @@ do:
 		ArchiveUrl: "https://example.com/archive",
 	}
 
-	err := executor.ExecuteForBookmarkEvent(ctx, configFiles, event, EventTypePush)
+	results, err := executor.ExecuteForBookmarkEvent(ctx, configFiles, event, EventTypePush)
 	if err != nil {
 		t.Errorf("ExecuteForBookmarkEvent() should succeed with retry, got error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if !results[0].Success {
+		t.Errorf("expected task to succeed after retries")
+	}
+	if results[0].StatusCode != http.StatusOK {
+		t.Errorf("expected status code %d, got %d", http.StatusOK, results[0].StatusCode)
 	}
 
 	mu.Lock()
@@ -291,9 +303,18 @@ do:
 		ArchiveUrl: "https://example.com/archive",
 	}
 
-	err := executor.ExecuteForBookmarkEvent(ctx, configFiles, event, EventTypePush)
+	results, err := executor.ExecuteForBookmarkEvent(ctx, configFiles, event, EventTypePush)
 	if err == nil {
 		t.Error("ExecuteForBookmarkEvent() should fail after max retries")
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Success {
+		t.Error("expected task to report failure")
+	}
+	if results[0].StatusCode != http.StatusInternalServerError {
+		t.Errorf("expected status code %d, got %d", http.StatusInternalServerError, results[0].StatusCode)
 	}
 
 	mu.Lock()

@@ -1,6 +1,7 @@
 package ci
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"encoding/base64"
@@ -9,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -29,6 +31,17 @@ const (
 	EventTypePush EventType = iota
 	EventTypeRemove
 )
+
+func (t EventType) String() string {
+	switch t {
+	case EventTypePush:
+		return "push"
+	case EventTypeRemove:
+		return "remove"
+	default:
+		return "unknown"
+	}
+}
 
 type (
 	Config struct {
@@ -98,6 +111,20 @@ type (
 		MaxAttempts int `yaml:"max_attempts" json:"max_attempts"`
 	}
 )
+
+type TaskExecutionResult struct {
+	ConfigFilename string
+	EventType      EventType
+	Rev            string
+	Pattern        string
+	Reason         string
+	TaskType       string
+	StatusCode     int
+	Success        bool
+	StartedAt      time.Time
+	FinishedAt     time.Time
+	Log            string
+}
 
 type Event struct {
 	// Rev is the revision name that triggered this event, might be a bookmark or change name
@@ -181,7 +208,9 @@ func (e *Executor) SetSecrets(secrets map[string]string) {
 	e.secrets = secrets
 }
 
-func (e *Executor) ExecuteForBookmarkEvent(ctx context.Context, configFiles map[string][]byte, event Event, eventType EventType) error {
+func (e *Executor) ExecuteForBookmarkEvent(ctx context.Context, configFiles map[string][]byte, event Event, eventType EventType) ([]TaskExecutionResult, error) {
+	var allResults []TaskExecutionResult
+
 	for filename, configData := range configFiles {
 		if !isYAMLFile(filename) {
 			continue
@@ -189,14 +218,25 @@ func (e *Executor) ExecuteForBookmarkEvent(ctx context.Context, configFiles map[
 
 		config, err := UnmarshalConfigWithSecrets(configData, event, e.secrets)
 		if err != nil {
-			return fmt.Errorf("unmarshal config %s: %w", filename, err)
+			return allResults, fmt.Errorf("unmarshal config %s: %w", filename, err)
 		}
 
 		if eventType == EventTypePush && config.On.Push != nil {
 			for _, pattern := range config.On.Push.Bookmarks {
 				if matchesPattern(event.Rev, pattern) {
-					if err := e.executeTasks(ctx, config.Do); err != nil {
-						return fmt.Errorf("execute tasks for %s: %w", filename, err)
+					reason := fmt.Sprintf("config=%s event=%s rev=%s pattern=%s", filename, eventType.String(), event.Rev, pattern)
+					fmt.Printf("CI run reason: %s\n", reason)
+					taskResults, execErr := e.executeTasks(ctx, config.Do)
+					for i := range taskResults {
+						taskResults[i].ConfigFilename = filename
+						taskResults[i].EventType = eventType
+						taskResults[i].Rev = event.Rev
+						taskResults[i].Pattern = pattern
+						taskResults[i].Reason = reason
+					}
+					allResults = append(allResults, taskResults...)
+					if execErr != nil {
+						return allResults, fmt.Errorf("execute tasks for %s: %w", filename, execErr)
 					}
 					break
 				}
@@ -204,72 +244,153 @@ func (e *Executor) ExecuteForBookmarkEvent(ctx context.Context, configFiles map[
 		} else if eventType == EventTypeRemove && config.On.Remove != nil {
 			for _, pattern := range config.On.Remove.Bookmarks {
 				if matchesPattern(event.Rev, pattern) {
-					if err := e.executeTasks(ctx, config.Do); err != nil {
-						return fmt.Errorf("execute tasks for %s: %w", filename, err)
+					reason := fmt.Sprintf("config=%s event=%s rev=%s pattern=%s", filename, eventType.String(), event.Rev, pattern)
+					fmt.Printf("CI run reason: %s\n", reason)
+					taskResults, execErr := e.executeTasks(ctx, config.Do)
+					for i := range taskResults {
+						taskResults[i].ConfigFilename = filename
+						taskResults[i].EventType = eventType
+						taskResults[i].Rev = event.Rev
+						taskResults[i].Pattern = pattern
+						taskResults[i].Reason = reason
+					}
+					allResults = append(allResults, taskResults...)
+					if execErr != nil {
+						return allResults, fmt.Errorf("execute tasks for %s: %w", filename, execErr)
 					}
 					break
 				}
 			}
 		}
 	}
-	return nil
+	return allResults, nil
 }
 
-func (e *Executor) executeTasks(ctx context.Context, tasks []Task) error {
+func (e *Executor) executeTasks(ctx context.Context, tasks []Task) ([]TaskExecutionResult, error) {
+	var results []TaskExecutionResult
 	for _, task := range tasks {
-		if err := e.executeTask(ctx, task); err != nil {
-			return fmt.Errorf("execute task: %w", err)
+		result, err := e.executeTask(ctx, task)
+		results = append(results, result)
+		if err != nil {
+			return results, fmt.Errorf("execute task: %w", err)
 		}
 	}
-	return nil
+	return results, nil
 }
 
-func (e *Executor) executeTask(ctx context.Context, task Task) error {
+func (e *Executor) executeTask(ctx context.Context, task Task) (TaskExecutionResult, error) {
 	switch task.Type {
 	case "webhook":
 		if task.Webhook == nil {
-			return fmt.Errorf("webhook task missing webhook configuration")
+			return TaskExecutionResult{TaskType: task.Type, Success: false}, fmt.Errorf("webhook task missing webhook configuration")
 		}
 		return e.executeWebhookTask(ctx, *task.Webhook)
 	case "container":
 		if task.Container == nil {
-			return fmt.Errorf("container task missing container configuration")
+			return TaskExecutionResult{TaskType: task.Type, Success: false}, fmt.Errorf("container task missing container configuration")
 		}
 		return e.executeContainerTask(ctx, *task.Container)
 	default:
-		return fmt.Errorf("unknown task type: %s", task.Type)
+		return TaskExecutionResult{TaskType: task.Type, Success: false}, fmt.Errorf("unknown task type: %s", task.Type)
 	}
 }
 
-func (e *Executor) executeWebhookTask(ctx context.Context, task WebhookTask) error {
+func (e *Executor) executeWebhookTask(ctx context.Context, task WebhookTask) (TaskExecutionResult, error) {
+	result := TaskExecutionResult{
+		TaskType:  "webhook",
+		StartedAt: time.Now(),
+	}
+
 	attempts := 1
 	if task.Retry != nil && task.Retry.MaxAttempts > 1 {
 		attempts = task.Retry.MaxAttempts
 	}
 
+	var logBuf bytes.Buffer
+	logWriter := io.MultiWriter(&logBuf, os.Stdout)
+	fmt.Fprintf(logWriter, "Request: %s %s\n", task.Method, task.Url)
+	if len(task.Headers) > 0 {
+		fmt.Fprintln(logWriter, "Request Headers:")
+		for key, value := range task.Headers {
+			fmt.Fprintf(logWriter, "  %s: %s\n", key, value)
+		}
+	}
+	if task.Body != "" {
+		fmt.Fprintln(logWriter, "Request Body:")
+		fmt.Fprintln(logWriter, task.Body)
+	}
+
 	var lastErr error
+	var statusCode int
 	for i := 0; i < attempts; i++ {
-		if err := e.makeHTTPRequest(ctx, task); err != nil {
+		fmt.Fprintf(logWriter, "Attempt %d/%d\n", i+1, attempts)
+		code, headers, body, err := e.makeHTTPRequest(ctx, task)
+		if code != 0 {
+			statusCode = code
+		}
+		if len(headers) > 0 {
+			fmt.Fprintln(logWriter, "Response Headers:")
+			for key, values := range headers {
+				fmt.Fprintf(logWriter, "  %s: %s\n", key, strings.Join(values, ","))
+			}
+		}
+		if len(body) > 0 {
+			fmt.Fprintln(logWriter, "Response Body:")
+			fmt.Fprintln(logWriter, string(body))
+		}
+
+		if err != nil {
 			lastErr = err
+			fmt.Fprintf(logWriter, "Error: %v\n", err)
 			if i < attempts-1 {
 				time.Sleep(time.Duration(i+1) * time.Second)
 			}
 			continue
 		}
-		return nil
+		result.Success = true
+		result.StatusCode = code
+		result.FinishedAt = time.Now()
+		result.Log = logBuf.String()
+		return result, nil
 	}
-	return lastErr
+
+	if statusCode == 0 {
+		result.StatusCode = -1
+	} else {
+		result.StatusCode = statusCode
+	}
+	result.Success = false
+	result.FinishedAt = time.Now()
+	result.Log = logBuf.String()
+	if lastErr != nil {
+		return result, lastErr
+	}
+	return result, fmt.Errorf("webhook task failed without response")
 }
 
-func (e *Executor) executeContainerTask(ctx context.Context, task ContainerTask) error {
-	if e.dockerClient == nil {
-		return fmt.Errorf("docker not available")
+func (e *Executor) executeContainerTask(ctx context.Context, task ContainerTask) (TaskExecutionResult, error) {
+	result := TaskExecutionResult{
+		TaskType:  "container",
+		StartedAt: time.Now(),
 	}
+
+	if e.dockerClient == nil {
+		result.Log = "docker client not available"
+		result.StatusCode = -1
+		result.FinishedAt = time.Now()
+		return result, fmt.Errorf("docker not available")
+	}
+
+	var logBuf bytes.Buffer
+	logWriter := io.MultiWriter(os.Stdout, &logBuf)
 
 	networkName := fmt.Sprintf("pogo-ci-%d", time.Now().UnixNano())
 
 	if err := e.dockerClient.CreateNetwork(ctx, networkName); err != nil {
-		return fmt.Errorf("create network: %w", err)
+		result.Log = logBuf.String()
+		result.StatusCode = -1
+		result.FinishedAt = time.Now()
+		return result, fmt.Errorf("create network: %w", err)
 	}
 	defer e.dockerClient.RemoveNetwork(context.Background(), networkName)
 
@@ -277,8 +398,12 @@ func (e *Executor) executeContainerTask(ctx context.Context, task ContainerTask)
 	for _, service := range task.Services {
 		serviceID := fmt.Sprintf("%s-%d", service.Name, time.Now().UnixNano())
 
+		fmt.Fprintf(logWriter, "Pulling service image %s\n", service.Image)
 		if err := e.dockerClient.PullImage(ctx, service.Image); err != nil {
-			return fmt.Errorf("pull service image %s: %w", service.Image, err)
+			result.Log = logBuf.String()
+			result.StatusCode = -1
+			result.FinishedAt = time.Now()
+			return result, fmt.Errorf("pull service image %s: %w", service.Image, err)
 		}
 
 		go func(svc Service, svcID string) {
@@ -302,8 +427,68 @@ func (e *Executor) executeContainerTask(ctx context.Context, task ContainerTask)
 		}
 	}()
 
+	fmt.Fprintf(logWriter, "Pulling image %s\n", task.Image)
 	if err := e.dockerClient.PullImage(ctx, task.Image); err != nil {
-		return fmt.Errorf("pull image: %w", err)
+		result.Log = logBuf.String()
+		result.StatusCode = -1
+		result.FinishedAt = time.Now()
+		return result, fmt.Errorf("pull image: %w", err)
+	}
+
+	if e.repoContentDir != "" {
+		containerName := fmt.Sprintf("pogo-ci-%d", time.Now().UnixNano())
+
+		runOpts := docker.RunOptions{
+			Image:       task.Image,
+			Commands:    task.Commands,
+			Environment: task.Environment,
+			WorkingDir:  task.WorkingDir,
+			NetworkName: networkName,
+			CreateOnly:  true,
+			Name:        containerName,
+		}
+
+		if runOpts.WorkingDir == "" {
+			runOpts.WorkingDir = "/workspace"
+		}
+
+		fmt.Fprintf(logWriter, "Creating container %s with commands: %s\n", task.Image, strings.Join(task.Commands, " "))
+
+		if err := e.dockerClient.RunContainer(ctx, runOpts); err != nil {
+			result.Log = logBuf.String()
+			result.StatusCode = -1
+			result.FinishedAt = time.Now()
+			return result, fmt.Errorf("create container: %w", err)
+		}
+
+		fmt.Fprintf(logWriter, "Copying repository content to /workspace\n")
+		if err := e.dockerClient.CopyToContainer(ctx, containerName, e.repoContentDir, "/workspace"); err != nil {
+			e.dockerClient.RemoveContainer(context.Background(), containerName)
+			result.Log = logBuf.String()
+			result.StatusCode = -1
+			result.FinishedAt = time.Now()
+			return result, fmt.Errorf("copy to container: %w", err)
+		}
+
+		fmt.Fprintf(logWriter, "Starting container %s\n", task.Image)
+		err := e.dockerClient.StartContainer(ctx, containerName, logWriter, logWriter)
+		e.dockerClient.RemoveContainer(context.Background(), containerName)
+		result.FinishedAt = time.Now()
+		result.Log = logBuf.String()
+
+		if err != nil {
+			statusCode := exitCodeFromError(err)
+			result.StatusCode = statusCode
+			result.Success = false
+			if statusCode == -1 {
+				result.Log += fmt.Sprintf("\nError: %v\n", err)
+			}
+			return result, fmt.Errorf("start container: %w", err)
+		}
+
+		result.StatusCode = 0
+		result.Success = true
+		return result, nil
 	}
 
 	runOpts := docker.RunOptions{
@@ -312,27 +497,32 @@ func (e *Executor) executeContainerTask(ctx context.Context, task ContainerTask)
 		Environment: task.Environment,
 		WorkingDir:  task.WorkingDir,
 		NetworkName: networkName,
-		Stdout:      os.Stdout,
-		Stderr:      os.Stderr,
+		Stdout:      logWriter,
+		Stderr:      logWriter,
 	}
 
-	if e.repoContentDir != "" {
-		runOpts.Volumes = map[string]string{
-			e.repoContentDir: "/workspace",
+	fmt.Fprintf(logWriter, "Running container %s with commands: %s\n", task.Image, strings.Join(task.Commands, " "))
+
+	err := e.dockerClient.RunContainer(ctx, runOpts)
+	result.FinishedAt = time.Now()
+	result.Log = logBuf.String()
+
+	if err != nil {
+		statusCode := exitCodeFromError(err)
+		result.StatusCode = statusCode
+		result.Success = false
+		if statusCode == -1 {
+			result.Log += fmt.Sprintf("\nError: %v\n", err)
 		}
-		if runOpts.WorkingDir == "" {
-			runOpts.WorkingDir = "/workspace"
-		}
+		return result, fmt.Errorf("run container: %w", err)
 	}
 
-	if err := e.dockerClient.RunContainer(ctx, runOpts); err != nil {
-		return fmt.Errorf("run container: %w", err)
-	}
-
-	return nil
+	result.StatusCode = 0
+	result.Success = true
+	return result, nil
 }
 
-func (e *Executor) makeHTTPRequest(ctx context.Context, task WebhookTask) error {
+func (e *Executor) makeHTTPRequest(ctx context.Context, task WebhookTask) (int, http.Header, []byte, error) {
 	var body io.Reader
 	if task.Body != "" {
 		body = strings.NewReader(task.Body)
@@ -340,7 +530,7 @@ func (e *Executor) makeHTTPRequest(ctx context.Context, task WebhookTask) error 
 
 	req, err := http.NewRequestWithContext(ctx, task.Method, task.Url, body)
 	if err != nil {
-		return fmt.Errorf("create request: %w", err)
+		return 0, nil, nil, fmt.Errorf("create request: %w", err)
 	}
 
 	for key, value := range task.Headers {
@@ -349,16 +539,18 @@ func (e *Executor) makeHTTPRequest(ctx context.Context, task WebhookTask) error 
 
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("make request: %w", err)
+		return 0, nil, nil, fmt.Errorf("make request: %w", err)
 	}
 	defer resp.Body.Close()
 
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	headers := resp.Header.Clone()
+
 	if resp.StatusCode >= 400 {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes))
+		return resp.StatusCode, headers, bodyBytes, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	return nil
+	return resp.StatusCode, headers, bodyBytes, nil
 }
 
 func isYAMLFile(filename string) bool {
@@ -369,4 +561,16 @@ func isYAMLFile(filename string) bool {
 func matchesPattern(str, pattern string) bool {
 	matched, _ := filepath.Match(pattern, str)
 	return matched
+}
+
+func exitCodeFromError(err error) int {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return exitErr.ExitCode()
+	}
+	var exitCoder interface{ ExitCode() int }
+	if errors.As(err, &exitCoder) {
+		return exitCoder.ExitCode()
+	}
+	return -1
 }

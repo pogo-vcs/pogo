@@ -87,6 +87,9 @@ homebrew_casks:
       - docs/man/pogo-bookmark-remove.1
       - docs/man/pogo-bookmark-set.1
       - docs/man/pogo-bookmark.1
+      - docs/man/pogo-ci-runs-inspect.1
+      - docs/man/pogo-ci-runs-list.1
+      - docs/man/pogo-ci-runs.1
       - docs/man/pogo-ci-test.1
       - docs/man/pogo-ci.1
       - docs/man/pogo-clone.1

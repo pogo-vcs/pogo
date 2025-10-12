@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"time"
 )
 
 var (
@@ -14,6 +15,7 @@ var (
 	RootToken         string
 	ListenAddress     string
 	GcMemoryThreshold int64
+	CiRunRetention    time.Duration
 )
 
 type Config struct {
@@ -23,6 +25,7 @@ type Config struct {
 	RootToken         string
 	ListenAddress     string
 	GcMemoryThreshold int64
+	CiRunRetention    time.Duration
 }
 
 func InitFromEnvironment() error {
@@ -58,6 +61,17 @@ func InitFromEnvironment() error {
 			return fmt.Errorf("invalid GC_MEMORY_THRESHOLD: %w", err)
 		}
 	}
+	CiRunRetention = 30 * 24 * time.Hour
+	if retentionStr, ok := os.LookupEnv("CI_RUN_RETENTION"); ok {
+		duration, err := time.ParseDuration(retentionStr)
+		if err != nil {
+			return fmt.Errorf("invalid CI_RUN_RETENTION: %w", err)
+		}
+		if duration <= 0 {
+			return fmt.Errorf("CI_RUN_RETENTION must be positive duration, got %s", retentionStr)
+		}
+		CiRunRetention = duration
+	}
 
 	return nil
 }
@@ -68,6 +82,11 @@ func InitFromConfig(config Config) error {
 	RootToken = config.RootToken
 	ListenAddress = config.ListenAddress
 	GcMemoryThreshold = config.GcMemoryThreshold
+	if config.CiRunRetention > 0 {
+		CiRunRetention = config.CiRunRetention
+	} else {
+		CiRunRetention = 30 * 24 * time.Hour
+	}
 
 	if config.Hostname != "" {
 		Hostname = config.Hostname

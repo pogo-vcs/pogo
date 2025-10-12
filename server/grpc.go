@@ -21,6 +21,7 @@ import (
 	"github.com/pogo-vcs/pogo/server/ci"
 	"github.com/pogo-vcs/pogo/server/env"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 )
 
 func (a *Server) CheckNeededFiles(ctx context.Context, req *protos.CheckNeededFilesRequest) (*protos.CheckNeededFilesResponse, error) {
@@ -1416,6 +1417,98 @@ func (a *Server) SetRepositoryVisibility(ctx context.Context, req *protos.SetRep
 	}
 
 	return &protos.SetRepositoryVisibilityResponse{}, nil
+}
+
+func buildCIRunSummary(rowID int32, configFilename, eventType, rev string, pattern *string, reason, taskType string, statusCode int32, success bool, startedAt, finishedAt pgtype.Timestamptz) *protos.CIRunSummary {
+	summary := &protos.CIRunSummary{
+		Id:             int64(rowID),
+		ConfigFilename: configFilename,
+		EventType:      eventType,
+		Rev:            rev,
+		Reason:         reason,
+		TaskType:       taskType,
+		StatusCode:     statusCode,
+		Success:        success,
+		StartedAt:      formatTimestamptz(startedAt),
+		FinishedAt:     formatTimestamptz(finishedAt),
+	}
+	if pattern != nil {
+		summary.Pattern = proto.String(*pattern)
+	}
+	return summary
+}
+
+func formatTimestamptz(ts pgtype.Timestamptz) string {
+	if !ts.Valid {
+		return ""
+	}
+	return ts.Time.UTC().Format(time.RFC3339)
+}
+
+func (a *Server) ListCIRuns(ctx context.Context, req *protos.ListCIRunsRequest) (*protos.ListCIRunsResponse, error) {
+	gcMutex.RLock()
+	defer gcMutex.RUnlock()
+
+	_, err := checkRepositoryAccessFromAuth(ctx, req.Auth, req.RepoId)
+	if err != nil {
+		return nil, fmt.Errorf("check repository access: %w", err)
+	}
+
+	rows, err := db.Q.ListCIRuns(ctx, req.RepoId)
+	if err != nil {
+		return nil, fmt.Errorf("list ci runs: %w", err)
+	}
+
+	summaries := make([]*protos.CIRunSummary, 0, len(rows))
+	for _, row := range rows {
+		summaries = append(summaries, buildCIRunSummary(
+			row.ID,
+			row.ConfigFilename,
+			row.EventType,
+			row.Rev,
+			row.Pattern,
+			row.Reason,
+			row.TaskType,
+			row.StatusCode,
+			row.Success,
+			row.StartedAt,
+			row.FinishedAt,
+		))
+	}
+
+	return &protos.ListCIRunsResponse{Runs: summaries}, nil
+}
+
+func (a *Server) GetCIRun(ctx context.Context, req *protos.GetCIRunRequest) (*protos.GetCIRunResponse, error) {
+	gcMutex.RLock()
+	defer gcMutex.RUnlock()
+
+	_, err := checkRepositoryAccessFromAuth(ctx, req.Auth, req.RepoId)
+	if err != nil {
+		return nil, fmt.Errorf("check repository access: %w", err)
+	}
+
+	row, err := db.Q.GetCIRun(ctx, req.RepoId, int32(req.RunId))
+	if err != nil {
+		return nil, fmt.Errorf("get ci run: %w", err)
+	}
+
+	return &protos.GetCIRunResponse{
+		Run: buildCIRunSummary(
+			row.ID,
+			row.ConfigFilename,
+			row.EventType,
+			row.Rev,
+			row.Pattern,
+			row.Reason,
+			row.TaskType,
+			row.StatusCode,
+			row.Success,
+			row.StartedAt,
+			row.FinishedAt,
+		),
+		Log: row.Log,
+	}, nil
 }
 
 func (a *Server) SetSecret(ctx context.Context, req *protos.SetSecretRequest) (*protos.SetSecretResponse, error) {

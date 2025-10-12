@@ -650,3 +650,74 @@ SELECT key, value FROM secrets WHERE repository_id = $1 ORDER BY key;
 
 -- name: DeleteSecret :exec
 DELETE FROM secrets WHERE repository_id = $1 AND key = $2;
+
+-- name: CreateCIRun :one
+INSERT INTO ci_runs (
+  repository_id,
+  config_filename,
+  event_type,
+  rev,
+  pattern,
+  reason,
+  task_type,
+  status_code,
+  success,
+  started_at,
+  finished_at,
+  log
+) VALUES (
+  $1,  -- repository_id
+  $2,  -- config_filename
+  $3,  -- event_type
+  $4,  -- rev
+  $5,  -- pattern
+  $6,  -- reason
+  $7,  -- task_type
+  $8,  -- status_code
+  $9,  -- success
+  $10, -- started_at
+  $11, -- finished_at
+  $12  -- log
+) RETURNING id;
+
+-- name: ListCIRuns :many
+SELECT
+  id,
+  repository_id,
+  config_filename,
+  event_type,
+  rev,
+  pattern,
+  reason,
+  task_type,
+  status_code,
+  success,
+  started_at,
+  finished_at
+FROM ci_runs
+WHERE repository_id = $1
+ORDER BY started_at DESC;
+
+-- name: GetCIRun :one
+SELECT
+  id,
+  repository_id,
+  config_filename,
+  event_type,
+  rev,
+  pattern,
+  reason,
+  task_type,
+  status_code,
+  success,
+  started_at,
+  finished_at,
+  log
+FROM ci_runs
+WHERE repository_id = $1 AND id = $2;
+
+-- name: DeleteExpiredCIRuns :one
+WITH deleted AS (
+  DELETE FROM ci_runs WHERE started_at < $1 RETURNING 1
+)
+SELECT COUNT(*) FROM deleted;
