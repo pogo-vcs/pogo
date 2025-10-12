@@ -1090,7 +1090,9 @@ func testReadonlyChanges(t *testing.T, ctx context.Context, serverAddr string) {
 		}
 
 		// Try to push to bookmarked change (should fail)
-		if err := os.WriteFile(testFile, []byte("modified content\n"), 0644); err != nil {
+		// Use unique content with timestamp to ensure it's new content
+		uniqueContent := fmt.Sprintf("modified content at %d\n", time.Now().UnixNano())
+		if err := os.WriteFile(testFile, []byte(uniqueContent), 0644); err != nil {
 			t.Fatalf("Failed to modify test file: %v", err)
 		}
 
@@ -1128,7 +1130,9 @@ func testReadonlyChanges(t *testing.T, ctx context.Context, serverAddr string) {
 		}
 
 		// Try to push to parent (should fail because it has children)
-		if err := os.WriteFile(testFile, []byte("parent modified\n"), 0644); err != nil {
+		// Use unique content with timestamp to ensure it's new content
+		uniqueContent := fmt.Sprintf("parent modified at %d\n", time.Now().UnixNano())
+		if err := os.WriteFile(testFile, []byte(uniqueContent), 0644); err != nil {
 			t.Fatalf("Failed to modify test file: %v", err)
 		}
 

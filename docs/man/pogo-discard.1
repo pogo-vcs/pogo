@@ -1,0 +1,44 @@
+.nh
+.TH "pogo" "1" "Oct 2025" "pogo/dev" "Pogo Manual"
+
+.SH NAME
+pogo-discard - Discard local changes and revert to remote state
+
+
+.SH SYNOPSIS
+\fBpogo discard [flags]\fP
+
+
+.SH DESCRIPTION
+Discard all local modifications and revert to the state of the currently
+checked out change as it exists on the remote server.
+
+.PP
+This is equivalent to running 'pogo edit' with the current change name,
+effectively re-downloading the change from the server and overwriting any
+local modifications.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for discard
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--time\fP[=false]
+	Measure command execution time
+
+.PP
+\fB-v\fP, \fB--verbose\fP[=false]
+	Enable verbose debug logging
+
+
+.SH EXAMPLE
+.EX
+# Discard all local changes
+pogo discard
+.EE
+
+
+.SH SEE ALSO
+\fBpogo(1)\fP

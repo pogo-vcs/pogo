@@ -119,6 +119,8 @@ For running the server, you need to have a PostgreSQL database running and the f
 |                 | `uninstall`|                    | Uninstall Pogo daemon service.                                                              |
 | `pogo describe` |            | `desc`, `rephrase` | Set the description for the current change.                                                 |
 | `pogo diff`     |            |                    | Show differences between changes in unified diff format.                                    |
+| `pogo diff local` |          |                    | Show differences between local unpushed changes and the remote state.                       |
+| `pogo discard`  |            |                    | Discard all local changes and revert to the remote state.                                   |
 | `pogo edit`     |            | `checkout`         | Sets the specified revision as the working-copy revision.                                   |
 | `pogo gc`       |            |                    | Run garbage collection on the server.                                                       |
 | `pogo info`     |            |                    | Display the current working copy status.                                                    |

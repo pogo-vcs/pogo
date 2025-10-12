@@ -58,6 +58,13 @@ pogo diff bitter sweet`,
 			defer c.Close()
 			configureClientOutputs(cmd, c)
 
+			if len(args) >= 1 && args[0] == "local" {
+				if err := c.DiffLocalWithOutput(cmd.OutOrStdout(), diffColorFlag); err != nil {
+					return errors.Join(errors.New("diff local"), err)
+				}
+				return nil
+			}
+
 			if err := c.PushFull(false); err != nil {
 				return errors.Join(errors.New("push before diff"), err)
 			}

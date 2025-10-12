@@ -669,6 +669,396 @@ func (s *Server) Diff(req *protos.DiffRequest, stream protos.Pogo_DiffServer) er
 	return nil
 }
 
+func (s *Server) DiffLocal(stream protos.Pogo_DiffLocalServer) error {
+	ctx := stream.Context()
+
+	gcMutex.RLock()
+	defer gcMutex.RUnlock()
+
+	var auth *protos.Auth
+	var repoId int32
+	var changeId int64
+
+	msg, err := stream.Recv()
+	if err != nil {
+		return fmt.Errorf("receive auth: %w", err)
+	}
+	authPayload, ok := msg.Payload.(*protos.DiffLocalRequest_Auth)
+	if !ok {
+		return fmt.Errorf("expected auth, got %T", msg.Payload)
+	}
+	auth = authPayload.Auth
+
+	msg, err = stream.Recv()
+	if err != nil {
+		return fmt.Errorf("receive repo_id: %w", err)
+	}
+	repoIdPayload, ok := msg.Payload.(*protos.DiffLocalRequest_RepoId)
+	if !ok {
+		return fmt.Errorf("expected repo_id, got %T", msg.Payload)
+	}
+	repoId = repoIdPayload.RepoId
+
+	msg, err = stream.Recv()
+	if err != nil {
+		return fmt.Errorf("receive checked_out_change_id: %w", err)
+	}
+	changeIdPayload, ok := msg.Payload.(*protos.DiffLocalRequest_CheckedOutChangeId)
+	if !ok {
+		return fmt.Errorf("expected checked_out_change_id, got %T", msg.Payload)
+	}
+	changeId = changeIdPayload.CheckedOutChangeId
+
+	repo, err := db.Q.GetRepository(ctx, repoId)
+	if err != nil {
+		return fmt.Errorf("get repository: %w", err)
+	}
+
+	_, err = checkRepositoryAccessOrPublic(ctx, auth, repoId, repo.Public)
+	if err != nil {
+		return fmt.Errorf("check repository access: %w", err)
+	}
+
+	localFiles := make(map[string]*protos.LocalFileMetadata)
+	for {
+		msg, err := stream.Recv()
+		if err != nil {
+			return fmt.Errorf("receive metadata: %w", err)
+		}
+
+		switch payload := msg.Payload.(type) {
+		case *protos.DiffLocalRequest_FileMetadata:
+			localFiles[payload.FileMetadata.Path] = payload.FileMetadata
+		case *protos.DiffLocalRequest_EndOfMetadata:
+			goto MetadataComplete
+		default:
+			return fmt.Errorf("unexpected payload type: %T", msg.Payload)
+		}
+	}
+
+MetadataComplete:
+	remoteFiles, err := db.Q.GetFilesForChange(ctx, changeId)
+	if err != nil {
+		return fmt.Errorf("get files for change: %w", err)
+	}
+
+	remoteFileMap := make(map[string]db.GetFilesForChangeRow)
+	for _, f := range remoteFiles {
+		remoteFileMap[f.Name] = f
+	}
+
+	allPaths := make(map[string]bool)
+	for path := range localFiles {
+		allPaths[path] = true
+	}
+	for path := range remoteFileMap {
+		allPaths[path] = true
+	}
+
+	change, err := db.Q.GetChange(ctx, changeId)
+	if err != nil {
+		return fmt.Errorf("get change: %w", err)
+	}
+
+	contentRequests := make(map[string]bool)
+
+	for path := range allPaths {
+		localFile, existsLocal := localFiles[path]
+		remoteFile, existsRemote := remoteFileMap[path]
+
+		if !existsRemote {
+			contentRequests[path] = true
+		} else if !existsLocal {
+			continue
+		} else {
+			if !bytes.Equal(localFile.ContentHash, remoteFile.ContentHash) {
+				contentRequests[path] = true
+			}
+		}
+	}
+
+	for path := range contentRequests {
+		if err := stream.Send(&protos.DiffLocalResponse{
+			Payload: &protos.DiffLocalResponse_ContentRequest{
+				ContentRequest: &protos.ContentRequest{Path: path},
+			},
+		}); err != nil {
+			return fmt.Errorf("send content request: %w", err)
+		}
+	}
+
+	localFileContents := make(map[string]string)
+	for path := range contentRequests {
+		var content bytes.Buffer
+		for {
+			msg, err := stream.Recv()
+			if err != nil {
+				return fmt.Errorf("receive file content: %w", err)
+			}
+
+			switch payload := msg.Payload.(type) {
+			case *protos.DiffLocalRequest_FileContent:
+				content.Write(payload.FileContent)
+			case *protos.DiffLocalRequest_Eof:
+				localFileContents[path] = content.String()
+				goto ContentReceived
+			default:
+				return fmt.Errorf("unexpected payload type while receiving content: %T", msg.Payload)
+			}
+		}
+	ContentReceived:
+	}
+
+	for path := range allPaths {
+		localFile, existsLocal := localFiles[path]
+		remoteFile, existsRemote := remoteFileMap[path]
+
+		if !existsRemote {
+			newHash := base64.URLEncoding.EncodeToString(localFile.ContentHash)
+			oldHashShort := ""
+			newHashShort := newHash
+			if len(newHash) > 7 {
+				newHashShort = newHash[:7]
+			}
+
+			content := localFileContents[path]
+			lines := strings.Split(content, "\n")
+			newLineCount := int32(len(lines))
+
+			if err := stream.Send(&protos.DiffLocalResponse{
+				Payload: &protos.DiffLocalResponse_FileHeader{
+					FileHeader: &protos.DiffFileHeader{
+						Path:          path,
+						OldChangeName: change.Name,
+						NewChangeName: "local",
+						Status:        protos.DiffFileStatus_DIFF_FILE_STATUS_ADDED,
+						OldHash:       oldHashShort,
+						NewHash:       newHashShort,
+						OldLineCount:  0,
+						NewLineCount:  newLineCount,
+					},
+				},
+			}); err != nil {
+				return fmt.Errorf("send file header: %w", err)
+			}
+
+			if err := stream.Send(&protos.DiffLocalResponse{
+				Payload: &protos.DiffLocalResponse_DiffBlock{
+					DiffBlock: &protos.DiffBlock{
+						Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
+						Lines: []string{"new file mode 100644"},
+					},
+				},
+			}); err != nil {
+				return fmt.Errorf("send metadata block: %w", err)
+			}
+
+			if err := stream.Send(&protos.DiffLocalResponse{
+				Payload: &protos.DiffLocalResponse_DiffBlock{
+					DiffBlock: &protos.DiffBlock{
+						Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_ADDED,
+						Lines: lines,
+					},
+				},
+			}); err != nil {
+				return fmt.Errorf("send added block: %w", err)
+			}
+
+			if err := stream.Send(&protos.DiffLocalResponse{
+				Payload: &protos.DiffLocalResponse_EndOfFile{
+					EndOfFile: &protos.EndOfFile{},
+				},
+			}); err != nil {
+				return fmt.Errorf("send end of file: %w", err)
+			}
+
+		} else if !existsLocal {
+			oldHash := base64.URLEncoding.EncodeToString(remoteFile.ContentHash)
+			oldHashShort := oldHash
+			if len(oldHash) > 7 {
+				oldHashShort = oldHash[:7]
+			}
+			newHashShort := ""
+
+			content, err := readFileContentForDiff(oldHash)
+			if err != nil {
+				return fmt.Errorf("read old file content: %w", err)
+			}
+			lines := strings.Split(content, "\n")
+			oldLineCount := int32(len(lines))
+
+			if err := stream.Send(&protos.DiffLocalResponse{
+				Payload: &protos.DiffLocalResponse_FileHeader{
+					FileHeader: &protos.DiffFileHeader{
+						Path:          path,
+						OldChangeName: change.Name,
+						NewChangeName: "local",
+						Status:        protos.DiffFileStatus_DIFF_FILE_STATUS_DELETED,
+						OldHash:       oldHashShort,
+						NewHash:       newHashShort,
+						OldLineCount:  oldLineCount,
+						NewLineCount:  0,
+					},
+				},
+			}); err != nil {
+				return fmt.Errorf("send file header: %w", err)
+			}
+
+			if err := stream.Send(&protos.DiffLocalResponse{
+				Payload: &protos.DiffLocalResponse_DiffBlock{
+					DiffBlock: &protos.DiffBlock{
+						Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
+						Lines: []string{"deleted file mode 100644"},
+					},
+				},
+			}); err != nil {
+				return fmt.Errorf("send metadata block: %w", err)
+			}
+
+			if err := stream.Send(&protos.DiffLocalResponse{
+				Payload: &protos.DiffLocalResponse_DiffBlock{
+					DiffBlock: &protos.DiffBlock{
+						Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_REMOVED,
+						Lines: lines,
+					},
+				},
+			}); err != nil {
+				return fmt.Errorf("send removed block: %w", err)
+			}
+
+			if err := stream.Send(&protos.DiffLocalResponse{
+				Payload: &protos.DiffLocalResponse_EndOfFile{
+					EndOfFile: &protos.EndOfFile{},
+				},
+			}); err != nil {
+				return fmt.Errorf("send end of file: %w", err)
+			}
+
+		} else {
+			if !bytes.Equal(localFile.ContentHash, remoteFile.ContentHash) || (localFile.Executable != nil && *localFile.Executable != remoteFile.Executable) {
+				oldHash := base64.URLEncoding.EncodeToString(remoteFile.ContentHash)
+				newHash := base64.URLEncoding.EncodeToString(localFile.ContentHash)
+
+				oldHashShort := oldHash
+				if len(oldHash) > 7 {
+					oldHashShort = oldHash[:7]
+				}
+				newHashShort := newHash
+				if len(newHash) > 7 {
+					newHashShort = newHash[:7]
+				}
+
+				isBinary1, err := isBinaryFile(oldHash)
+				if err != nil {
+					return fmt.Errorf("check if file %q is binary: %w", path, err)
+				}
+				isBinary2 := false
+				if bytes.Equal(localFile.ContentHash, remoteFile.ContentHash) {
+					isBinary2 = isBinary1
+				} else {
+					content := localFileContents[path]
+					for i := 0; i < len(content) && i < 8192; i++ {
+						if content[i] == 0 {
+							isBinary2 = true
+							break
+						}
+					}
+				}
+
+				if isBinary1 || isBinary2 {
+					if err := stream.Send(&protos.DiffLocalResponse{
+						Payload: &protos.DiffLocalResponse_FileHeader{
+							FileHeader: &protos.DiffFileHeader{
+								Path:          path,
+								OldChangeName: change.Name,
+								NewChangeName: "local",
+								Status:        protos.DiffFileStatus_DIFF_FILE_STATUS_BINARY,
+								OldHash:       oldHashShort,
+								NewHash:       newHashShort,
+							},
+						},
+					}); err != nil {
+						return fmt.Errorf("send file header: %w", err)
+					}
+
+					if err := stream.Send(&protos.DiffLocalResponse{
+						Payload: &protos.DiffLocalResponse_DiffBlock{
+							DiffBlock: &protos.DiffBlock{
+								Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
+								Lines: []string{"Binary files differ"},
+							},
+						},
+					}); err != nil {
+						return fmt.Errorf("send binary metadata: %w", err)
+					}
+
+					if err := stream.Send(&protos.DiffLocalResponse{
+						Payload: &protos.DiffLocalResponse_EndOfFile{
+							EndOfFile: &protos.EndOfFile{},
+						},
+					}); err != nil {
+						return fmt.Errorf("send end of file: %w", err)
+					}
+
+				} else {
+					oldContent, err := readFileContentForDiff(oldHash)
+					if err != nil {
+						return fmt.Errorf("read old file content: %w", err)
+					}
+					newContent := localFileContents[path]
+
+					oldLines := strings.Split(oldContent, "\n")
+					newLines := strings.Split(newContent, "\n")
+					oldLineCount := int32(len(oldLines))
+					newLineCount := int32(len(newLines))
+
+					if err := stream.Send(&protos.DiffLocalResponse{
+						Payload: &protos.DiffLocalResponse_FileHeader{
+							FileHeader: &protos.DiffFileHeader{
+								Path:          path,
+								OldChangeName: change.Name,
+								NewChangeName: "local",
+								Status:        protos.DiffFileStatus_DIFF_FILE_STATUS_MODIFIED,
+								OldHash:       oldHashShort,
+								NewHash:       newHashShort,
+								OldLineCount:  oldLineCount,
+								NewLineCount:  newLineCount,
+							},
+						},
+					}); err != nil {
+						return fmt.Errorf("send file header: %w", err)
+					}
+
+					blocks, err := generateDiffBlocks(oldContent, newContent)
+					if err != nil {
+						return fmt.Errorf("generate diff blocks: %w", err)
+					}
+
+					for i := range blocks {
+						if err := stream.Send(&protos.DiffLocalResponse{
+							Payload: &protos.DiffLocalResponse_DiffBlock{
+								DiffBlock: &blocks[i],
+							},
+						}); err != nil {
+							return fmt.Errorf("send diff block: %w", err)
+						}
+					}
+
+					if err := stream.Send(&protos.DiffLocalResponse{
+						Payload: &protos.DiffLocalResponse_EndOfFile{
+							EndOfFile: &protos.EndOfFile{},
+						},
+					}); err != nil {
+						return fmt.Errorf("send end of file: %w", err)
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 func checkRepositoryAccessOrPublic(ctx context.Context, auth *protos.Auth, repoId int32, isPublic bool) (*int32, error) {
 	if isPublic {
 		return nil, nil

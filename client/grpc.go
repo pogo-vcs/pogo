@@ -191,6 +191,327 @@ func (c *Client) PushFull(force bool) error {
 	return nil
 }
 
+func (c *Client) DiffLocal() ([]DiffFileInfo, error) {
+	stream, err := c.Pogo.DiffLocal(c.ctx)
+	if err != nil {
+		return nil, errors.Join(errors.New("open diff local stream"), err)
+	}
+	defer stream.CloseSend()
+
+	if err := stream.Send(&protos.DiffLocalRequest{
+		Payload: &protos.DiffLocalRequest_Auth{
+			Auth: c.GetAuth(),
+		},
+	}); err != nil {
+		return nil, errors.Join(errors.New("send auth"), err)
+	}
+
+	if err := stream.Send(&protos.DiffLocalRequest{
+		Payload: &protos.DiffLocalRequest_RepoId{
+			RepoId: c.repoId,
+		},
+	}); err != nil {
+		return nil, errors.Join(errors.New("send repo id"), err)
+	}
+
+	if err := stream.Send(&protos.DiffLocalRequest{
+		Payload: &protos.DiffLocalRequest_CheckedOutChangeId{
+			CheckedOutChangeId: c.changeId,
+		},
+	}); err != nil {
+		return nil, errors.Join(errors.New("send change id"), err)
+	}
+
+	type fileInfo struct {
+		file       LocalFile
+		hash       []byte
+		executable *bool
+	}
+	var files []fileInfo
+
+	for file := range c.UnignoredFiles {
+		hash, err := filecontents.HashFile(file.AbsPath)
+		if err != nil {
+			return nil, errors.Join(fmt.Errorf("hash file %s", file.Name), err)
+		}
+		files = append(files, fileInfo{
+			file:       file,
+			hash:       hash,
+			executable: IsExecutable(file.AbsPath),
+		})
+	}
+
+	for _, fileInfo := range files {
+		if err := stream.Send(&protos.DiffLocalRequest{
+			Payload: &protos.DiffLocalRequest_FileMetadata{
+				FileMetadata: &protos.LocalFileMetadata{
+					Path:        fileInfo.file.Name,
+					ContentHash: fileInfo.hash,
+					Executable:  fileInfo.executable,
+				},
+			},
+		}); err != nil {
+			return nil, errors.Join(fmt.Errorf("send file metadata %s", fileInfo.file.Name), err)
+		}
+	}
+
+	if err := stream.Send(&protos.DiffLocalRequest{
+		Payload: &protos.DiffLocalRequest_EndOfMetadata{
+			EndOfMetadata: &protos.EndOfMetadata{},
+		},
+	}); err != nil {
+		return nil, errors.Join(errors.New("send end of metadata"), err)
+	}
+
+	contentRequests := make(map[string]bool)
+	var diffs []DiffFileInfo
+
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, errors.Join(errors.New("receive diff local response"), err)
+		}
+
+		switch payload := msg.Payload.(type) {
+		case *protos.DiffLocalResponse_ContentRequest:
+			contentRequests[payload.ContentRequest.Path] = true
+
+		case *protos.DiffLocalResponse_FileHeader:
+			diffs = append(diffs, DiffFileInfo{
+				Path:   payload.FileHeader.Path,
+				Status: payload.FileHeader.Status,
+			})
+
+		case *protos.DiffLocalResponse_DiffBlock:
+		case *protos.DiffLocalResponse_EndOfFile:
+		}
+
+		if len(contentRequests) > 0 {
+			for path := range contentRequests {
+				delete(contentRequests, path)
+
+				var found bool
+				var fileToSend LocalFile
+				for _, f := range files {
+					if f.file.Name == path {
+						fileToSend = f.file
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					return nil, fmt.Errorf("content requested for unknown file: %s", path)
+				}
+
+				file, err := fileToSend.Open()
+				if err != nil {
+					return nil, errors.Join(fmt.Errorf("open file %s", path), err)
+				}
+
+				buffer := make([]byte, 32*1024)
+				for {
+					n, err := file.Read(buffer)
+					if n > 0 {
+						if err := stream.Send(&protos.DiffLocalRequest{
+							Payload: &protos.DiffLocalRequest_FileContent{
+								FileContent: buffer[:n],
+							},
+						}); err != nil {
+							file.Close()
+							return nil, errors.Join(fmt.Errorf("send file content %s", path), err)
+						}
+					}
+					if err == io.EOF {
+						break
+					}
+					if err != nil {
+						file.Close()
+						return nil, errors.Join(fmt.Errorf("read file %s", path), err)
+					}
+				}
+				file.Close()
+
+				if err := stream.Send(&protos.DiffLocalRequest{
+					Payload: &protos.DiffLocalRequest_Eof{
+						Eof: &protos.EOF{},
+					},
+				}); err != nil {
+					return nil, errors.Join(fmt.Errorf("send eof for %s", path), err)
+				}
+			}
+		}
+	}
+
+	return diffs, nil
+}
+
+type DiffFileInfo struct {
+	Path   string
+	Status protos.DiffFileStatus
+}
+
+func (c *Client) DiffLocalWithOutput(out io.Writer, colored bool) error {
+	stream, err := c.Pogo.DiffLocal(c.ctx)
+	if err != nil {
+		return errors.Join(errors.New("open diff local stream"), err)
+	}
+	defer stream.CloseSend()
+
+	if err := stream.Send(&protos.DiffLocalRequest{
+		Payload: &protos.DiffLocalRequest_Auth{
+			Auth: c.GetAuth(),
+		},
+	}); err != nil {
+		return errors.Join(errors.New("send auth"), err)
+	}
+
+	if err := stream.Send(&protos.DiffLocalRequest{
+		Payload: &protos.DiffLocalRequest_RepoId{
+			RepoId: c.repoId,
+		},
+	}); err != nil {
+		return errors.Join(errors.New("send repo id"), err)
+	}
+
+	if err := stream.Send(&protos.DiffLocalRequest{
+		Payload: &protos.DiffLocalRequest_CheckedOutChangeId{
+			CheckedOutChangeId: c.changeId,
+		},
+	}); err != nil {
+		return errors.Join(errors.New("send change id"), err)
+	}
+
+	type fileInfo struct {
+		file       LocalFile
+		hash       []byte
+		executable *bool
+	}
+	var files []fileInfo
+
+	for file := range c.UnignoredFiles {
+		hash, err := filecontents.HashFile(file.AbsPath)
+		if err != nil {
+			return errors.Join(fmt.Errorf("hash file %s", file.Name), err)
+		}
+		files = append(files, fileInfo{
+			file:       file,
+			hash:       hash,
+			executable: IsExecutable(file.AbsPath),
+		})
+	}
+
+	for _, fileInfo := range files {
+		if err := stream.Send(&protos.DiffLocalRequest{
+			Payload: &protos.DiffLocalRequest_FileMetadata{
+				FileMetadata: &protos.LocalFileMetadata{
+					Path:        fileInfo.file.Name,
+					ContentHash: fileInfo.hash,
+					Executable:  fileInfo.executable,
+				},
+			},
+		}); err != nil {
+			return errors.Join(fmt.Errorf("send file metadata %s", fileInfo.file.Name), err)
+		}
+	}
+
+	if err := stream.Send(&protos.DiffLocalRequest{
+		Payload: &protos.DiffLocalRequest_EndOfMetadata{
+			EndOfMetadata: &protos.EndOfMetadata{},
+		},
+	}); err != nil {
+		return errors.Join(errors.New("send end of metadata"), err)
+	}
+
+	contentRequests := make(map[string]bool)
+	var currentHeader *protos.DiffFileHeader
+
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return errors.Join(errors.New("receive diff local response"), err)
+		}
+
+		switch payload := msg.Payload.(type) {
+		case *protos.DiffLocalResponse_ContentRequest:
+			contentRequests[payload.ContentRequest.Path] = true
+
+		case *protos.DiffLocalResponse_FileHeader:
+			currentHeader = payload.FileHeader
+			c.renderDiffHeader(out, currentHeader, colored)
+
+		case *protos.DiffLocalResponse_DiffBlock:
+			c.renderDiffBlock(out, payload.DiffBlock, colored)
+
+		case *protos.DiffLocalResponse_EndOfFile:
+		}
+
+		if len(contentRequests) > 0 {
+			for path := range contentRequests {
+				delete(contentRequests, path)
+
+				var found bool
+				var fileToSend LocalFile
+				for _, f := range files {
+					if f.file.Name == path {
+						fileToSend = f.file
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					return fmt.Errorf("content requested for unknown file: %s", path)
+				}
+
+				file, err := fileToSend.Open()
+				if err != nil {
+					return errors.Join(fmt.Errorf("open file %s", path), err)
+				}
+
+				buffer := make([]byte, 32*1024)
+				for {
+					n, err := file.Read(buffer)
+					if n > 0 {
+						if err := stream.Send(&protos.DiffLocalRequest{
+							Payload: &protos.DiffLocalRequest_FileContent{
+								FileContent: buffer[:n],
+							},
+						}); err != nil {
+							file.Close()
+							return errors.Join(fmt.Errorf("send file content %s", path), err)
+						}
+					}
+					if err == io.EOF {
+						break
+					}
+					if err != nil {
+						file.Close()
+						return errors.Join(fmt.Errorf("read file %s", path), err)
+					}
+				}
+				file.Close()
+
+				if err := stream.Send(&protos.DiffLocalRequest{
+					Payload: &protos.DiffLocalRequest_Eof{
+						Eof: &protos.EOF{},
+					},
+				}); err != nil {
+					return errors.Join(fmt.Errorf("send eof for %s", path), err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 func (c *Client) renderDiffHeader(out io.Writer, header *protos.DiffFileHeader, colored bool) {
 	gray := ""
 	reset := ""
@@ -392,6 +713,13 @@ func (c *Client) LogJSON(maxChanges int32) (string, error) {
 	return RenderLogAsJSON(response)
 }
 
+func (c *Client) GetRawData() (server string, repoId int32, changeId int64) {
+	server = c.server
+	repoId = c.repoId
+	changeId = c.changeId
+	return
+}
+
 func (c *Client) Info() (*protos.InfoResponse, error) {
 	request := &protos.InfoRequest{
 		Auth:               c.GetAuth(),
@@ -407,8 +735,24 @@ func (c *Client) Info() (*protos.InfoResponse, error) {
 	return response, nil
 }
 
-func (c *Client) Edit(revision string) error {
+func (c *Client) Checkout(repoId int32, changeId int64) error {
+	// Collect client files
+	var clientFiles []string
+	for file := range c.UnignoredFiles {
+		clientFiles = append(clientFiles, file.Name)
+	}
 
+	request := &protos.EditRequest{
+		Auth:        c.GetAuth(),
+		RepoId:      c.repoId,
+		ChangeId:    changeId,
+		ClientFiles: clientFiles,
+	}
+
+	return c.plainEditRequest(request)
+}
+
+func (c *Client) Edit(revision string) error {
 	// Collect client files
 	var clientFiles []string
 	for file := range c.UnignoredFiles {
@@ -422,6 +766,10 @@ func (c *Client) Edit(revision string) error {
 		ClientFiles: clientFiles,
 	}
 
+	return c.plainEditRequest(request)
+}
+
+func (c *Client) plainEditRequest(request *protos.EditRequest) error {
 	stream, err := c.Pogo.Edit(c.ctx, request)
 	if err != nil {
 		return errors.Join(errors.New("open edit stream"), err)
