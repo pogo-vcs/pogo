@@ -67,7 +67,6 @@ pogo b s main`,
 				return errors.New("bookmark name is required")
 			case 1:
 				bookmarkName = args[0]
-				// change name is current checked out change
 				changeName = nil
 			case 2:
 				bookmarkName = args[0]
@@ -86,6 +85,10 @@ pogo b s main`,
 			}
 			defer c.Close()
 			configureClientOutputs(cmd, c)
+
+			if err := c.PushFull(false); err != nil {
+				return errors.Join(errors.New("push before bookmark set"), err)
+			}
 
 			if err := c.SetBookmark(bookmarkName, changeName); err != nil {
 				return errors.Join(errors.New("set bookmark"), err)

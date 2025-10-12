@@ -57,6 +57,10 @@ pogo rephrase -m "docs: update API documentation"`,
 			defer c.Close()
 			configureClientOutputs(cmd, c)
 
+			if err := c.PushFull(false); err != nil {
+				return errors.Join(errors.New("push before describe"), err)
+			}
+
 			var newDescription string
 			if cmd.Flags().Changed("description") {
 				newDescription, _ = cmd.Flags().GetString("description")

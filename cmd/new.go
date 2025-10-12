@@ -25,6 +25,10 @@ Key behaviors:
 - The previous change becomes read-only to preserve history
 - Multiple parents create a merge (combining work from different branches)
 
+By default, this command pushes local changes to the current change before
+creating a new one. Use --keep-changes to skip this push and instead add your
+local modifications to the newly created change.
+
 Typical workflow:
 1. Describe your planned changes with 'pogo describe'
 2. Make your code changes
@@ -43,13 +47,17 @@ pogo new happy-mountain-7
 pogo new feature-branch-1 feature-branch-2
 
 # Create from a bookmarked change
-pogo new main`,
+pogo new main
+
+# Keep local changes for the new change instead of pushing to current
+pogo new --keep-changes`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		description, _ := cmd.Flags().GetString("description")
 		var descriptionPtr *string
 		if description != "" {
 			descriptionPtr = &description
 		}
+		keepChanges, _ := cmd.Flags().GetBool("keep-changes")
 
 		wd, err := os.Getwd()
 		if err != nil {
@@ -62,6 +70,12 @@ pogo new main`,
 		defer c.Close()
 		configureClientOutputs(cmd, c)
 
+		if !keepChanges {
+			if err := c.PushFull(false); err != nil {
+				return errors.Join(errors.New("push before new"), err)
+			}
+		}
+
 		changeId, changeName, err := c.NewChange(descriptionPtr, args)
 		if err != nil {
 			return errors.Join(errors.New("create new change"), err)
@@ -73,10 +87,14 @@ pogo new main`,
 
 		c.ConfigSetChangeId(changeId)
 
-		// Print the created change name to stdout (primary output)
+		if keepChanges {
+			if err := c.PushFull(false); err != nil {
+				return errors.Join(errors.New("push to new change"), err)
+			}
+		}
+
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), changeName)
 
-		// Display the log to stderr (additional helpful info)
 		logOutput, err := c.Log(10, tty.IsInteractive())
 		if err != nil {
 			return errors.Join(errors.New("fetch log"), err)
@@ -89,5 +107,6 @@ pogo new main`,
 
 func init() {
 	newCmd.Flags().StringP("description", "m", "", "Description for the new change")
+	newCmd.Flags().Bool("keep-changes", false, "Keep local changes for the new change instead of pushing to current")
 	RootCmd.AddCommand(newCmd)
 }

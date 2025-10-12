@@ -60,6 +60,10 @@ pogo checkout feature-branch`,
 		defer c.Close()
 		configureClientOutputs(cmd, c)
 
+		if err := c.PushFull(false); err != nil {
+			return errors.Join(errors.New("push before edit"), err)
+		}
+
 		if err := c.Edit(revision); err != nil {
 			return errors.Join(errors.New("edit revision"), err)
 		}
