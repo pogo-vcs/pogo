@@ -55,8 +55,10 @@ do:
 	}
 
 	event := Event{
-		Rev:        "main",
-		ArchiveUrl: "https://example.com/archive",
+		Rev:         "main",
+		ArchiveUrl:  "https://example.com/archive",
+		Author:      "testuser",
+		Description: "Secret test",
 	}
 
 	results, err := executor.ExecuteForBookmarkEvent(ctx, configFiles, event, EventTypePush)
@@ -120,8 +122,10 @@ do:
 	}
 
 	event := Event{
-		Rev:        "main",
-		ArchiveUrl: "https://example.com/archive",
+		Rev:         "main",
+		ArchiveUrl:  "https://example.com/archive",
+		Author:      "testuser",
+		Description: "Secret test",
 	}
 
 	results, err := executor.ExecuteForBookmarkEvent(ctx, configFiles, event, EventTypePush)
@@ -209,8 +213,10 @@ do:
 	}
 
 	event := Event{
-		Rev:        "main",
-		ArchiveUrl: "https://example.com/archive",
+		Rev:         "main",
+		ArchiveUrl:  "https://example.com/archive",
+		Author:      "testuser",
+		Description: "Secret test",
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)

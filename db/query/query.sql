@@ -128,6 +128,9 @@ INSERT INTO users (username) VALUES ($1) RETURNING id;
 -- name: GetUserByUsername :one
 SELECT * FROM users WHERE username = $1;
 
+-- name: GetUser :one
+SELECT * FROM users WHERE id = $1;
+
 -- name: CreatePersonalAccessToken :one
 INSERT INTO personal_access_tokens (token, user_id) 
 VALUES ($1, $2) RETURNING id;

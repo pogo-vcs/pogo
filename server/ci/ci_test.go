@@ -93,8 +93,10 @@ do:
 `, testServer.URL)),
 			},
 			event: Event{
-				Rev:        "v1.0.0",
-				ArchiveUrl: "https://example.com/archive",
+				Rev:         "v1.0.0",
+				ArchiveUrl:  "https://example.com/archive",
+				Author:      "testuser",
+				Description: "Release v1.0.0",
 			},
 			eventType: EventTypeRemove,
 			want:      1,
@@ -115,8 +117,10 @@ do:
 `, testServer.URL)),
 			},
 			event: Event{
-				Rev:        "main",
-				ArchiveUrl: "https://example.com/archive",
+				Rev:         "main",
+				ArchiveUrl:  "https://example.com/archive",
+				Author:      "testuser",
+				Description: "No match test",
 			},
 			eventType: EventTypePush,
 			want:      0,
@@ -141,8 +145,10 @@ do:
 `, testServer.URL, testServer.URL)),
 			},
 			event: Event{
-				Rev:        "test",
-				ArchiveUrl: "https://example.com/archive",
+				Rev:         "test",
+				ArchiveUrl:  "https://example.com/archive",
+				Author:      "testuser",
+				Description: "Multiple tasks test",
 			},
 			eventType: EventTypePush,
 			want:      2,
@@ -163,8 +169,10 @@ do:
 `, testServer.URL)),
 			},
 			event: Event{
-				Rev:        "main",
-				ArchiveUrl: "https://example.com/archive",
+				Rev:         "main",
+				ArchiveUrl:  "https://example.com/archive",
+				Author:      "testuser",
+				Description: "Non-YAML test",
 			},
 			eventType: EventTypePush,
 			want:      0,
@@ -299,8 +307,10 @@ do:
 	}
 
 	event := Event{
-		Rev:        "main",
-		ArchiveUrl: "https://example.com/archive",
+		Rev:         "main",
+		ArchiveUrl:  "https://example.com/archive",
+		Author:      "testuser",
+		Description: "Retry fails test",
 	}
 
 	results, err := executor.ExecuteForBookmarkEvent(ctx, configFiles, event, EventTypePush)
@@ -368,13 +378,17 @@ do:
         {
           "event": "bookmark_push",
           "bookmark": "{{ .Rev }}",
-          "archive_url": "{{ .ArchiveUrl }}"
+          "archive_url": "{{ .ArchiveUrl }}",
+          "author": "{{ .Author }}",
+          "description": "{{ .Description }}"
         }
 `)
 
 	event := Event{
-		Rev:        "main",
-		ArchiveUrl: "https://example.com/archive.zip",
+		Rev:         "main",
+		ArchiveUrl:  "https://example.com/archive.zip",
+		Author:      "alice",
+		Description: "Add new feature",
 	}
 
 	config, err := UnmarshalConfig(configYAML, event)
@@ -393,7 +407,9 @@ do:
 	expectedBody := `{
   "event": "bookmark_push",
   "bookmark": "main",
-  "archive_url": "https://example.com/archive.zip"
+  "archive_url": "https://example.com/archive.zip",
+  "author": "alice",
+  "description": "Add new feature"
 }`
 
 	if strings.TrimSpace(config.Do[0].Webhook.Body) != strings.TrimSpace(expectedBody) {

@@ -131,6 +131,10 @@ type Event struct {
 	Rev string
 	// ArchiveUrl is the url where the archive of this revision can be found (requires authentication if private repo)
 	ArchiveUrl string
+	// Author is the username of the author who created the change
+	Author string
+	// Description is the description of the change
+	Description string
 }
 
 func makeUnmarshalConfigFuncs(secrets map[string]string) template.FuncMap {

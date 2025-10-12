@@ -124,11 +124,26 @@ func executeCIForBookmarkEvent(ctx context.Context, changeId int64, bookmarkName
 		return
 	}
 
+	var author string
+	if change.AuthorID != nil {
+		user, err := db.Q.GetUser(ctx, *change.AuthorID)
+		if err == nil {
+			author = user.Username
+		}
+	}
+
+	description := ""
+	if change.Description != nil {
+		description = *change.Description
+	}
+
 	archiveUrl := fmt.Sprintf("%s/repository/%s/archive/%s", env.PublicAddress, repo.Name, bookmarkName)
 
 	event := ci.Event{
-		Rev:        bookmarkName,
-		ArchiveUrl: archiveUrl,
+		Rev:         bookmarkName,
+		ArchiveUrl:  archiveUrl,
+		Author:      author,
+		Description: description,
 	}
 
 	go func() {
