@@ -29,6 +29,7 @@ service Pogo {
   rpc DeleteSecret(DeleteSecretRequest) returns (DeleteSecretResponse);
   rpc ListCIRuns(ListCIRunsRequest) returns (ListCIRunsResponse);
   rpc GetCIRun(GetCIRunRequest) returns (GetCIRunResponse);
+  rpc Diff(DiffRequest) returns (stream DiffResponse);
 }
 
 message Auth {
@@ -344,3 +345,35 @@ message GetCIRunResponse {
   CIRunSummary run = 1;
   string log = 2;
 }
+
+message DiffRequest {
+  Auth auth = 1;
+  int32 repo_id = 2;
+  optional string rev1 = 3;
+  optional string rev2 = 4;
+  optional int64 checked_out_change_id = 5;
+}
+
+message DiffResponse {
+  oneof payload {
+    DiffFileHeader file_header = 1;
+    string diff_chunk = 2;
+    EndOfFile end_of_file = 3;
+  }
+}
+
+message DiffFileHeader {
+  string path = 1;
+  string old_change_name = 2;
+  string new_change_name = 3;
+  DiffFileStatus status = 4;
+}
+
+enum DiffFileStatus {
+  DIFF_FILE_STATUS_MODIFIED = 0;
+  DIFF_FILE_STATUS_ADDED = 1;
+  DIFF_FILE_STATUS_DELETED = 2;
+  DIFF_FILE_STATUS_BINARY = 3;
+}
+
+message EndOfFile {}

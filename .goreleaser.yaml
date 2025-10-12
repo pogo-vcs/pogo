@@ -106,6 +106,7 @@ homebrew_casks:
       - docs/man/pogo-daemon-uninstall.1
       - docs/man/pogo-daemon.1
       - docs/man/pogo-describe.1
+      - docs/man/pogo-diff.1
       - docs/man/pogo-edit.1
       - docs/man/pogo-gc.1
       - docs/man/pogo-info.1

@@ -112,7 +112,6 @@ WHERE tc.id = (SELECT id FROM target_change ORDER BY priority ASC LIMIT 1)
   AND (f.name LIKE '%.gitignore' OR f.name LIKE '%.pogoignore')
 ORDER BY f.name;
 
-
 -- name: GetRepositoryBookmarkFileByName :one
 SELECT DISTINCT f.name, f.executable, f.content_hash, f.conflict
 FROM files f
@@ -724,3 +723,10 @@ WITH deleted AS (
   DELETE FROM ci_runs WHERE started_at < $1 RETURNING 1
 )
 SELECT COUNT(*) FROM deleted;
+
+-- name: GetFilesForChange :many
+SELECT f.name, f.executable, f.content_hash
+FROM files f
+JOIN change_files cf ON f.id = cf.file_id
+WHERE cf.change_id = $1
+ORDER BY f.name;

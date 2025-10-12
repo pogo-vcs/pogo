@@ -118,6 +118,7 @@ For running the server, you need to have a PostgreSQL database running and the f
 |                 | `start`    |                    | Start the Pogo daemon service.                                                              |
 |                 | `uninstall`|                    | Uninstall Pogo daemon service.                                                              |
 | `pogo describe` |            | `desc`, `rephrase` | Set the description for the current change.                                                 |
+| `pogo diff`     |            |                    | Show differences between changes in unified diff format.                                    |
 | `pogo edit`     |            | `checkout`         | Sets the specified revision as the working-copy revision.                                   |
 | `pogo gc`       |            |                    | Run garbage collection on the server.                                                       |
 | `pogo info`     |            |                    | Display the current working copy status.                                                    |

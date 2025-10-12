@@ -158,14 +158,13 @@ func (a *Server) PushFull(stream grpc.ClientStreamingServer[protos.PushFullReque
 		}
 
 		// Check if change is readonly
+		var shouldRejectModifications bool
 		if !forceFlag.Force {
 			isReadonly, err := tx.IsReadonly(ctx, changeId.ChangeId, userId)
 			if err != nil {
 				return fmt.Errorf("check readonly: %w", err)
 			}
-			if isReadonly {
-				return errors.New("cannot push to readonly change (has bookmarks, children, or different author). Use --force to override")
-			}
+			shouldRejectModifications = isReadonly
 		}
 
 		// Get files currently in the change before clearing them
@@ -224,6 +223,11 @@ func (a *Server) PushFull(stream grpc.ClientStreamingServer[protos.PushFullReque
 			}
 
 			if hasContent {
+				// Reject if this is a readonly change and modifications are being made
+				if shouldRejectModifications {
+					return errors.New("cannot push to readonly change (has bookmarks, children, or different author). Use --force to override")
+				}
+
 				// File content follows, read and store it
 				absPath := filepath.Join(tempDir, relPath)
 				_ = os.MkdirAll(filepath.Dir(absPath), 0755)

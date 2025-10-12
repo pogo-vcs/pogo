@@ -1,0 +1,67 @@
+.nh
+.TH "pogo" "1" "Oct 2025" "pogo/dev" "Pogo Manual"
+
+.SH NAME
+pogo-diff - Show differences between changes
+
+
+.SH SYNOPSIS
+\fBpogo diff [rev1] [rev2] [flags]\fP
+
+
+.SH DESCRIPTION
+Display differences between changes in unified diff format.
+
+.PP
+The diff command compares file contents between two changes and shows what has
+been added, removed, or modified.
+
+.PP
+Arguments:
+- No arguments: Compare current change to its parent
+- One argument: Compare specified change to current change
+- Two arguments: Compare first change to second change
+
+.PP
+You can specify changes using:
+- Full change name (e.g., "bitter-rose-1234")
+- Change name prefix (e.g., "bitter-rose")
+- Bookmark name (e.g., "main")
+
+.PP
+The output uses Git-style unified diff format, making it easy to see exactly
+what changed between two versions.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for diff
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--time\fP[=false]
+	Measure command execution time
+
+.PP
+\fB-v\fP, \fB--verbose\fP[=false]
+	Enable verbose debug logging
+
+
+.SH EXAMPLE
+.EX
+# Compare current change to its parent
+pogo diff
+
+# Compare current change to main bookmark
+pogo diff main
+
+# Compare two specific changes
+pogo diff bitter-rose sweet-flower
+
+# Compare using change prefixes
+pogo diff bitter sweet
+.EE
+
+
+.SH SEE ALSO
+\fBpogo(1)\fP

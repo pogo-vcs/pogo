@@ -584,3 +584,44 @@ func (c *Client) GetCIRun(runID int64) (*protos.GetCIRunResponse, error) {
 
 	return resp, nil
 }
+
+func (c *Client) Diff(rev1, rev2 *string, out io.Writer) error {
+	request := &protos.DiffRequest{
+		Auth:               c.GetAuth(),
+		RepoId:             c.repoId,
+		CheckedOutChangeId: &c.changeId,
+	}
+
+	if rev1 != nil {
+		request.Rev1 = rev1
+	}
+	if rev2 != nil {
+		request.Rev2 = rev2
+	}
+
+	stream, err := c.Pogo.Diff(c.ctx, request)
+	if err != nil {
+		return errors.Join(errors.New("call diff"), err)
+	}
+
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return errors.Join(errors.New("receive diff response"), err)
+		}
+
+		switch payload := msg.Payload.(type) {
+		case *protos.DiffResponse_FileHeader:
+		case *protos.DiffResponse_DiffChunk:
+			if _, err := fmt.Fprint(out, payload.DiffChunk); err != nil {
+				return errors.Join(errors.New("write diff chunk"), err)
+			}
+		case *protos.DiffResponse_EndOfFile:
+		}
+	}
+
+	return nil
+}
