@@ -23,7 +23,7 @@ do:
           find . -maxdepth 1 ! -name '.git' ! -name '.' ! -name '..' -exec rm -rf {} +
           cp -a /workspace/. /github_repo/
           git config user.name "{{ .Author }}"
-          git config user.email "pogo-mirror[bot]@users.noreply.github.com"
+          git config user.email "{{ .Author }}@pogo.bloodmagesoftware.de"
           git add -A
           if git diff --staged --quiet; then
             echo "No changes to commit"

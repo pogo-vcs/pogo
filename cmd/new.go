@@ -81,8 +81,10 @@ pogo new --keep-changes`,
 			return errors.Join(errors.New("create new change"), err)
 		}
 
-		if err = c.Edit(changeName); err != nil {
-			return errors.Join(errors.New("edit revision"), err)
+		if !keepChanges {
+			if err = c.Edit(changeName); err != nil {
+				return errors.Join(errors.New("edit revision"), err)
+			}
 		}
 
 		c.ConfigSetChangeId(changeId)
