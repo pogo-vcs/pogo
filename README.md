@@ -165,7 +165,7 @@ The threshold can be configured via the `GC_MEMORY_THRESHOLD` environment variab
 
 ## 🔐 Secrets Management
 
-Pogo provides a secure way to manage secrets for your CI pipelines. Secrets are encrypted values that can be referenced in your CI pipeline YAML files using the `{{ secret "KEY" }}` template function. They are useful for storing sensitive data like API tokens, deployment keys, and credentials.
+Pogo provides a secure way to manage secrets for your CI pipelines. Secrets are encrypted values that can be referenced in your CI pipeline YAML files using the <code>&#123;&#123; secret "KEY" &#125;&#125;</code> template function. They are useful for storing sensitive data like API tokens, deployment keys, and credentials.
 
 Secrets are scoped to a repository and can only be accessed by users with access to that repository.
 
