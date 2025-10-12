@@ -1,0 +1,118 @@
+package webui
+
+import (
+	"fmt"
+	"strconv"
+	"time"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/pogo-vcs/pogo/db"
+	"github.com/pogo-vcs/pogo/server/webui/components"
+)
+
+func formatDuration(start, finish pgtype.Timestamptz) string {
+	if !start.Valid || !finish.Valid {
+		return "N/A"
+	}
+	duration := finish.Time.Sub(start.Time)
+	if duration < time.Second {
+		return fmt.Sprintf("%dms", duration.Milliseconds())
+	}
+	if duration < time.Minute {
+		return fmt.Sprintf("%.1fs", duration.Seconds())
+	}
+	if duration < time.Hour {
+		return fmt.Sprintf("%.1fm", duration.Minutes())
+	}
+	return fmt.Sprintf("%.1fh", duration.Hours())
+}
+
+func formatTime(ts pgtype.Timestamptz) string {
+	if !ts.Valid {
+		return "N/A"
+	}
+	return ts.Time.Format("2006-01-02 15:04:05 MST")
+}
+
+templ CIRuns() {
+	if repoId, ok := GetParamI32(ctx, "id"); ok {
+		if repo, err := db.Q.GetRepository(ctx, repoId); err == nil {
+			{{ hasAccess := repo.Public }}
+			if !hasAccess && IsLoggedIn(ctx) {
+				if user := GetUser(ctx); user != nil {
+					if accessCheck, err := db.Q.CheckUserRepositoryAccess(ctx, repoId, user.ID); err == nil {
+						{{ hasAccess = accessCheck }}
+					}
+				}
+			}
+			if hasAccess {
+				@layout(repo.Name + " - CI Runs") {
+					@components.Header(GetUser(ctx))
+					@components.Main() {
+						<h1 class="text-2xl font-bold mb-4">
+							<a href={ templ.URL("/repository/" + strconv.Itoa(int(repo.ID))) } class="hover:underline">{ repo.Name }</a>
+							<span class="text-ctp-subtext0">/ CI Runs</span>
+						</h1>
+						if runs, err := db.Q.ListCIRuns(ctx, repoId); err == nil {
+							if len(runs) == 0 {
+								<p class="text-ctp-subtext0">No CI runs found for this repository.</p>
+							} else {
+								<div class="overflow-x-auto">
+									<table class="w-full border-collapse">
+										<thead>
+											<tr class="border-b border-ctp-surface0">
+												<th class="text-left p-2">Status</th>
+												<th class="text-left p-2">Event</th>
+												<th class="text-left p-2">Rev</th>
+												<th class="text-left p-2">Task Type</th>
+												<th class="text-left p-2">Config</th>
+												<th class="text-left p-2">Started</th>
+												<th class="text-left p-2">Duration</th>
+											</tr>
+										</thead>
+										<tbody>
+											for _, run := range runs {
+												<tr class="border-b border-ctp-surface0 hover:bg-ctp-surface0">
+													<td class="p-2">
+														if run.Success {
+															<span class="text-ctp-green">✓ Success</span>
+														} else {
+															<span class="text-ctp-red">✗ Failed</span>
+														}
+													</td>
+													<td class="p-2">{ run.EventType }</td>
+													<td class="p-2 font-mono text-sm">{ run.Rev }</td>
+													<td class="p-2">{ run.TaskType }</td>
+													<td class="p-2 font-mono text-sm">{ run.ConfigFilename }</td>
+													<td class="p-2 text-sm">{ formatTime(run.StartedAt) }</td>
+													<td class="p-2 text-sm">{ formatDuration(run.StartedAt, run.FinishedAt) }</td>
+													<td class="p-2">
+														<a
+															href={ templ.URL("/repository/" + strconv.Itoa(int(repo.ID)) + "/ci/" + strconv.Itoa(int(run.ID))) }
+															class="text-ctp-blue hover:underline"
+														>
+															View
+														</a>
+													</td>
+												</tr>
+											}
+										</tbody>
+									</table>
+								</div>
+							}
+						} else {
+							<p class="text-ctp-red">Failed to load CI runs: { err.Error() }</p>
+						}
+					}
+				}
+			} else {
+				@layout("Unauthorized") {
+					@components.Header(GetUser(ctx))
+					@components.Main() {
+						<h1 class="text-2xl font-bold">Access Denied</h1>
+						<p>You don't have permission to view this repository.</p>
+					}
+				}
+			}
+		}
+	}
+}

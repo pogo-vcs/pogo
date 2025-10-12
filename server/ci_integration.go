@@ -10,13 +10,12 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/pogo-vcs/pogo/compressions"
 	"github.com/pogo-vcs/pogo/db"
 	"github.com/pogo-vcs/pogo/filecontents"
 	"github.com/pogo-vcs/pogo/server/ci"
 	"github.com/pogo-vcs/pogo/server/env"
 )
-
-var ciExecutor = ci.NewExecutor()
 
 func getCIConfigFiles(ctx context.Context, changeId int64) (map[string][]byte, error) {
 	files, err := db.Q.GetCIConfigFiles(ctx, changeId)
@@ -106,6 +105,53 @@ func extractRepositoryContentToTemp(ctx context.Context, repositoryId int32, boo
 	return tempDir, nil
 }
 
+func storeCIRun(repositoryID int32, res ci.TaskExecutionResult) error {
+	start := res.StartedAt
+	if start.IsZero() {
+		start = time.Now()
+	}
+	start = start.UTC()
+
+	var pattern *string
+	if res.Pattern != "" {
+		pattern = &res.Pattern
+	}
+
+	startTS := pgtype.Timestamptz{
+		Time:  start,
+		Valid: true,
+	}
+
+	compressedLog, err := compressions.CompressBytes([]byte(res.Log))
+	if err != nil {
+		return fmt.Errorf("compress log: %w", err)
+	}
+
+	var finishTS pgtype.Timestamptz
+	if !res.FinishedAt.IsZero() {
+		finishTS = pgtype.Timestamptz{
+			Time:  res.FinishedAt.UTC(),
+			Valid: true,
+		}
+	}
+
+	_, err = db.Q.CreateCIRun(context.Background(),
+		repositoryID,
+		res.ConfigFilename,
+		res.EventType.String(),
+		res.Rev,
+		pattern,
+		res.Reason,
+		res.TaskType,
+		int32(res.StatusCode),
+		res.Success,
+		startTS,
+		finishTS,
+		compressedLog,
+	)
+	return err
+}
+
 func executeCIForBookmarkEvent(ctx context.Context, changeId int64, bookmarkName string, eventType ci.EventType) {
 	configFiles, err := getCIConfigFiles(ctx, changeId)
 	if err != nil || len(configFiles) == 0 {
@@ -174,45 +220,7 @@ func executeCIForBookmarkEvent(ctx context.Context, changeId int64, bookmarkName
 		results, execErr := executor.ExecuteForBookmarkEvent(context.Background(), configFiles, event, eventType)
 
 		for _, res := range results {
-			start := res.StartedAt
-			if start.IsZero() {
-				start = time.Now()
-			}
-			finish := res.FinishedAt
-			if finish.IsZero() {
-				finish = start
-			}
-			start = start.UTC()
-			finish = finish.UTC()
-			var pattern *string
-			if res.Pattern != "" {
-				pattern = &res.Pattern
-			}
-
-			startTS := pgtype.Timestamptz{
-				Time:  start,
-				Valid: true,
-			}
-			finishTS := pgtype.Timestamptz{
-				Time:  finish,
-				Valid: true,
-			}
-
-			_, err := db.Q.CreateCIRun(context.Background(),
-				repo.ID,
-				res.ConfigFilename,
-				res.EventType.String(),
-				res.Rev,
-				pattern,
-				res.Reason,
-				res.TaskType,
-				int32(res.StatusCode),
-				res.Success,
-				startTS,
-				finishTS,
-				res.Log,
-			)
-			if err != nil {
+			if err := storeCIRun(repo.ID, res); err != nil {
 				fmt.Printf("CI execution error: repo=%s change_id=%d bookmark=%s event=%s detail=store ci run: %v\n", repo.Name, changeId, bookmarkName, eventType.String(), err)
 			}
 		}

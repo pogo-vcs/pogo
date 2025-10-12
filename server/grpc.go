@@ -15,6 +15,7 @@ import (
 
 	"github.com/devsisters/go-diff3"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/pogo-vcs/pogo/compressions"
 	"github.com/pogo-vcs/pogo/db"
 	"github.com/pogo-vcs/pogo/filecontents"
 	"github.com/pogo-vcs/pogo/protos"
@@ -1497,6 +1498,11 @@ func (a *Server) GetCIRun(ctx context.Context, req *protos.GetCIRunRequest) (*pr
 		return nil, fmt.Errorf("get ci run: %w", err)
 	}
 
+	decompressedLog, err := compressions.DecompressBytes(row.Log)
+	if err != nil {
+		return nil, fmt.Errorf("decompress log: %w", err)
+	}
+
 	return &protos.GetCIRunResponse{
 		Run: buildCIRunSummary(
 			row.ID,
@@ -1511,7 +1517,7 @@ func (a *Server) GetCIRun(ctx context.Context, req *protos.GetCIRunRequest) (*pr
 			row.StartedAt,
 			row.FinishedAt,
 		),
-		Log: row.Log,
+		Log: string(decompressedLog),
 	}, nil
 }
 

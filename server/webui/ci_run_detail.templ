@@ -1,0 +1,122 @@
+package webui
+
+import (
+	"strconv"
+	"github.com/pogo-vcs/pogo/db"
+	"github.com/pogo-vcs/pogo/server/webui/components"
+)
+
+templ CIRunDetail() {
+	if repoId, ok := GetParamI32(ctx, "id"); ok {
+		if runIdStr, ok := GetParam(ctx, "runId"); ok {
+			if runId64, err := strconv.ParseInt(runIdStr, 10, 32); err == nil {
+				{{ runId := int32(runId64) }}
+				if repo, err := db.Q.GetRepository(ctx, repoId); err == nil {
+					{{ hasAccess := repo.Public }}
+					if !hasAccess && IsLoggedIn(ctx) {
+						if user := GetUser(ctx); user != nil {
+							if accessCheck, err := db.Q.CheckUserRepositoryAccess(ctx, repoId, user.ID); err == nil {
+								{{ hasAccess = accessCheck }}
+							}
+						}
+					}
+					if hasAccess {
+						if run, err := db.Q.GetCIRun(ctx, repoId, runId); err == nil {
+							@layout(repo.Name + " - CI Run #" + runIdStr) {
+								@components.Header(GetUser(ctx))
+								@components.Main() {
+									<h1 class="text-2xl font-bold mb-4">
+										<a href={ templ.URL("/repository/" + strconv.Itoa(int(repo.ID))) } class="hover:underline">{ repo.Name }</a>
+										<span class="text-ctp-subtext0">/ </span>
+										<a href={ templ.URL("/repository/" + strconv.Itoa(int(repo.ID)) + "/ci") } class="hover:underline">CI Runs</a>
+										<span class="text-ctp-subtext0">/ #{ runIdStr }</span>
+									</h1>
+									<div class="bg-ctp-surface0 rounded-lg p-4 mb-4">
+										<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+											<div>
+												<div class="text-sm text-ctp-subtext0">Status</div>
+												<div class="font-bold">
+													if run.Success {
+														<span class="text-ctp-green">✓ Success</span>
+													} else {
+														<span class="text-ctp-red">✗ Failed</span>
+													}
+													<span class="text-ctp-subtext0 ml-2">({ strconv.Itoa(int(run.StatusCode)) })</span>
+												</div>
+											</div>
+											<div>
+												<div class="text-sm text-ctp-subtext0">Event Type</div>
+												<div class="font-bold">{ run.EventType }</div>
+											</div>
+											<div>
+												<div class="text-sm text-ctp-subtext0">Task Type</div>
+												<div class="font-bold">{ run.TaskType }</div>
+											</div>
+											<div>
+												<div class="text-sm text-ctp-subtext0">Config</div>
+												<div class="font-mono text-sm">{ run.ConfigFilename }</div>
+											</div>
+										</div>
+										<div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+											<div>
+												<div class="text-sm text-ctp-subtext0">Revision</div>
+												<div class="font-mono text-sm">{ run.Rev }</div>
+											</div>
+											if run.Pattern != nil {
+												<div>
+													<div class="text-sm text-ctp-subtext0">Pattern</div>
+													<div class="font-mono text-sm">{ *run.Pattern }</div>
+												</div>
+											}
+										</div>
+										<div class="mt-4">
+											<div class="text-sm text-ctp-subtext0">Started At</div>
+											<div>{ formatTime(run.StartedAt) }</div>
+										</div>
+										<div class="mt-2">
+											<div class="text-sm text-ctp-subtext0">Finished At</div>
+											<div>
+												if run.FinishedAt.Valid {
+													{ formatTime(run.FinishedAt) }
+													<span class="text-ctp-subtext0 ml-2">({ formatDuration(run.StartedAt, run.FinishedAt) })</span>
+												} else {
+													<span class="text-ctp-subtext0">Not finished</span>
+												}
+											</div>
+										</div>
+										<div class="mt-2">
+											<div class="text-sm text-ctp-subtext0">Reason</div>
+											<div class="text-sm">{ run.Reason }</div>
+										</div>
+									</div>
+									<div class="mt-6">
+										<h2 class="text-xl font-bold mb-2">Log Output</h2>
+										<div class="bg-ctp-base rounded-lg p-4 overflow-x-auto">
+											<pre class="text-sm"><code>{ GetSanitizedLog(ctx, repoId, run.Log) }</code></pre>
+										</div>
+									</div>
+								}
+							}
+						} else {
+							@layout("Not Found") {
+								@components.Header(GetUser(ctx))
+								@components.Main() {
+									<h1 class="text-2xl font-bold">CI Run Not Found</h1>
+									<p>The requested CI run does not exist or you don't have permission to view it.</p>
+								}
+							}
+						}
+					} else {
+						@layout("Unauthorized") {
+							@components.Header(GetUser(ctx))
+							@components.Main() {
+								<h1 class="text-2xl font-bold">Access Denied</h1>
+								<p>You don't have permission to view this repository.</p>
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}

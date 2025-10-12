@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/pogo-vcs/pogo/auth"
+	"github.com/pogo-vcs/pogo/compressions"
 	"github.com/pogo-vcs/pogo/db"
+	"github.com/pogo-vcs/pogo/secrets"
 )
 
 func GetParam(ctx context.Context, name string) (string, bool) {
@@ -168,5 +170,40 @@ func sortFileNodes(node *FileNode) {
 
 	for _, child := range node.Children {
 		sortFileNodes(child)
+	}
+}
+
+func GetSanitizedLog(ctx context.Context, repoId int32, compressedLog []byte) string {
+	decompressed, err := compressions.DecompressBytes(compressedLog)
+	if err != nil {
+		return "Error decompressing log: " + err.Error()
+	}
+
+	secretRows, err := db.Q.GetAllSecrets(ctx, repoId)
+	if err != nil {
+		return string(decompressed)
+	}
+
+	secretValues := make([]string, 0, len(secretRows))
+	for _, secret := range secretRows {
+		secretValues = append(secretValues, secret.Value)
+	}
+
+	return secrets.Hide(string(decompressed), secretValues)
+}
+
+func FormatTimestamptz(ts interface{}) string {
+	switch v := ts.(type) {
+	case string:
+		if v == "" {
+			return "N/A"
+		}
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			return "N/A"
+		}
+		return t.Format("Jan 2, 2006 3:04 PM")
+	default:
+		return "N/A"
 	}
 }

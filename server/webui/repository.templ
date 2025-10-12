@@ -66,6 +66,12 @@ templ Repository() {
 				@layout(repo.Name) {
 					@components.Header(GetUser(ctx)) {
 						{{ user := GetUser(ctx) }}
+						<a
+							href={ templ.URL("/repository/" + strconv.Itoa(int(repo.ID)) + "/ci") }
+							class="rounded-md px-3 py-2 bg-ctp-surface0 hover:bg-ctp-surface1 active:bg-ctp-surface2 active:text-ctp-text"
+						>
+							CI Runs
+						</a>
 						if user != nil {
 							if userHasAccess, err := db.Q.CheckUserRepositoryAccess(ctx, repoId, user.ID); err == nil && userHasAccess {
 								<a

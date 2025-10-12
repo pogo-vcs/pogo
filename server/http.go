@@ -93,6 +93,8 @@ func RegisterWebUI(s *Server) {
 	s.httpMux.HandleFunc("/schemas/ci/{schema}", handleCISchemas)
 	s.httpMux.HandleFunc("/repository/{id}", authMiddleware(templComponentToHandler(webui.Repository())))
 	s.httpMux.HandleFunc("/repository/{id}/settings", authMiddleware(templComponentToHandler(webui.Settings())))
+	s.httpMux.HandleFunc("/repository/{id}/ci", authMiddleware(templComponentToHandler(webui.CIRuns())))
+	s.httpMux.HandleFunc("/repository/{id}/ci/{runId}", authMiddleware(templComponentToHandler(webui.CIRunDetail())))
 	s.httpMux.HandleFunc("/repository/{repo}/archive/{rev}", authMiddleware(handleZipDownload))
 	s.httpMux.HandleFunc("/objects/{hash}/", handleObjectServe)
 

@@ -668,18 +668,18 @@ INSERT INTO ci_runs (
   finished_at,
   log
 ) VALUES (
-  $1,  -- repository_id
-  $2,  -- config_filename
-  $3,  -- event_type
-  $4,  -- rev
-  $5,  -- pattern
-  $6,  -- reason
-  $7,  -- task_type
-  $8,  -- status_code
-  $9,  -- success
-  $10, -- started_at
-  $11, -- finished_at
-  $12  -- log
+  @repository_id,
+  @config_filename,
+  @event_type,
+  @rev,
+  @pattern,
+  @reason,
+  @task_type,
+  @status_code,
+  @success,
+  @started_at,
+  @finished_at,
+  @log
 ) RETURNING id;
 
 -- name: ListCIRuns :many
@@ -717,6 +717,15 @@ SELECT
   log
 FROM ci_runs
 WHERE repository_id = $1 AND id = $2;
+
+-- name: UpdateCIRun :exec
+UPDATE ci_runs
+SET
+  status_code = @status_code,
+  success = @success,
+  finished_at = @finished_at,
+  log = @log
+WHERE id = @id;
 
 -- name: DeleteExpiredCIRuns :one
 WITH deleted AS (

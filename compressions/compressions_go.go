@@ -61,3 +61,18 @@ func Decompress(r io.ReadCloser) io.ReadCloser {
 
 	return &closeWrapper{pr, r, sync.Mutex{}}
 }
+
+var encoder, _ = zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedBestCompression))
+
+func CompressBytes(data []byte) ([]byte, error) {
+	return encoder.EncodeAll(data, nil), nil
+}
+
+func DecompressBytes(data []byte) ([]byte, error) {
+	decoder, err := zstd.NewReader(nil)
+	if err != nil {
+		return nil, err
+	}
+	defer decoder.Close()
+	return decoder.DecodeAll(data, nil)
+}

@@ -3,6 +3,7 @@
 package compressions
 
 import (
+	"bytes"
 	"io"
 	"sync"
 
@@ -48,4 +49,15 @@ func Decompress(r io.ReadCloser) io.ReadCloser {
 	}()
 
 	return &closeWrapper{pr, r, sync.Mutex{}}
+}
+
+func CompressBytes(data []byte) ([]byte, error) {
+	return zstd.CompressLevel(nil, data, zstd.DefaultCompression)
+}
+
+func DecompressBytes(data []byte) ([]byte, error) {
+	buf := bytes.NewBuffer(data)
+	zr := zstd.NewReader(buf)
+	defer zr.Close()
+	return io.ReadAll(zr)
 }
