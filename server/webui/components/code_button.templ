@@ -20,16 +20,13 @@ templ CodeButton(repoId int32, repoName string) {
 				<div class="px-4 py-3 border-b border-ctp-surface1">
 					<h4 class="text-sm font-medium text-ctp-text mb-2">Clone</h4>
 					<div class="flex items-center space-x-2">
-						<input
-							type="text"
-							readonly
-							value={ fmt.Sprintf("pogo clone --server '%s' --repo '%s'", env.Hostname, repoName) }
-							class="flex-1 min-w-0 px-3 py-2 text-sm bg-ctp-surface1 border border-ctp-surface2 rounded-md text-ctp-text font-mono"
+						<span
+							class="flex-1 px-3 py-2 text-sm bg-ctp-surface1 border border-ctp-surface2 rounded-md text-ctp-text font-mono overflow-x-auto no-scrollbar w-full whitespace-pre select-all"
 							id={ "clone-command-" + strconv.Itoa(int(repoId)) }
-						/>
+						>{ fmt.Sprintf("pogo clone --server '%s' --repo '%s'", env.Hostname, repoName) }</span>
 						<button
 							class="copy-button cursor-pointer flex-shrink-0 px-3 py-[calc(var(--spacing)*2.5)] bg-ctp-surface1 hover:bg-ctp-surface2 border border-ctp-surface2 rounded-md text-ctp-text"
-							onclick="navigator.clipboard.writeText(this.parentElement.querySelector('input').value);"
+							onclick="navigator.clipboard.writeText(this.parentElement.querySelector('span').innerText);"
 						>
 							@icons.Copy()
 						</button>

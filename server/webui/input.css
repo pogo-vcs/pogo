@@ -6,6 +6,16 @@
   color-scheme: dark;
 }
 
+@layer utilities {
+  .no-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
+}
+
 .readme {
   @apply prose-base prose-stone rounded-lg border-ctp-surface0 border bg-ctp-mantle p-4 shadow-md;
 }
