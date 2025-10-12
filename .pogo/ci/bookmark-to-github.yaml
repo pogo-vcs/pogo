@@ -2,7 +2,7 @@ version: 1
 on:
   push:
     bookmarks:
-      - main
+      - v*
 do:
   - type: container
     container:
@@ -19,16 +19,10 @@ do:
           echo "Cloning repo..."
           git clone https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git /github_repo
           echo "Repo cloned"
-          mv /github_repo/.git /workspace/
+          cd /github_repo
           git config user.name "{{ .Author }}"
           git config user.email "{{ .Author }}@pogo.bloodmagesoftware.de"
-          git add -A
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m '{{ .Description }}'
-            echo "Pushing to GitHub..."
-            git push origin main
-
-            echo "Successfully mirrored to GitHub!"
-          fi
+          git tag '{{ .Rev }}'
+          echo "Pushing to GitHub..."
+          git push origin 'refs/tags/{{ .Rev }}:refs/tags/{{ .Rev }}'
+          echo "Successfully mirrored to GitHub!"

@@ -95,8 +95,6 @@ pogo new --keep-changes`,
 			}
 		}
 
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), changeName)
-
 		logOutput, err := c.Log(10, tty.IsInteractive())
 		if err != nil {
 			return errors.Join(errors.New("fetch log"), err)
