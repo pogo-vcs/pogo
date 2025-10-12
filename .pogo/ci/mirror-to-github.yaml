@@ -1,0 +1,36 @@
+version: 1
+on:
+  push:
+    bookmarks:
+      - main
+do:
+  - type: container
+    container:
+      image: alpine:latest
+      environment:
+        GITHUB_TOKEN: '{{ secret "GITHUB_TOKEN" }}'
+        GITHUB_REPO: pogo-vcs/pogo
+      commands:
+        - sh
+        - -c
+        - |
+          set -e
+          apk add --no-cache git
+          echo "Cloning repo..."
+          git clone https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git /github_repo
+          echo "Repo cloned"
+          cd /github_repo
+          find . -maxdepth 1 ! -name '.git' ! -name '.' ! -name '..' -exec rm -rf {} +
+          cp -a /workspace/. /github_repo/
+          git config user.name "{{ .Author }}"
+          git config user.email "pogo-mirror[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m '{{ .Description }}'
+            echo "Pushing to GitHub..."
+            git push origin main
+
+            echo "Successfully mirrored to GitHub!"
+          fi

@@ -6,6 +6,7 @@ replace github.com/nulab/autog v0.10.0 => github.com/tsukinoko-kun/autog v0.10.1
 
 require (
 	github.com/DataDog/zstd v1.5.7
+	github.com/Microsoft/go-winio v0.6.2
 	github.com/a-h/templ v0.3.943
 	github.com/charmbracelet/huh v0.7.0
 	github.com/devsisters/go-diff3 v0.0.0-20250423134348-1e1e52a2a2f6
@@ -36,7 +37,6 @@ require (
 	al.essio.dev/pkg/shellescape v1.5.1 // indirect
 	git.sr.ht/~jackmordaunt/go-toast v1.1.2 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
-	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/catppuccin/go v0.3.0 // indirect
