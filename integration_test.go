@@ -121,9 +121,6 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 	// Set DATA_DIR environment variable
 	os.Setenv("DATA_DIR", dataDir)
 
-	// Disconnect first if already connected (from a previous test)
-	db.Disconnect()
-
 	// Connect to the database
 	db.Connect()
 
