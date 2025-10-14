@@ -640,27 +640,62 @@ func (s *Server) Diff(req *protos.DiffRequest, stream protos.Pogo_DiffServer) er
 			}
 
 		case protos.DiffFileStatus_DIFF_FILE_STATUS_MODIFIED:
-			oldContent, err := readFileContentForDiff(oldHash)
-			if err != nil {
-				return fmt.Errorf("read old file content: %w", err)
-			}
-			newContent, err := readFileContentForDiff(newHash)
-			if err != nil {
-				return fmt.Errorf("read new file content: %w", err)
-			}
+			if diff.OldExecutable != diff.NewExecutable {
+				oldMode := "100644"
+				if diff.OldExecutable {
+					oldMode = "100755"
+				}
+				newMode := "100644"
+				if diff.NewExecutable {
+					newMode = "100755"
+				}
 
-			blocks, err := generateDiffBlocks(oldContent, newContent)
-			if err != nil {
-				return fmt.Errorf("generate diff blocks: %w", err)
-			}
-
-			for _, block := range blocks {
 				if err := stream.Send(&protos.DiffResponse{
 					Payload: &protos.DiffResponse_DiffBlock{
-						DiffBlock: &block,
+						DiffBlock: &protos.DiffBlock{
+							Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
+							Lines: []string{fmt.Sprintf("old mode %s", oldMode)},
+						},
 					},
 				}); err != nil {
-					return fmt.Errorf("send diff block: %w", err)
+					return fmt.Errorf("send old mode: %w", err)
+				}
+
+				if err := stream.Send(&protos.DiffResponse{
+					Payload: &protos.DiffResponse_DiffBlock{
+						DiffBlock: &protos.DiffBlock{
+							Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
+							Lines: []string{fmt.Sprintf("new mode %s", newMode)},
+						},
+					},
+				}); err != nil {
+					return fmt.Errorf("send new mode: %w", err)
+				}
+			}
+
+			if !bytes.Equal(diff.OldContentHash, diff.NewContentHash) {
+				oldContent, err := readFileContentForDiff(oldHash)
+				if err != nil {
+					return fmt.Errorf("read old file content: %w", err)
+				}
+				newContent, err := readFileContentForDiff(newHash)
+				if err != nil {
+					return fmt.Errorf("read new file content: %w", err)
+				}
+
+				blocks, err := generateDiffBlocks(oldContent, newContent)
+				if err != nil {
+					return fmt.Errorf("generate diff blocks: %w", err)
+				}
+
+				for _, block := range blocks {
+					if err := stream.Send(&protos.DiffResponse{
+						Payload: &protos.DiffResponse_DiffBlock{
+							DiffBlock: &block,
+						},
+					}); err != nil {
+						return fmt.Errorf("send diff block: %w", err)
+					}
 				}
 			}
 		}
@@ -779,7 +814,7 @@ MetadataComplete:
 		} else if !existsLocal {
 			continue
 		} else {
-			if !bytes.Equal(localFile.ContentHash, remoteFile.ContentHash) {
+			if !bytes.Equal(localFile.ContentHash, remoteFile.ContentHash) || (localFile.Executable != nil && *localFile.Executable != remoteFile.Executable) {
 				contentRequests[path] = true
 			}
 		}
@@ -1009,16 +1044,27 @@ MetadataComplete:
 					}
 
 				} else {
-					oldContent, err := readFileContentForDiff(oldHash)
-					if err != nil {
-						return fmt.Errorf("read old file content: %w", err)
-					}
-					newContent := localFileContents[path]
+					oldLineCount := int32(0)
+					newLineCount := int32(0)
 
-					oldLines := strings.Split(oldContent, "\n")
-					newLines := strings.Split(newContent, "\n")
-					oldLineCount := int32(len(oldLines))
-					newLineCount := int32(len(newLines))
+					oldExecutable := remoteFile.Executable
+					newExecutable := false
+					if localFile.Executable != nil {
+						newExecutable = *localFile.Executable
+					}
+
+					if !bytes.Equal(localFile.ContentHash, remoteFile.ContentHash) {
+						oldContent, err := readFileContentForDiff(oldHash)
+						if err != nil {
+							return fmt.Errorf("read old file content: %w", err)
+						}
+						newContent := localFileContents[path]
+
+						oldLines := strings.Split(oldContent, "\n")
+						newLines := strings.Split(newContent, "\n")
+						oldLineCount = int32(len(oldLines))
+						newLineCount = int32(len(newLines))
+					}
 
 					if err := stream.Send(&protos.DiffLocalResponse{
 						Payload: &protos.DiffLocalResponse_FileHeader{
@@ -1037,18 +1083,59 @@ MetadataComplete:
 						return fmt.Errorf("send file header: %w", err)
 					}
 
-					blocks, err := generateDiffBlocks(oldContent, newContent)
-					if err != nil {
-						return fmt.Errorf("generate diff blocks: %w", err)
-					}
+					if oldExecutable != newExecutable {
+						oldMode := "100644"
+						if oldExecutable {
+							oldMode = "100755"
+						}
+						newMode := "100644"
+						if newExecutable {
+							newMode = "100755"
+						}
 
-					for i := range blocks {
 						if err := stream.Send(&protos.DiffLocalResponse{
 							Payload: &protos.DiffLocalResponse_DiffBlock{
-								DiffBlock: &blocks[i],
+								DiffBlock: &protos.DiffBlock{
+									Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
+									Lines: []string{fmt.Sprintf("old mode %s", oldMode)},
+								},
 							},
 						}); err != nil {
-							return fmt.Errorf("send diff block: %w", err)
+							return fmt.Errorf("send old mode: %w", err)
+						}
+
+						if err := stream.Send(&protos.DiffLocalResponse{
+							Payload: &protos.DiffLocalResponse_DiffBlock{
+								DiffBlock: &protos.DiffBlock{
+									Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
+									Lines: []string{fmt.Sprintf("new mode %s", newMode)},
+								},
+							},
+						}); err != nil {
+							return fmt.Errorf("send new mode: %w", err)
+						}
+					}
+
+					if !bytes.Equal(localFile.ContentHash, remoteFile.ContentHash) {
+						oldContent, err := readFileContentForDiff(oldHash)
+						if err != nil {
+							return fmt.Errorf("read old file content: %w", err)
+						}
+						newContent := localFileContents[path]
+
+						blocks, err := generateDiffBlocks(oldContent, newContent)
+						if err != nil {
+							return fmt.Errorf("generate diff blocks: %w", err)
+						}
+
+						for i := range blocks {
+							if err := stream.Send(&protos.DiffLocalResponse{
+								Payload: &protos.DiffLocalResponse_DiffBlock{
+									DiffBlock: &blocks[i],
+								},
+							}); err != nil {
+								return fmt.Errorf("send diff block: %w", err)
+							}
 						}
 					}
 

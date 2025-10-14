@@ -283,9 +283,13 @@ func (c *Client) DiffLocal() ([]DiffFileInfo, error) {
 			diffs = append(diffs, DiffFileInfo{
 				Path:   payload.FileHeader.Path,
 				Status: payload.FileHeader.Status,
+				Blocks: []*protos.DiffBlock{},
 			})
 
 		case *protos.DiffLocalResponse_DiffBlock:
+			if len(diffs) > 0 {
+				diffs[len(diffs)-1].Blocks = append(diffs[len(diffs)-1].Blocks, payload.DiffBlock)
+			}
 		case *protos.DiffLocalResponse_EndOfFile:
 		}
 
@@ -352,6 +356,7 @@ func (c *Client) DiffLocal() ([]DiffFileInfo, error) {
 type DiffFileInfo struct {
 	Path   string
 	Status protos.DiffFileStatus
+	Blocks []*protos.DiffBlock
 }
 
 func (c *Client) DiffLocalWithOutput(out io.Writer, colored bool) error {
