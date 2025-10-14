@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/pogo-vcs/pogo/client"
@@ -290,6 +291,9 @@ func TestDiffLocal_MultipleFilesChanged(t *testing.T) {
 }
 
 func TestDiffLocal_ModeChangeOnly(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows: executable permissions not supported")
+	}
 	t.Parallel()
 	env := setupTestEnvironment(t, "")
 	defer env.cleanup()
@@ -378,6 +382,9 @@ func TestDiffLocal_ModeChangeOnly(t *testing.T) {
 }
 
 func TestDiffLocal_ModeAndContentChange(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows: executable permissions not supported")
+	}
 	t.Parallel()
 	env := setupTestEnvironment(t, "")
 	defer env.cleanup()
@@ -469,6 +476,9 @@ func TestDiffLocal_ModeAndContentChange(t *testing.T) {
 }
 
 func TestDiffLocal_ModeChangeToNonExecutable(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows: executable permissions not supported")
+	}
 	t.Parallel()
 	env := setupTestEnvironment(t, "")
 	defer env.cleanup()
