@@ -11,7 +11,6 @@ import (
 )
 
 func TestIgnorePatternsWithDirectories(t *testing.T) {
-	t.Parallel()
 	// Create a test directory structure
 	testDir := t.TempDir()
 
@@ -128,7 +127,6 @@ dist/
 }
 
 func TestGitIgnorePatternParsing(t *testing.T) {
-	t.Parallel()
 	tests := []struct {
 		pattern     string
 		path        []string

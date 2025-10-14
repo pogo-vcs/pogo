@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -18,13 +17,9 @@ import (
 var (
 	connPool *pgxpool.Pool
 	Q        *Queries
-	dbMutex  sync.Mutex
 )
 
 func Connect() {
-	dbMutex.Lock()
-	defer dbMutex.Unlock()
-
 	if Q != nil {
 		return
 	}
@@ -87,9 +82,6 @@ func Connect() {
 }
 
 func Disconnect() {
-	dbMutex.Lock()
-	defer dbMutex.Unlock()
-
 	if connPool != nil {
 		connPool.Close()
 		connPool = nil

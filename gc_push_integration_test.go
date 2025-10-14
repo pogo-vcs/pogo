@@ -25,7 +25,6 @@ import (
 // 3. The file should not be deleted because Push B references it
 // This test is much more realistic in creating an actual race condition
 func TestGCPushRaceCondition(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
 	testEnv := setupTestEnvironment(t)
 	defer testEnv.cleanup()
@@ -229,7 +228,6 @@ func TestGCPushRaceCondition(t *testing.T) {
 
 // Test actual file deletion when file is no longer used anywhere
 func TestGCPushActualDeletion(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
 	testEnv := setupTestEnvironment(t)
 	defer testEnv.cleanup()

@@ -15,7 +15,6 @@ import (
 )
 
 func TestExecutor_WebhookWithSecrets(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
 
 	expectedSecret := "my-secret-token-12345"
@@ -86,7 +85,6 @@ do:
 }
 
 func TestExecutor_WebhookWithSecretsDefaultEmpty(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
 
 	var receivedBody string
@@ -154,7 +152,6 @@ do:
 }
 
 func TestExecutor_ContainerWithSecrets(t *testing.T) {
-	t.Parallel()
 	if !isDockerAvailableForTest() {
 		t.Skip("Docker not available")
 	}

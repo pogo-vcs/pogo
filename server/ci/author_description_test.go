@@ -6,7 +6,6 @@ import (
 )
 
 func TestEvent_AuthorAndDescriptionInTemplates(t *testing.T) {
-	t.Parallel()
 	configYAML := `
 version: 1
 on:

@@ -11,7 +11,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -27,10 +26,6 @@ import (
 
 const (
 	rootToken = "HP9X+pubni2ufsXTeDreWsxcY+MyxFHBgM+py1hWOks="
-)
-
-var (
-	postgresExtractMutex sync.Mutex
 )
 
 type testEnvironment struct {
@@ -84,11 +79,7 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 
 	postgres := embeddedpostgres.NewDatabase(postgresConfig)
 
-	postgresExtractMutex.Lock()
-	err = postgres.Start()
-	postgresExtractMutex.Unlock()
-
-	if err != nil {
+	if err := postgres.Start(); err != nil {
 		os.RemoveAll(tmpDir)
 		t.Fatalf("Failed to start embedded PostgreSQL: %v", err)
 	}
@@ -120,6 +111,9 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 
 	// Set DATA_DIR environment variable
 	os.Setenv("DATA_DIR", dataDir)
+
+	// Disconnect first if already connected (from a previous test)
+	db.Disconnect()
 
 	// Connect to the database
 	db.Connect()
@@ -191,7 +185,6 @@ func getFreePort() (uint32, error) {
 
 // TestPogoIntegration tests all basic Pogo operations
 func TestPogoIntegration(t *testing.T) {
-	t.Parallel()
 	env := setupTestEnvironment(t)
 	defer env.cleanup()
 
@@ -1243,7 +1236,6 @@ func bytesEqual(a, b []byte) bool {
 }
 
 func TestServerSideCIContainerWithRepoContent(t *testing.T) {
-	t.Parallel()
 	if !isDockerAvailable() {
 		t.Skip("Docker not available")
 	}

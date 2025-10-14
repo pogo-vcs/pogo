@@ -14,7 +14,6 @@ import (
 )
 
 func TestDiffLocal_NoChanges(t *testing.T) {
-	t.Parallel()
 	env := setupTestEnvironment(t, "")
 	defer env.cleanup()
 
@@ -56,7 +55,6 @@ func TestDiffLocal_NoChanges(t *testing.T) {
 }
 
 func TestDiffLocal_FileModified(t *testing.T) {
-	t.Parallel()
 	env := setupTestEnvironment(t, "")
 	defer env.cleanup()
 
@@ -110,7 +108,6 @@ func TestDiffLocal_FileModified(t *testing.T) {
 }
 
 func TestDiffLocal_FileAdded(t *testing.T) {
-	t.Parallel()
 	env := setupTestEnvironment(t, "")
 	defer env.cleanup()
 
@@ -164,7 +161,6 @@ func TestDiffLocal_FileAdded(t *testing.T) {
 }
 
 func TestDiffLocal_FileDeleted(t *testing.T) {
-	t.Parallel()
 	env := setupTestEnvironment(t, "")
 	defer env.cleanup()
 
@@ -218,7 +214,6 @@ func TestDiffLocal_FileDeleted(t *testing.T) {
 }
 
 func TestDiffLocal_MultipleFilesChanged(t *testing.T) {
-	t.Parallel()
 	env := setupTestEnvironment(t, "")
 	defer env.cleanup()
 
@@ -292,9 +287,9 @@ func TestDiffLocal_MultipleFilesChanged(t *testing.T) {
 
 func TestDiffLocal_ModeChangeOnly(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("Skipping test on Windows: executable permissions not supported")
+		t.Skip("Skipping test on Windows: executable bit not supported")
 	}
-	t.Parallel()
+
 	env := setupTestEnvironment(t, "")
 	defer env.cleanup()
 
@@ -383,9 +378,9 @@ func TestDiffLocal_ModeChangeOnly(t *testing.T) {
 
 func TestDiffLocal_ModeAndContentChange(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("Skipping test on Windows: executable permissions not supported")
+		t.Skip("Skipping test on Windows: executable bit not supported")
 	}
-	t.Parallel()
+
 	env := setupTestEnvironment(t, "")
 	defer env.cleanup()
 
@@ -477,9 +472,9 @@ func TestDiffLocal_ModeAndContentChange(t *testing.T) {
 
 func TestDiffLocal_ModeChangeToNonExecutable(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("Skipping test on Windows: executable permissions not supported")
+		t.Skip("Skipping test on Windows: executable bit not supported")
 	}
-	t.Parallel()
+
 	env := setupTestEnvironment(t, "")
 	defer env.cleanup()
 

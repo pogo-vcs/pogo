@@ -18,7 +18,6 @@ import (
 )
 
 func TestResolveDiff_NoChanges(t *testing.T) {
-	t.Parallel()
 	env := setupTestEnvironment(t, "")
 	defer env.cleanup()
 
@@ -88,7 +87,6 @@ func TestResolveDiff_NoChanges(t *testing.T) {
 }
 
 func TestResolveDiff_UTF8TextModified(t *testing.T) {
-	t.Parallel()
 	env := setupTestEnvironment(t, "")
 	defer env.cleanup()
 
@@ -188,7 +186,6 @@ func TestResolveDiff_UTF8TextModified(t *testing.T) {
 }
 
 func TestResolveDiff_UTF16LETextModified(t *testing.T) {
-	t.Parallel()
 	env := setupTestEnvironment(t, "")
 	defer env.cleanup()
 
@@ -290,7 +287,6 @@ func TestResolveDiff_UTF16LETextModified(t *testing.T) {
 }
 
 func TestResolveDiff_BinaryFileModified(t *testing.T) {
-	t.Parallel()
 	env := setupTestEnvironment(t, "")
 	defer env.cleanup()
 
@@ -392,7 +388,6 @@ func TestResolveDiff_BinaryFileModified(t *testing.T) {
 }
 
 func TestResolveDiff_FileAdded(t *testing.T) {
-	t.Parallel()
 	env := setupTestEnvironment(t, "")
 	defer env.cleanup()
 
@@ -480,7 +475,6 @@ func TestResolveDiff_FileAdded(t *testing.T) {
 }
 
 func TestResolveDiff_FileDeleted(t *testing.T) {
-	t.Parallel()
 	env := setupTestEnvironment(t, "")
 	defer env.cleanup()
 
@@ -571,7 +565,6 @@ func TestResolveDiff_FileDeleted(t *testing.T) {
 }
 
 func TestResolveDiff_TextToBinaryChange(t *testing.T) {
-	t.Parallel()
 	env := setupTestEnvironment(t, "")
 	defer env.cleanup()
 
@@ -654,7 +647,6 @@ func TestResolveDiff_TextToBinaryChange(t *testing.T) {
 }
 
 func TestResolveDiff_MultipleFilesChanged(t *testing.T) {
-	t.Parallel()
 	env := setupTestEnvironment(t, "")
 	defer env.cleanup()
 
@@ -765,7 +757,6 @@ func isBinaryFileTest(hash string) (bool, error) {
 }
 
 func TestGenerateUnifiedDiff_ShortHash(t *testing.T) {
-	t.Parallel()
 	oldContent := "Hello World\n"
 	newContent := "Hello Pogo\n"
 
@@ -779,7 +770,6 @@ func TestGenerateUnifiedDiff_ShortHash(t *testing.T) {
 }
 
 func TestGenerateUnifiedDiff_EmptyHash(t *testing.T) {
-	t.Parallel()
 	oldContent := "Hello World\n"
 	newContent := "Hello Pogo\n"
 
@@ -793,7 +783,6 @@ func TestGenerateUnifiedDiff_EmptyHash(t *testing.T) {
 }
 
 func TestGenerateDiffBlocks_ContentWithoutTrailingNewline(t *testing.T) {
-	t.Parallel()
 	oldContent := "line1\nline2\nline3"
 	newContent := "line1\nline2 modified\nline3"
 
@@ -808,7 +797,6 @@ func TestGenerateDiffBlocks_ContentWithoutTrailingNewline(t *testing.T) {
 }
 
 func TestGenerateDiffBlocks_LargeFileWithManyChanges(t *testing.T) {
-	t.Parallel()
 	var oldLines, newLines []string
 	for i := 1; i <= 100; i++ {
 		if i%10 == 5 {
@@ -848,7 +836,6 @@ func TestGenerateDiffBlocks_LargeFileWithManyChanges(t *testing.T) {
 }
 
 func TestGenerateDiffBlocks_MultipleHunksNearEndOfFile(t *testing.T) {
-	t.Parallel()
 	var oldLines []string
 	for i := 1; i <= 75; i++ {
 		oldLines = append(oldLines, fmt.Sprintf("line %d", i))

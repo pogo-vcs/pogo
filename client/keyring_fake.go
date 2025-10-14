@@ -7,23 +7,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 )
 
-var (
-	fakeKeyringStore = make(map[string]string)
-	keyringMutex     sync.RWMutex
-)
+var fakeKeyringStore = make(map[string]string)
 
 func keyringGet(service string, user string) (string, error) {
 	key := service + "::" + user
 
 	// First check in-memory store
-	keyringMutex.RLock()
-	value, ok := fakeKeyringStore[key]
-	keyringMutex.RUnlock()
-
-	if ok {
+	if value, ok := fakeKeyringStore[key]; ok {
 		return value, nil
 	}
 
@@ -52,10 +44,7 @@ func keyringGet(service string, user string) (string, error) {
 
 func keyringSet(service string, user string, password string) error {
 	key := service + "::" + user
-
-	keyringMutex.Lock()
 	fakeKeyringStore[key] = password
-	keyringMutex.Unlock()
 
 	// Also write to file for compatibility with existing tests
 	// Extract server address from user parameter
@@ -76,10 +65,7 @@ func keyringSet(service string, user string, password string) error {
 
 func keyringDelete(service string, user string) error {
 	key := service + "::" + user
-
-	keyringMutex.Lock()
 	delete(fakeKeyringStore, key)
-	keyringMutex.Unlock()
 
 	// Also delete file if it exists
 	// Extract server address from user parameter
