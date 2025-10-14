@@ -198,11 +198,13 @@ func getFreePort() (uint32, error) {
 
 // TestGarbageCollectionInMemory tests GC with in-memory algorithm
 func TestGarbageCollectionInMemory(t *testing.T) {
+	t.Parallel()
 	testGarbageCollectionWithThreshold(t, "10000", "in-memory")
 }
 
 // TestGarbageCollectionBatch tests GC with batch algorithm
 func TestGarbageCollectionBatch(t *testing.T) {
+	t.Parallel()
 	testGarbageCollectionWithThreshold(t, "0", "batch")
 }
 

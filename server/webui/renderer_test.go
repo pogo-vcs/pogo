@@ -6,6 +6,7 @@ import (
 )
 
 func TestRenderMarkdown(t *testing.T) {
+	t.Parallel()
 	content := []byte("# Test Header\n\nThis is a **bold** test.")
 	rendered, err := renderMarkdown(content)
 	if err != nil {
@@ -22,6 +23,7 @@ func TestRenderMarkdown(t *testing.T) {
 }
 
 func TestRenderOrgMode(t *testing.T) {
+	t.Parallel()
 	content := []byte("* Test Header\n\nThis is a *bold* test.")
 	rendered, err := renderOrgMode(content)
 	if err != nil {
@@ -38,6 +40,7 @@ func TestRenderOrgMode(t *testing.T) {
 }
 
 func TestRenderFile(t *testing.T) {
+	t.Parallel()
 	// Test markdown detection
 	content := []byte("# Test Header\n\nThis is a test.")
 	rendered, err := renderMarkdown(content)

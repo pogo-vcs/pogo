@@ -9,6 +9,7 @@ import (
 )
 
 func TestDetectFileType(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string // description of this test case
 		// Named input parameters for target function.
@@ -67,6 +68,7 @@ func TestDetectFileType(t *testing.T) {
 }
 
 func TestFileType_CanonicalizeReader(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string // description of this test case
 		fileName string
@@ -142,6 +144,7 @@ func TestFileType_CanonicalizeReader(t *testing.T) {
 }
 
 func TestFileType_TypeReader(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string // description of this test case
 		fileName string
@@ -217,6 +220,7 @@ func TestFileType_TypeReader(t *testing.T) {
 }
 
 func TestHasConflictMarkers(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		content  string

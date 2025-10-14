@@ -10,6 +10,7 @@ import (
 )
 
 func TestExecutor_ContainerTaskWithHTTPServer(t *testing.T) {
+	t.Parallel()
 	if !isDockerAvailable() {
 		t.Skip("Docker not available")
 	}

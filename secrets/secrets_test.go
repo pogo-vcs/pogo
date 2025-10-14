@@ -3,6 +3,7 @@ package secrets
 import "testing"
 
 func TestHide(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string // description of this test case
 		// Named input parameters for target function.

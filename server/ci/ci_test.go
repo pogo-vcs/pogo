@@ -11,6 +11,7 @@ import (
 )
 
 func TestExecutor_ExecuteForBookmarkEvent(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	// Set up test HTTP server
@@ -207,6 +208,7 @@ do:
 }
 
 func TestExecutor_Retry(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	var requestCount int
@@ -274,6 +276,7 @@ do:
 }
 
 func TestExecutor_RetryFails(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	var requestCount int
@@ -337,6 +340,7 @@ do:
 }
 
 func TestMatchesPattern(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		str     string
 		pattern string
@@ -364,6 +368,7 @@ func TestMatchesPattern(t *testing.T) {
 }
 
 func TestUnmarshalConfigWithTemplating(t *testing.T) {
+	t.Parallel()
 	configYAML := []byte(`
 version: 1
 on:

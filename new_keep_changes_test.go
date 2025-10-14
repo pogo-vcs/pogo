@@ -13,6 +13,7 @@ import (
 )
 
 func TestNewWithKeepChanges(t *testing.T) {
+	t.Parallel()
 	env := setupTestEnvironment(t)
 	defer env.cleanup()
 

@@ -185,6 +185,7 @@ func getFreePort() (uint32, error) {
 
 // TestPogoIntegration tests all basic Pogo operations
 func TestPogoIntegration(t *testing.T) {
+	t.Parallel()
 	env := setupTestEnvironment(t)
 	defer env.cleanup()
 
@@ -1236,6 +1237,7 @@ func bytesEqual(a, b []byte) bool {
 }
 
 func TestServerSideCIContainerWithRepoContent(t *testing.T) {
+	t.Parallel()
 	if !isDockerAvailable() {
 		t.Skip("Docker not available")
 	}

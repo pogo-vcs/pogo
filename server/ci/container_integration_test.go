@@ -10,6 +10,7 @@ import (
 )
 
 func TestExecutor_ContainerTask(t *testing.T) {
+	t.Parallel()
 	if !isDockerAvailable() {
 		t.Skip("Docker not available")
 	}
@@ -63,6 +64,7 @@ do:
 }
 
 func TestExecutor_ContainerTaskWithServices(t *testing.T) {
+	t.Parallel()
 	if !isDockerAvailable() {
 		t.Skip("Docker not available")
 	}
@@ -119,6 +121,7 @@ do:
 }
 
 func TestExecutor_ContainerTaskWithWorkspaceMount(t *testing.T) {
+	t.Parallel()
 	if !isDockerAvailable() {
 		t.Skip("Docker not available")
 	}
