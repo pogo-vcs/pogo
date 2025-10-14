@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -26,6 +27,10 @@ import (
 
 const (
 	rootToken = "HP9X+pubni2ufsXTeDreWsxcY+MyxFHBgM+py1hWOks="
+)
+
+var (
+	postgresExtractMutex sync.Mutex
 )
 
 type testEnvironment struct {
@@ -79,7 +84,11 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 
 	postgres := embeddedpostgres.NewDatabase(postgresConfig)
 
-	if err := postgres.Start(); err != nil {
+	postgresExtractMutex.Lock()
+	err = postgres.Start()
+	postgresExtractMutex.Unlock()
+
+	if err != nil {
 		os.RemoveAll(tmpDir)
 		t.Fatalf("Failed to start embedded PostgreSQL: %v", err)
 	}
