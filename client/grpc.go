@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/pogo-vcs/pogo/client/difftui"
 	"github.com/pogo-vcs/pogo/colors"
 	"github.com/pogo-vcs/pogo/filecontents"
 	"github.com/pogo-vcs/pogo/protos"
@@ -357,6 +358,180 @@ type DiffFileInfo struct {
 	Path   string
 	Status protos.DiffFileStatus
 	Blocks []*protos.DiffBlock
+}
+
+func (c *Client) CollectDiffLocal() (difftui.DiffData, error) {
+	stream, err := c.Pogo.DiffLocal(c.ctx)
+	if err != nil {
+		return difftui.DiffData{}, errors.Join(errors.New("open diff local stream"), err)
+	}
+	defer stream.CloseSend()
+
+	if err := stream.Send(&protos.DiffLocalRequest{
+		Payload: &protos.DiffLocalRequest_Auth{
+			Auth: c.GetAuth(),
+		},
+	}); err != nil {
+		return difftui.DiffData{}, errors.Join(errors.New("send auth"), err)
+	}
+
+	if err := stream.Send(&protos.DiffLocalRequest{
+		Payload: &protos.DiffLocalRequest_RepoId{
+			RepoId: c.repoId,
+		},
+	}); err != nil {
+		return difftui.DiffData{}, errors.Join(errors.New("send repo id"), err)
+	}
+
+	if err := stream.Send(&protos.DiffLocalRequest{
+		Payload: &protos.DiffLocalRequest_CheckedOutChangeId{
+			CheckedOutChangeId: c.changeId,
+		},
+	}); err != nil {
+		return difftui.DiffData{}, errors.Join(errors.New("send change id"), err)
+	}
+
+	type fileInfo struct {
+		file       LocalFile
+		hash       []byte
+		executable *bool
+	}
+	var files []fileInfo
+
+	for file := range c.UnignoredFiles {
+		hash, err := filecontents.HashFile(file.AbsPath)
+		if err != nil {
+			return difftui.DiffData{}, errors.Join(fmt.Errorf("hash file %s", file.Name), err)
+		}
+		files = append(files, fileInfo{
+			file:       file,
+			hash:       hash,
+			executable: IsExecutable(file.AbsPath),
+		})
+	}
+
+	for _, fileInfo := range files {
+		if err := stream.Send(&protos.DiffLocalRequest{
+			Payload: &protos.DiffLocalRequest_FileMetadata{
+				FileMetadata: &protos.LocalFileMetadata{
+					Path:        fileInfo.file.Name,
+					ContentHash: fileInfo.hash,
+					Executable:  fileInfo.executable,
+				},
+			},
+		}); err != nil {
+			return difftui.DiffData{}, errors.Join(fmt.Errorf("send file metadata %s", fileInfo.file.Name), err)
+		}
+	}
+
+	if err := stream.Send(&protos.DiffLocalRequest{
+		Payload: &protos.DiffLocalRequest_EndOfMetadata{
+			EndOfMetadata: &protos.EndOfMetadata{},
+		},
+	}); err != nil {
+		return difftui.DiffData{}, errors.Join(errors.New("send end of metadata"), err)
+	}
+
+	contentRequests := make(map[string]bool)
+	var data difftui.DiffData
+	var currentFile *difftui.DiffFile
+
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return difftui.DiffData{}, errors.Join(errors.New("receive diff local response"), err)
+		}
+
+		switch payload := msg.Payload.(type) {
+		case *protos.DiffLocalResponse_ContentRequest:
+			contentRequests[payload.ContentRequest.Path] = true
+
+		case *protos.DiffLocalResponse_FileHeader:
+			if currentFile != nil {
+				data.Files = append(data.Files, *currentFile)
+			}
+			currentFile = &difftui.DiffFile{
+				Header: payload.FileHeader,
+				Blocks: []*protos.DiffBlock{},
+			}
+
+		case *protos.DiffLocalResponse_DiffBlock:
+			if currentFile != nil {
+				currentFile.Blocks = append(currentFile.Blocks, payload.DiffBlock)
+			}
+
+		case *protos.DiffLocalResponse_EndOfFile:
+			if currentFile != nil {
+				data.Files = append(data.Files, *currentFile)
+				currentFile = nil
+			}
+		}
+
+		if len(contentRequests) > 0 {
+			for path := range contentRequests {
+				delete(contentRequests, path)
+
+				var found bool
+				var fileToSend LocalFile
+				for _, f := range files {
+					if f.file.Name == path {
+						fileToSend = f.file
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					return difftui.DiffData{}, fmt.Errorf("content requested for unknown file: %s", path)
+				}
+
+				file, err := fileToSend.Open()
+				if err != nil {
+					return difftui.DiffData{}, errors.Join(fmt.Errorf("open file %s", path), err)
+				}
+
+				buffer := make([]byte, 32*1024)
+				for {
+					n, err := file.Read(buffer)
+					if n > 0 {
+						if err := stream.Send(&protos.DiffLocalRequest{
+							Payload: &protos.DiffLocalRequest_FileContent{
+								FileContent: buffer[:n],
+							},
+						}); err != nil {
+							file.Close()
+							return difftui.DiffData{}, errors.Join(fmt.Errorf("send file content %s", path), err)
+						}
+					}
+					if err == io.EOF {
+						break
+					}
+					if err != nil {
+						file.Close()
+						return difftui.DiffData{}, errors.Join(fmt.Errorf("read file %s", path), err)
+					}
+				}
+				file.Close()
+
+				if err := stream.Send(&protos.DiffLocalRequest{
+					Payload: &protos.DiffLocalRequest_Eof{
+						Eof: &protos.EOF{},
+					},
+				}); err != nil {
+					return difftui.DiffData{}, errors.Join(fmt.Errorf("send eof for %s", path), err)
+				}
+			}
+		}
+	}
+
+	if currentFile != nil {
+		data.Files = append(data.Files, *currentFile)
+	}
+
+	return data, nil
 }
 
 func (c *Client) DiffLocalWithOutput(out io.Writer, colored bool) error {
@@ -1006,6 +1181,67 @@ func (c *Client) GetCIRun(runID int64) (*protos.GetCIRunResponse, error) {
 	}
 
 	return resp, nil
+}
+
+func (c *Client) CollectDiff(rev1, rev2 *string) (difftui.DiffData, error) {
+	request := &protos.DiffRequest{
+		Auth:               c.GetAuth(),
+		RepoId:             c.repoId,
+		CheckedOutChangeId: &c.changeId,
+	}
+
+	if rev1 != nil {
+		request.Rev1 = rev1
+	}
+	if rev2 != nil {
+		request.Rev2 = rev2
+	}
+
+	stream, err := c.Pogo.Diff(c.ctx, request)
+	if err != nil {
+		return difftui.DiffData{}, errors.Join(errors.New("call diff"), err)
+	}
+
+	var data difftui.DiffData
+	var currentFile *difftui.DiffFile
+
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return difftui.DiffData{}, errors.Join(errors.New("receive diff response"), err)
+		}
+
+		switch payload := msg.Payload.(type) {
+		case *protos.DiffResponse_FileHeader:
+			if currentFile != nil {
+				data.Files = append(data.Files, *currentFile)
+			}
+			currentFile = &difftui.DiffFile{
+				Header: payload.FileHeader,
+				Blocks: []*protos.DiffBlock{},
+			}
+
+		case *protos.DiffResponse_DiffBlock:
+			if currentFile != nil {
+				currentFile.Blocks = append(currentFile.Blocks, payload.DiffBlock)
+			}
+
+		case *protos.DiffResponse_EndOfFile:
+			if currentFile != nil {
+				data.Files = append(data.Files, *currentFile)
+				currentFile = nil
+			}
+		}
+	}
+
+	if currentFile != nil {
+		data.Files = append(data.Files, *currentFile)
+	}
+
+	return data, nil
 }
 
 func (c *Client) Diff(rev1, rev2 *string, out io.Writer, colored bool) error {

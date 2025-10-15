@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/pogo-vcs/pogo/client"
+	"github.com/pogo-vcs/pogo/client/difftui"
 	"github.com/pogo-vcs/pogo/tty"
 	"github.com/spf13/cobra"
 )
@@ -58,16 +59,26 @@ pogo diff bitter sweet`,
 			defer c.Close()
 			configureClientOutputs(cmd, c)
 
+			isInteractive := tty.IsInteractive()
+
 			if len(args) >= 1 && args[0] == "local" {
-				if err := c.DiffLocalWithOutput(cmd.OutOrStdout(), diffColorFlag); err != nil {
-					return errors.Join(errors.New("diff local"), err)
+				if isInteractive {
+					data, err := c.CollectDiffLocal()
+					if err != nil {
+						return errors.Join(errors.New("collect diff local"), err)
+					}
+					if err := difftui.Run(data); err != nil {
+						return errors.Join(errors.New("run diff tui"), err)
+					}
+				} else {
+					if err := c.DiffLocalWithOutput(cmd.OutOrStdout(), diffColorFlag); err != nil {
+						return errors.Join(errors.New("diff local"), err)
+					}
 				}
 				return nil
 			}
 
-			if err := c.PushFull(false); err != nil {
-				return errors.Join(errors.New("push before diff"), err)
-			}
+			_ = c.PushFull(false)
 
 			var rev1, rev2 *string
 			if len(args) >= 1 {
@@ -77,8 +88,18 @@ pogo diff bitter sweet`,
 				rev2 = &args[1]
 			}
 
-			if err := c.Diff(rev1, rev2, cmd.OutOrStdout(), diffColorFlag); err != nil {
-				return errors.Join(errors.New("diff"), err)
+			if isInteractive {
+				data, err := c.CollectDiff(rev1, rev2)
+				if err != nil {
+					return errors.Join(errors.New("collect diff"), err)
+				}
+				if err := difftui.Run(data); err != nil {
+					return errors.Join(errors.New("run diff tui"), err)
+				}
+			} else {
+				if err := c.Diff(rev1, rev2, cmd.OutOrStdout(), diffColorFlag); err != nil {
+					return errors.Join(errors.New("diff"), err)
+				}
 			}
 
 			return nil

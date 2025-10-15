@@ -95,7 +95,7 @@ pogo commit  # Finalize and start new change`,
 			}
 		}
 
-		if err := c.PushFull(false); err != nil {
+		if err := c.PushFull(forcePush); err != nil {
 			return errors.Join(errors.New("push full"), err)
 		}
 
@@ -127,5 +127,6 @@ pogo commit  # Finalize and start new change`,
 func init() {
 	commitCmd.Flags().StringP("description", "m", "", "Description for the change")
 	commitCmd.Flags().Bool("no-edit", false, "Skip the describe step")
+	commitCmd.Flags().BoolVarP(&forcePush, "force", "f", false, "Force push even if the change is readonly")
 	RootCmd.AddCommand(commitCmd)
 }

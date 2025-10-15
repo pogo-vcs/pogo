@@ -57,7 +57,7 @@ pogo rephrase -m "docs: update API documentation"`,
 			defer c.Close()
 			configureClientOutputs(cmd, c)
 
-			if err := c.PushFull(false); err != nil {
+			if err := c.PushFull(forcePush); err != nil {
 				return errors.Join(errors.New("push before describe"), err)
 			}
 
@@ -95,5 +95,6 @@ pogo rephrase -m "docs: update API documentation"`,
 
 func init() {
 	describeCmd.Flags().StringP("description", "m", "", "Description for the change")
+	describeCmd.Flags().BoolVarP(&forcePush, "force", "f", false, "Force push even if the change is readonly")
 	RootCmd.AddCommand(describeCmd)
 }

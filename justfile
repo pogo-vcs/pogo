@@ -12,6 +12,7 @@ templ:
     templ generate
 
 styles:
+    pnpm install
     pnpm run styles
 
 completions:

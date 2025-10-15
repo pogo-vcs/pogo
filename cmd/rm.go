@@ -64,9 +64,7 @@ pogo rm main  # Error: cannot remove bookmarked change`,
 		defer c.Close()
 		configureClientOutputs(cmd, c)
 
-		if err := c.PushFull(false); err != nil {
-			return errors.Join(errors.New("push before rm"), err)
-		}
+		_ = c.PushFull(false)
 
 		if err := c.RemoveChange(changeName, keepChildren); err != nil {
 			return errors.Join(errors.New("remove change"), err)

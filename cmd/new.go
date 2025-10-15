@@ -71,7 +71,7 @@ pogo new --keep-changes`,
 		configureClientOutputs(cmd, c)
 
 		if !keepChanges {
-			if err := c.PushFull(false); err != nil {
+			if err := c.PushFull(forcePush); err != nil {
 				return errors.Join(errors.New("push before new"), err)
 			}
 		}
@@ -90,7 +90,7 @@ pogo new --keep-changes`,
 		c.ConfigSetChangeId(changeId)
 
 		if keepChanges {
-			if err := c.PushFull(false); err != nil {
+			if err := c.PushFull(forcePush); err != nil {
 				return errors.Join(errors.New("push to new change"), err)
 			}
 		}
@@ -108,5 +108,6 @@ pogo new --keep-changes`,
 func init() {
 	newCmd.Flags().StringP("description", "m", "", "Description for the new change")
 	newCmd.Flags().Bool("keep-changes", false, "Keep local changes for the new change instead of pushing to current")
+	newCmd.Flags().BoolVarP(&forcePush, "force", "f", false, "Force push even if the change is readonly")
 	RootCmd.AddCommand(newCmd)
 }

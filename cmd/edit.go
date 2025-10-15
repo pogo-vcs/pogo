@@ -60,7 +60,7 @@ pogo checkout feature-branch`,
 		defer c.Close()
 		configureClientOutputs(cmd, c)
 
-		if err := c.PushFull(false); err != nil {
+		if err := c.PushFull(forcePush); err != nil {
 			return errors.Join(errors.New("push before edit"), err)
 		}
 
@@ -73,5 +73,6 @@ pogo checkout feature-branch`,
 }
 
 func init() {
+	editCmd.Flags().BoolVarP(&forcePush, "force", "f", false, "Force push even if the change is readonly")
 	RootCmd.AddCommand(editCmd)
 }
