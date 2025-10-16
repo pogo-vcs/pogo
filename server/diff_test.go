@@ -875,3 +875,97 @@ func TestGenerateDiffBlocks_MultipleHunksNearEndOfFile(t *testing.T) {
 		t.Fatal("Expected at least one block")
 	}
 }
+
+func TestGenerateDiffBlocks_ImportRemoval(t *testing.T) {
+	oldContent := `package webui
+
+import (
+	"fmt"
+	"strconv"
+	"time"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/pogo-vcs/pogo/db"
+	"github.com/pogo-vcs/pogo/server/webui/components"
+)
+
+func formatDuration(start, finish pgtype.Timestamptz) string {
+	if !start.Valid || !finish.Valid {
+		return "N/A"
+	}
+	duration := finish.Time.Sub(start.Time)
+	if duration < time.Minute {
+		return fmt.Sprintf("%ds", int(duration.Seconds()))
+	}
+	return fmt.Sprintf("%dm %ds", int(duration.Minutes()), int(duration.Seconds())%60)
+}`
+
+	newContent := `package webui
+
+import (
+	"fmt"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/pogo-vcs/pogo/db"
+	"github.com/pogo-vcs/pogo/server/webui/components"
+)
+
+func formatDuration(start, finish pgtype.Timestamptz) string {
+	if !start.Valid || !finish.Valid {
+		return "N/A"
+	}
+	duration := finish.Time.Sub(start.Time)
+	if duration < time.Minute {
+		return fmt.Sprintf("%ds", int(duration.Seconds()))
+	}
+	return fmt.Sprintf("%dm %ds", int(duration.Minutes()), int(duration.Seconds())%60)
+}`
+
+	blocks, err := server.GenerateDiffBlocks(oldContent, newContent)
+	if err != nil {
+		t.Fatalf("GenerateDiffBlocks failed: %v", err)
+	}
+
+	t.Logf("Generated %d blocks", len(blocks))
+	for i, block := range blocks {
+		t.Logf("Block %d (type %v):", i, block.Type)
+		for _, line := range block.Lines {
+			t.Logf("  %q", line)
+		}
+	}
+
+	foundStrcOnvRemoved := false
+	foundTimeRemoved := false
+	foundStrcOnvAddedInWrongPlace := false
+	foundTimeAddedInWrongPlace := false
+
+	for _, block := range blocks {
+		for _, line := range block.Lines {
+			if line == "\t\"strconv\"" || line == `	"strconv"` {
+				if block.Type == protos.DiffBlockType_DIFF_BLOCK_TYPE_REMOVED {
+					foundStrcOnvRemoved = true
+				} else if block.Type == protos.DiffBlockType_DIFF_BLOCK_TYPE_ADDED {
+					foundStrcOnvAddedInWrongPlace = true
+				}
+			}
+			if line == "\t\"time\"" || line == `	"time"` {
+				if block.Type == protos.DiffBlockType_DIFF_BLOCK_TYPE_REMOVED {
+					foundTimeRemoved = true
+				} else if block.Type == protos.DiffBlockType_DIFF_BLOCK_TYPE_ADDED {
+					foundTimeAddedInWrongPlace = true
+				}
+			}
+		}
+	}
+
+	if !foundStrcOnvRemoved {
+		t.Error("Expected to find 'strconv' in removed blocks")
+	}
+	if !foundTimeRemoved {
+		t.Error("Expected to find 'time' in removed blocks")
+	}
+	if foundStrcOnvAddedInWrongPlace {
+		t.Error("Found 'strconv' incorrectly added (should only be removed)")
+	}
+	if foundTimeAddedInWrongPlace {
+		t.Error("Found 'time' incorrectly added (should only be removed)")
+	}
+}

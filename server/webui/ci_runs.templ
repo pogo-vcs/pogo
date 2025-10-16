@@ -2,11 +2,11 @@ package webui
 
 import (
 	"fmt"
-	"strconv"
-	"time"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pogo-vcs/pogo/db"
 	"github.com/pogo-vcs/pogo/server/webui/components"
+	"strconv"
+	"time"
 )
 
 func formatDuration(start, finish pgtype.Timestamptz) string {

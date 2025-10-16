@@ -360,7 +360,7 @@ type DiffFileInfo struct {
 	Blocks []*protos.DiffBlock
 }
 
-func (c *Client) CollectDiffLocal() (difftui.DiffData, error) {
+func (c *Client) CollectDiffLocal(usePatience, includeLargeFiles bool) (difftui.DiffData, error) {
 	stream, err := c.Pogo.DiffLocal(c.ctx)
 	if err != nil {
 		return difftui.DiffData{}, errors.Join(errors.New("open diff local stream"), err)
@@ -389,6 +389,22 @@ func (c *Client) CollectDiffLocal() (difftui.DiffData, error) {
 		},
 	}); err != nil {
 		return difftui.DiffData{}, errors.Join(errors.New("send change id"), err)
+	}
+
+	if err := stream.Send(&protos.DiffLocalRequest{
+		Payload: &protos.DiffLocalRequest_UsePatience{
+			UsePatience: usePatience,
+		},
+	}); err != nil {
+		return difftui.DiffData{}, errors.Join(errors.New("send use patience"), err)
+	}
+
+	if err := stream.Send(&protos.DiffLocalRequest{
+		Payload: &protos.DiffLocalRequest_IncludeLargeFiles{
+			IncludeLargeFiles: includeLargeFiles,
+		},
+	}); err != nil {
+		return difftui.DiffData{}, errors.Join(errors.New("send include large files"), err)
 	}
 
 	type fileInfo struct {
@@ -531,10 +547,19 @@ func (c *Client) CollectDiffLocal() (difftui.DiffData, error) {
 		data.Files = append(data.Files, *currentFile)
 	}
 
+	// remove all files that have 0 blocks
+	newFilesList := make([]difftui.DiffFile, 0, len(data.Files))
+	for _, file := range data.Files {
+		if len(file.Blocks) > 0 {
+			newFilesList = append(newFilesList, file)
+		}
+	}
+	data.Files = newFilesList
+
 	return data, nil
 }
 
-func (c *Client) DiffLocalWithOutput(out io.Writer, colored bool) error {
+func (c *Client) DiffLocalWithOutput(out io.Writer, colored, usePatience, includeLargeFiles bool) error {
 	stream, err := c.Pogo.DiffLocal(c.ctx)
 	if err != nil {
 		return errors.Join(errors.New("open diff local stream"), err)
@@ -555,6 +580,22 @@ func (c *Client) DiffLocalWithOutput(out io.Writer, colored bool) error {
 		},
 	}); err != nil {
 		return errors.Join(errors.New("send repo id"), err)
+	}
+
+	if err := stream.Send(&protos.DiffLocalRequest{
+		Payload: &protos.DiffLocalRequest_UsePatience{
+			UsePatience: usePatience,
+		},
+	}); err != nil {
+		return errors.Join(errors.New("send use patience"), err)
+	}
+
+	if err := stream.Send(&protos.DiffLocalRequest{
+		Payload: &protos.DiffLocalRequest_IncludeLargeFiles{
+			IncludeLargeFiles: includeLargeFiles,
+		},
+	}); err != nil {
+		return errors.Join(errors.New("send include large files"), err)
 	}
 
 	if err := stream.Send(&protos.DiffLocalRequest{
@@ -1183,11 +1224,13 @@ func (c *Client) GetCIRun(runID int64) (*protos.GetCIRunResponse, error) {
 	return resp, nil
 }
 
-func (c *Client) CollectDiff(rev1, rev2 *string) (difftui.DiffData, error) {
+func (c *Client) CollectDiff(rev1, rev2 *string, usePatience, includeLargeFiles bool) (difftui.DiffData, error) {
 	request := &protos.DiffRequest{
 		Auth:               c.GetAuth(),
 		RepoId:             c.repoId,
 		CheckedOutChangeId: &c.changeId,
+		UsePatience:        &usePatience,
+		IncludeLargeFiles:  &includeLargeFiles,
 	}
 
 	if rev1 != nil {
@@ -1216,7 +1259,7 @@ func (c *Client) CollectDiff(rev1, rev2 *string) (difftui.DiffData, error) {
 
 		switch payload := msg.Payload.(type) {
 		case *protos.DiffResponse_FileHeader:
-			if currentFile != nil {
+			if currentFile != nil && len(currentFile.Blocks) > 0 {
 				data.Files = append(data.Files, *currentFile)
 			}
 			currentFile = &difftui.DiffFile{
@@ -1230,25 +1273,27 @@ func (c *Client) CollectDiff(rev1, rev2 *string) (difftui.DiffData, error) {
 			}
 
 		case *protos.DiffResponse_EndOfFile:
-			if currentFile != nil {
+			if currentFile != nil && len(currentFile.Blocks) > 0 {
 				data.Files = append(data.Files, *currentFile)
-				currentFile = nil
 			}
+			currentFile = nil
 		}
 	}
 
-	if currentFile != nil {
+	if currentFile != nil && len(currentFile.Blocks) > 0 {
 		data.Files = append(data.Files, *currentFile)
 	}
 
 	return data, nil
 }
 
-func (c *Client) Diff(rev1, rev2 *string, out io.Writer, colored bool) error {
+func (c *Client) Diff(rev1, rev2 *string, out io.Writer, colored, usePatience, includeLargeFiles bool) error {
 	request := &protos.DiffRequest{
 		Auth:               c.GetAuth(),
 		RepoId:             c.repoId,
 		CheckedOutChangeId: &c.changeId,
+		UsePatience:        &usePatience,
+		IncludeLargeFiles:  &includeLargeFiles,
 	}
 
 	if rev1 != nil {

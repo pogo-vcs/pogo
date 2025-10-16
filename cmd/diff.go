@@ -11,8 +11,9 @@ import (
 )
 
 var (
-	diffColorFlag bool
-	diffCmd       = &cobra.Command{
+	diffColorFlag         bool
+	diffIncludeLargeFiles bool
+	diffCmd               = &cobra.Command{
 		Use:   "diff [rev1] [rev2]",
 		Short: "Show differences between changes",
 		Long: `Display differences between changes in unified diff format.
@@ -63,7 +64,7 @@ pogo diff bitter sweet`,
 
 			if len(args) >= 1 && args[0] == "local" {
 				if isInteractive {
-					data, err := c.CollectDiffLocal()
+					data, err := c.CollectDiffLocal(true, diffIncludeLargeFiles)
 					if err != nil {
 						return errors.Join(errors.New("collect diff local"), err)
 					}
@@ -71,7 +72,7 @@ pogo diff bitter sweet`,
 						return errors.Join(errors.New("run diff tui"), err)
 					}
 				} else {
-					if err := c.DiffLocalWithOutput(cmd.OutOrStdout(), diffColorFlag); err != nil {
+					if err := c.DiffLocalWithOutput(cmd.OutOrStdout(), diffColorFlag, false, diffIncludeLargeFiles); err != nil {
 						return errors.Join(errors.New("diff local"), err)
 					}
 				}
@@ -89,7 +90,7 @@ pogo diff bitter sweet`,
 			}
 
 			if isInteractive {
-				data, err := c.CollectDiff(rev1, rev2)
+				data, err := c.CollectDiff(rev1, rev2, true, diffIncludeLargeFiles)
 				if err != nil {
 					return errors.Join(errors.New("collect diff"), err)
 				}
@@ -97,7 +98,7 @@ pogo diff bitter sweet`,
 					return errors.Join(errors.New("run diff tui"), err)
 				}
 			} else {
-				if err := c.Diff(rev1, rev2, cmd.OutOrStdout(), diffColorFlag); err != nil {
+				if err := c.Diff(rev1, rev2, cmd.OutOrStdout(), diffColorFlag, false, diffIncludeLargeFiles); err != nil {
 					return errors.Join(errors.New("diff"), err)
 				}
 			}
@@ -109,5 +110,6 @@ pogo diff bitter sweet`,
 
 func init() {
 	diffCmd.Flags().BoolVar(&diffColorFlag, "color", tty.IsInteractive(), "Enable colored output")
+	diffCmd.Flags().BoolVar(&diffIncludeLargeFiles, "include-large-files", false, "Include files larger than 1MiB in diff")
 	RootCmd.AddCommand(diffCmd)
 }

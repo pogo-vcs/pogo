@@ -342,6 +342,8 @@ message DiffRequest {
   optional string rev1 = 3;
   optional string rev2 = 4;
   optional int64 checked_out_change_id = 5;
+  optional bool use_patience = 6;
+  optional bool include_large_files = 7;
 }
 
 message DiffResponse {
@@ -389,10 +391,12 @@ message DiffLocalRequest {
     Auth auth = 1;
     int32 repo_id = 2;
     int64 checked_out_change_id = 3;
-    LocalFileMetadata file_metadata = 4;
-    EndOfMetadata end_of_metadata = 5;
-    bytes file_content = 6;
-    EOF eof = 7;
+    bool use_patience = 4;
+    bool include_large_files = 5;
+    LocalFileMetadata file_metadata = 6;
+    EndOfMetadata end_of_metadata = 7;
+    bytes file_content = 8;
+    EOF eof = 9;
   }
 }
 
