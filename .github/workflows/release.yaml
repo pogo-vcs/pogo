@@ -137,7 +137,7 @@ jobs:
           version: "~> v2"
           args: release --clean --split
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT }}
           GORELEASER_KEY: ${{ secrets.GORELEASER }}
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
@@ -161,6 +161,22 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+          run_install: false
+      - name: Install Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: pnpm
+      - name: Install Node dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Prepare npm auth
+        run: echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+        env:
+          NPM_TOKEN: ${{ secrets.NPM }}
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -173,11 +189,91 @@ jobs:
           version: "~> v2"
           args: continue --merge
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT }}
           GORELEASER_KEY: ${{ secrets.GORELEASER }}
+
+  docs:
+    name: GoReleaser
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+          run_install: false
+      - name: Install Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: pnpm
+      - name: Install Node dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Download Go dependencies
+        run: |
+          go mod download
+          go install github.com/a-h/templ/cmd/templ@latest
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+          go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+      - name: Install Just
+        uses: extractions/setup-just@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prebuild
+        run: just prebuild
+      - name: Checkout homepage repo
+        uses: actions/checkout@v5
+        with:
+          repository: pogo-vcs/homepage
+          token: ${{ secrets.PAT }}
+          path: homepage
+          fetch-depth: 0
+      - name: Run generator
+        run: go run ./scripts md ./homepage/src/content/docs/reference/
+      - name: Generate dependencies documentation
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT }}
+        run: go run ./scripts deps ./homepage/src/content/docs/concepts/dependencies.md
+      - name: Detect changes in homepage repo
+        id: detect
+        run: |
+          cd homepage
+          # Exit successfully but signal if there are changes
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "changes=false" >> $GITHUB_OUTPUT
+          fi
+      - name: Commit and push changes to homepage
+        if: steps.detect.outputs.changes == 'true'
+        env:
+          PAT: ${{ secrets.PAT }}
+        run: |
+          set -euo pipefail
+          cd homepage
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: regenerate homepage content"
+          # Push using the PAT to ensure authentication
+          git push "https://x-access-token:${PAT}@github.com/pogo-vcs/homepage.git" HEAD:main
 
   docker:
     name: Docker
+    needs: [build]
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Checkout
