@@ -3,6 +3,9 @@
 
 version: 2
 
+partial:
+  by: target
+
 project_name: pogo
 metadata:
   maintainers:
