@@ -21,11 +21,23 @@ var defaultIgnorePatterns = []gitignore.Pattern{
 	gitignore.ParsePattern(".pogo.yaml", nil),
 }
 
-func GetRevisionIgnoreMatcher(ctx context.Context, repoId int32, revision string) (gitignore.Matcher, error) {
+type GetRevisionIgnoreMatcherParams struct {
+	revision string
+	changeId int64
+	repoId   int32
+}
+
+func GetRevisionIgnoreMatcher(ctx context.Context, params GetRevisionIgnoreMatcherParams) (gitignore.Matcher, error) {
 	var patterns []gitignore.Pattern
 	patterns = append(patterns, defaultIgnorePatterns...)
 
-	ignoreFiles, err := db.Q.GetRepositoryIgnoreFilesForRevisionFuzzy(ctx, repoId, revision)
+	var ignoreFiles []db.File
+	var err error
+	if params.changeId > 0 || len(params.revision) == 0 {
+		ignoreFiles, err = db.Q.GetRepositoryIgnoreFilesForChangeId(ctx, params.changeId)
+	} else {
+		ignoreFiles, err = db.Q.GetRepositoryIgnoreFilesForRevisionFuzzy(ctx, params.repoId, params.revision)
+	}
 	if err != nil {
 		return nil, errors.Join(errors.New("get repository ignore files"), err)
 	}

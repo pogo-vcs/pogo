@@ -994,23 +994,39 @@ func (a *Server) Edit(req *protos.EditRequest, stream grpc.ServerStreamingServer
 		return fmt.Errorf("check repository access: %w", err)
 	}
 
-	// Get files for the specified revision
-	revisionFiles, err := db.Q.GetRepositoryFilesForRevisionFuzzy(ctx, req.RepoId, req.Revision)
-	if err != nil {
-		return fmt.Errorf("get repository files for revision: %w", err)
-	}
-
-	// Check if revision exists by trying to find the change
-	changeId, err := db.Q.FindChangeByNameFuzzy(ctx, req.RepoId, req.Revision)
-	if err != nil {
-		return fmt.Errorf("revision '%s' not found", req.Revision)
+	var revision string
+	var changeId int64
+	var revisionFiles []db.File
+	if req.Revision != "" {
+		revision = req.Revision
+		var err error
+		changeId, err = db.Q.FindChangeByNameFuzzy(ctx, req.RepoId, req.Revision)
+		if err != nil {
+			return fmt.Errorf("revision '%s' not found", req.Revision)
+		}
+		revisionFiles, err = db.Q.GetRepositoryFilesForRevisionFuzzy(ctx, req.RepoId, revision)
+		if err != nil {
+			return fmt.Errorf("get repository files for revision: %w", err)
+		}
+	} else {
+		changeId = req.ChangeId
+		// Verify the change exists and get its name for ignore matcher
+		name, err := db.Q.GetChangeName(ctx, changeId)
+		if err != nil {
+			return fmt.Errorf("change %d not found: %w", changeId, err)
+		}
+		revision = name
+		revisionFiles, err = db.Q.GetRepositoryFilesForChangeId(ctx, changeId)
+		if err != nil {
+			return fmt.Errorf("get repository files for change: %w", err)
+		}
 	}
 
 	// If no files found in revision, it might be an empty revision (which is valid)
 	// but we should still proceed with the edit operation
 
 	// Get ignore matcher for the revision
-	ignoreMatcher, err := GetRevisionIgnoreMatcher(ctx, req.RepoId, req.Revision)
+	ignoreMatcher, err := GetRevisionIgnoreMatcher(ctx, GetRevisionIgnoreMatcherParams{req.Revision, changeId, req.RepoId})
 	if err != nil {
 		return fmt.Errorf("get revision ignore matcher: %w", err)
 	}

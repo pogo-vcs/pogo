@@ -112,6 +112,14 @@ WHERE tc.id = (SELECT id FROM target_change ORDER BY priority ASC LIMIT 1)
   AND (f.name LIKE '%.gitignore' OR f.name LIKE '%.pogoignore')
 ORDER BY f.name;
 
+-- name: GetRepositoryIgnoreFilesForChangeId :many
+SELECT DISTINCT f.*
+FROM files f
+JOIN change_files cf ON f.id = cf.file_id
+WHERE cf.change_id = $1
+  AND (f.name LIKE '%.gitignore' OR f.name LIKE '%.pogoignore')
+ORDER BY f.name;
+
 -- name: GetRepositoryBookmarkFileByName :one
 SELECT DISTINCT f.name, f.executable, f.content_hash, f.conflict
 FROM files f
@@ -235,6 +243,16 @@ SELECT
   get_unique_prefix(changes.id) AS unique_prefix
 FROM changes
 WHERE id = $1;
+
+-- name: GetChangeName :one
+SELECT name FROM changes WHERE id = $1;
+
+-- name: GetRepositoryFilesForChangeId :many
+SELECT DISTINCT f.*
+FROM files f
+JOIN change_files cf ON f.id = cf.file_id
+WHERE cf.change_id = $1
+ORDER BY f.name;
 
 -- name: GetChangeDescription :one
 SELECT description FROM changes WHERE id = $1;
