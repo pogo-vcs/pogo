@@ -156,13 +156,42 @@ func templComponentToHandler(c templ.Component) http.HandlerFunc {
 }
 
 func handleObjectServe(w http.ResponseWriter, r *http.Request) {
-	filename := r.PathValue("filename")
-
 	// Get the hash from path parameters
 	hash := r.PathValue("hash")
 	if hash == "" {
 		http.Error(w, "Missing object hash", http.StatusBadRequest)
 		return
+	}
+
+	// Determine the requested file path (if any) from the URL.
+	rawPath := r.URL.Path
+	prefix := "/objects/" + hash
+	filename := ""
+	if strings.HasPrefix(rawPath, prefix) {
+		filename = strings.TrimPrefix(rawPath[len(prefix):], "/")
+	}
+
+	displayName := hash
+	if filename != "" {
+		displayName = "/" + path.Clean(filename)
+		if !strings.HasPrefix(displayName, "/") {
+			displayName = "/" + displayName
+		}
+	}
+
+	if isBrowserRequest(r) {
+		highlighted, ok, err := webui.HighlightedObjectComponent(r.Context(), filename, hash)
+		if err != nil {
+			log.Printf("highlight object %s/%s: %v", hash, filename, err)
+		} else if ok {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Cache-Control", "public, max-age=31536000")
+			component := webui.SyntaxHighlightedLayout(displayName, highlighted)
+			if err := component.Render(r.Context(), w); err != nil {
+				http.Error(w, "Failed to render highlighted view", http.StatusInternalServerError)
+			}
+			return
+		}
 	}
 
 	// Open the file using the filecontents abstraction
@@ -206,6 +235,53 @@ func handleObjectServe(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to serve object", http.StatusInternalServerError)
 		return
 	}
+}
+
+func isBrowserRequest(r *http.Request) bool {
+	// Only allow safe methods that browsers use to render documents.
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return false
+	}
+
+	accept := strings.ToLower(r.Header.Get("Accept"))
+	if accept == "" || !strings.Contains(accept, "text/html") {
+		return false
+	}
+
+	ua := strings.ToLower(r.Header.Get("User-Agent"))
+	if ua == "" {
+		return false
+	}
+
+	knownBrowserTokens := []string{
+		"mozilla/",
+		"chrome/",
+		"safari/",
+		"firefox/",
+		"edg/",
+		"opera/",
+	}
+
+	isBrowserUA := false
+	for _, token := range knownBrowserTokens {
+		if strings.Contains(ua, token) {
+			isBrowserUA = true
+			break
+		}
+	}
+	if !isBrowserUA {
+		return false
+	}
+
+	// Respect Fetch metadata headers when available.
+	if dest := strings.ToLower(r.Header.Get("Sec-Fetch-Dest")); dest != "" && dest != "document" && dest != "empty" {
+		return false
+	}
+	if mode := strings.ToLower(r.Header.Get("Sec-Fetch-Mode")); mode != "" && mode != "navigate" && mode != "same-origin" {
+		return false
+	}
+
+	return true
 }
 
 func handleLogin(w http.ResponseWriter, r *http.Request) {

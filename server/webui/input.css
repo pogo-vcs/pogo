@@ -16,6 +16,10 @@
   }
 }
 
+* {
+  scrollbar-color: #cdd6f4 #1e1e2e;
+}
+
 .readme {
   @apply prose-base prose-stone rounded-lg border-ctp-surface0 border bg-ctp-mantle p-4 shadow-md;
 }
@@ -73,3 +77,4 @@ details[open] summary svg:last-child {
 details summary svg:last-child {
   transition: transform 0.2s ease-in-out;
 }
+

@@ -1,0 +1,66 @@
+package webui
+
+import "github.com/pogo-vcs/pogo/server/public"
+
+templ SyntaxHighlightedLayout(filename string, highlighted templ.Component) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>{ filename }</title>
+			<style>
+				* {
+					margin: 0;
+					padding: 0;
+					box-sizing: border-box;
+				}
+				body {
+					font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+					background-color: #1e1e2e;
+					color: #cdd6f4;
+					line-height: 1.6;
+					padding: 20px;
+				}
+				.header {
+					margin-bottom: 20px;
+					padding-bottom: 10px;
+					border-bottom: 1px solid #313244;
+				}
+				.filename {
+					font-size: 18px;
+					font-weight: bold;
+					color: #89b4fa;
+				}
+				pre {
+					color: #cdd6f4;
+					background-color: #1e1e2e;
+					border: 1px solid #313244;
+					border-radius: 8px;
+					padding: 16px;
+					overflow-x: auto;
+					margin: 0;
+					scrollbar-color: #cdd6f4 #1e1e2e;
+				}
+				code {
+					font-family: "JetBrains Mono", monospace;
+				}
+				pre code, .chroma, .hl {
+					display: block;
+					overflow-x: auto;
+				}
+				.chroma .line .ln {
+					margin-right: 0.4em;
+					user-select: none;
+				}
+			</style>
+			<link rel="stylesheet" href={ public.Url("chroma.css") }/>
+		</head>
+		<body>
+			<div class="header">
+				<div class="filename">{ filename }</div>
+			</div>
+			@highlighted
+		</body>
+	</html>
+}
