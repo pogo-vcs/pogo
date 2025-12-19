@@ -93,12 +93,7 @@
     "Task": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["type"],
       "properties": {
-        "type": {
-          "type": "string",
-          "enum": ["webhook", "container"]
-        },
         "webhook": {
           "$ref": "#/$defs/WebhookTask"
         },
@@ -108,15 +103,9 @@
       },
       "oneOf": [
         {
-          "properties": {
-            "type": { "const": "webhook" }
-          },
           "required": ["webhook"]
         },
         {
-          "properties": {
-            "type": { "const": "container" }
-          },
           "required": ["container"]
         }
       ]

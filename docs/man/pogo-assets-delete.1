@@ -2,19 +2,18 @@
 .TH "pogo" "1" "Dec 2025" "pogo/dev" "Pogo Manual"
 
 .SH NAME
-pogo-secrets-delete - Delete a secret
+pogo-assets-delete - Delete an asset
 
 
 .SH SYNOPSIS
-\fBpogo secrets delete  [flags]\fP
+\fBpogo assets delete  [flags]\fP
 
 
 .SH DESCRIPTION
-Delete a secret from the repository.
+Delete an asset from the repository.
 
 .PP
-This permanently removes the secret. Any CI pipelines that reference this
-secret will receive an empty string when accessing it.
+This permanently removes the asset from the server.
 
 
 .SH OPTIONS
@@ -33,13 +32,13 @@ secret will receive an empty string when accessing it.
 
 .SH EXAMPLE
 .EX
-  # Delete a secret
-  pogo secrets delete OLD_TOKEN
+  # Delete an asset
+  pogo assets delete release/v0.9/binary
 
   # Using the short alias
-  pogo secrets d UNUSED_KEY
+  pogo assets rm old-release.tar.gz
 .EE
 
 
 .SH SEE ALSO
-\fBpogo-secrets(1)\fP
+\fBpogo-assets(1)\fP

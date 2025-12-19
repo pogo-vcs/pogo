@@ -934,6 +934,22 @@ func (c *Client) LogJSON(maxChanges int32) (string, error) {
 	return RenderLogAsJSON(response)
 }
 
+func (c *Client) GetLogData(maxChanges int32) (*LogData, error) {
+	request := &protos.LogRequest{
+		Auth:               c.GetAuth(),
+		RepoId:             c.repoId,
+		CheckedOutChangeId: c.changeId,
+		MaxChanges:         maxChanges,
+	}
+
+	response, err := c.Pogo.Log(c.ctx, request)
+	if err != nil {
+		return nil, errors.Join(errors.New("get log"), err)
+	}
+
+	return ExtractLogData(response), nil
+}
+
 func (c *Client) GetRawData() (server string, repoId int32, changeId int64) {
 	server = c.server
 	repoId = c.repoId

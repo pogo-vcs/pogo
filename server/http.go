@@ -53,6 +53,11 @@ func getTokenFromCookie(r *http.Request) string {
 	return cookie.Value
 }
 
+// CITokenCtxKey is the context key for CI token info
+type ciTokenCtxKey string
+
+const CITokenCtxKey = ciTokenCtxKey("ci_token")
+
 func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Try to get token with priority: Header > Query > Cookie
@@ -67,6 +72,7 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		if token != "" {
+			// First, try to validate as a regular user token
 			tokenBytes, err := auth.Decode(token)
 			if err == nil {
 				user, err := auth.ValidateToken(r.Context(), tokenBytes)
@@ -77,9 +83,21 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 					}
 					ctx := context.WithValue(r.Context(), auth.UserCtxKey, webUser)
 					r = r.WithContext(ctx)
+					next(w, r)
+					return
 				}
-			} else {
-				fmt.Printf("decode token failed: %v\n", err)
+			}
+
+			// If regular token validation failed, try CI token
+			if ciTokenInfo := ValidateCIToken(token); ciTokenInfo != nil {
+				// Use the special CI user (ID=-1, Username="CI")
+				webUser := &db.User{
+					ID:       -1,
+					Username: "CI",
+				}
+				ctx := context.WithValue(r.Context(), auth.UserCtxKey, webUser)
+				ctx = context.WithValue(ctx, CITokenCtxKey, ciTokenInfo)
+				r = r.WithContext(ctx)
 			}
 		}
 		next(w, r)
@@ -97,6 +115,7 @@ func RegisterWebUI(s *Server) {
 	s.httpMux.HandleFunc("/repository/{id}/ci/{runId}", authMiddleware(templComponentToHandler(webui.CIRunDetail())))
 	s.httpMux.HandleFunc("/repository/{repo}/archive/{rev}", authMiddleware(handleZipDownload))
 	s.httpMux.HandleFunc("/objects/{hash}/", handleObjectServe)
+	s.httpMux.HandleFunc("/assets/", authMiddleware(handleAssets))
 
 	// Auth routes
 	s.httpMux.HandleFunc("/login", authMiddleware(templComponentToHandler(webui.Login())))

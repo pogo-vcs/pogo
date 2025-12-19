@@ -1298,39 +1298,15 @@ on:
   push:
     bookmarks: ["main"]
 do:
-  - type: container
-    container:
+  - container:
       image: alpine:latest
       commands:
-        - sh
-        - -c
-        - |
-          echo "=== CI Container Started ==="
-          echo "Working directory: $(pwd)"
-          echo "Files in workspace:"
-          ls -la
-          echo "=== Checking test.txt ==="
-          if [ -f test.txt ]; then
-            echo "✓ test.txt exists"
-            cat test.txt
-          else
-            echo "✗ test.txt NOT FOUND"
-            exit 1
-          fi
-          echo "=== Checking test.sh ==="
-          if [ -f test.sh ]; then
-            echo "✓ test.sh exists"
-            if [ -x test.sh ]; then
-              echo "✓ test.sh is executable"
-            else
-              echo "✗ test.sh is NOT executable"
-              exit 1
-            fi
-          else
-            echo "✗ test.sh NOT FOUND"
-            exit 1
-          fi
-          echo "=== CI Container Success ==="
+        - echo "=== CI Container Started ==="
+        - echo "Working directory:" && pwd
+        - echo "Files in workspace:" && ls -la
+        - echo "=== Checking test.txt ===" && test -f test.txt && echo "✓ test.txt exists" && cat test.txt
+        - echo "=== Checking test.sh ===" && test -f test.sh && echo "✓ test.sh exists" && test -x test.sh && echo "✓ test.sh is executable"
+        - echo "=== CI Container Success ==="
 `
 
 	ciConfigPath := filepath.Join(ciDir, "main.yaml")

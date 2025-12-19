@@ -18,6 +18,7 @@ type Client interface {
 	StartContainer(ctx context.Context, containerID string, stdout io.Writer, stderr io.Writer) error
 	StopContainer(ctx context.Context, containerID string) error
 	RemoveContainer(ctx context.Context, containerID string) error
+	ExecInContainer(ctx context.Context, containerID string, command string, stdout io.Writer, stderr io.Writer) error
 	Close() error
 }
 
@@ -25,6 +26,7 @@ type RunOptions struct {
 	Image       string
 	Name        string
 	Commands    []string
+	Entrypoint  []string
 	Environment map[string]string
 	WorkingDir  string
 	NetworkName string

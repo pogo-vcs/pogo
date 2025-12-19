@@ -1,0 +1,40 @@
+.nh
+.TH "pogo" "1" "Dec 2025" "pogo/dev" "Pogo Manual"
+
+.SH NAME
+pogo-assets - Manage repository assets (release binaries, etc.)
+
+
+.SH SYNOPSIS
+\fBpogo assets [flags]\fP
+
+
+.SH DESCRIPTION
+Manage assets associated with the repository.
+
+.PP
+Assets are files that can be uploaded and downloaded from the server,
+typically used for release binaries, documentation, or other artifacts
+produced by CI pipelines.
+
+.PP
+Assets are stored per-repository and can be accessed publicly via HTTP.
+Writing and deleting assets requires authentication.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for assets
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--time\fP[=false]
+	Measure command execution time
+
+.PP
+\fB-v\fP, \fB--verbose\fP[=false]
+	Enable verbose debug logging
+
+
+.SH SEE ALSO
+\fBpogo(1)\fP, \fBpogo-assets-delete(1)\fP, \fBpogo-assets-get(1)\fP, \fBpogo-assets-list(1)\fP, \fBpogo-assets-put(1)\fP

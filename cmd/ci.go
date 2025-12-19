@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/pogo-vcs/pogo/auth"
 	"github.com/pogo-vcs/pogo/client"
 	"github.com/pogo-vcs/pogo/server/ci"
 	"github.com/spf13/cobra"
@@ -41,6 +42,18 @@ If no config file is specified, all CI config files in .pogo/ci/ will be tested.
 				return fmt.Errorf("find repository: %w", err)
 			}
 			repoRoot := filepath.Dir(repoFile)
+
+			// Open client to get token and server info for local CI testing
+			c, err := client.OpenFromFile(cmd.Context(), cwd)
+			if err != nil {
+				return fmt.Errorf("open client: %w", err)
+			}
+			defer c.Close()
+
+			// Get server URL and token for local testing
+			server, repoId, _ := c.GetRawData()
+			accessToken := auth.Encode(c.Token)
+			serverUrl := fmt.Sprintf("http://%s", server) // Use HTTP for local testing
 
 			configFiles := make(map[string][]byte)
 
@@ -80,9 +93,18 @@ If no config file is specified, all CI config files in .pogo/ci/ will be tested.
 				return fmt.Errorf("no CI configuration files found")
 			}
 
+			// Use provided archive URL or construct one from the server
+			archiveUrl := ciTestEventArchiveURL
+			if archiveUrl == "" {
+				archiveUrl = fmt.Sprintf("%s/repository/%d/archive/%s", serverUrl, repoId, ciTestEventRev)
+			}
+
 			event := ci.Event{
-				Rev:        ciTestEventRev,
-				ArchiveUrl: ciTestEventArchiveURL,
+				Rev:          ciTestEventRev,
+				ArchiveUrl:   archiveUrl,
+				AccessToken:  accessToken,
+				ServerUrl:    serverUrl,
+				RepositoryID: repoId,
 			}
 
 			executor := ci.NewExecutor()
@@ -126,5 +148,5 @@ func init() {
 
 	ciTestCmd.Flags().StringVarP(&ciTestEventType, "event-type", "t", "push", "Event type to simulate (push or remove)")
 	ciTestCmd.Flags().StringVarP(&ciTestEventRev, "rev", "r", "main", "Revision name for the event")
-	ciTestCmd.Flags().StringVarP(&ciTestEventArchiveURL, "archive-url", "a", "https://example.com/archive", "Archive URL for the event")
+	ciTestCmd.Flags().StringVarP(&ciTestEventArchiveURL, "archive-url", "a", "", "Archive URL for the event (defaults to server URL)")
 }

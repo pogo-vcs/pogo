@@ -185,14 +185,27 @@ func executeCIForBookmarkEvent(ctx context.Context, changeId int64, bookmarkName
 
 	archiveUrl := fmt.Sprintf("%s/repository/%s/archive/%s", env.PublicAddress, repo.Name, bookmarkName)
 
+	// Generate a temporary CI access token for this run
+	accessToken, err := GenerateCIToken(repo.ID)
+	if err != nil {
+		fmt.Printf("CI execution error: repo=%s change_id=%d bookmark=%s event=%s detail=generate ci token: %v\n", repo.Name, changeId, bookmarkName, eventType.String(), err)
+		return
+	}
+
 	event := ci.Event{
-		Rev:         bookmarkName,
-		ArchiveUrl:  archiveUrl,
-		Author:      author,
-		Description: description,
+		Rev:          bookmarkName,
+		ArchiveUrl:   archiveUrl,
+		Author:       author,
+		Description:  description,
+		AccessToken:  accessToken,
+		ServerUrl:    env.PublicAddress,
+		RepositoryID: repo.ID,
 	}
 
 	go func() {
+		// Revoke the CI token when done
+		defer RevokeCIToken(accessToken)
+
 		tempDir, err := extractRepositoryContentToTemp(context.Background(), change.RepositoryID, bookmarkName)
 		if err != nil {
 			fmt.Printf("CI execution error: repo=%s change_id=%d bookmark=%s event=%s detail=extract repository content: %v\n", repo.Name, changeId, bookmarkName, eventType.String(), err)

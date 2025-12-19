@@ -2,6 +2,7 @@ package webui
 
 import (
 	"encoding/base64"
+	"fmt"
 	"github.com/pogo-vcs/pogo/db"
 	"github.com/pogo-vcs/pogo/server/webui/components"
 	"github.com/pogo-vcs/pogo/server/webui/icons"
@@ -45,6 +46,36 @@ templ renderFileNode(node *FileNode) {
 				} else {
 					@icons.File()
 				}
+				<span>{ node.Name }</span>
+			</a>
+		</li>
+	}
+}
+
+templ renderAssetNode(node *AssetNode, repoID int32) {
+	if node.IsDir {
+		<li>
+			<details>
+				<summary class="cursor-pointer">
+					<span class="inline-grid grid-cols-[1em_1fr] gap-x-1 items-center">
+						@icons.Folder()
+						<span>{ node.Name }</span>
+					</span>
+				</summary>
+				<ul class="pl-4">
+					for _, child := range node.Children {
+						@renderAssetNode(child, repoID)
+					}
+				</ul>
+			</details>
+		</li>
+	} else {
+		<li>
+			<a
+				class="w-full grid grid-cols-[1em_1fr] gap-x-1 items-center text-ctp-text hover:text-ctp-blue"
+				href={ templ.URL(fmt.Sprintf("/assets/%d/%s", repoID, node.FullPath)) }
+			>
+				@icons.Zip()
 				<span>{ node.Name }</span>
 			</a>
 		</li>
@@ -103,6 +134,18 @@ templ Repository() {
 								@RenderFileComponent(license.Name, base64.URLEncoding.EncodeToString(license.ContentHash))
 							</details>
 						}
+						<section class="assets">
+							{{ assets := ListRepoAssets(repoId) }}
+							if len(assets) > 0 {
+								<h2 class="mt-8 mb-2 text-lg font-bold">Assets</h2>
+								{{ assetTree := BuildAssetTree(assets) }}
+								<ul>
+									for _, child := range assetTree.Children {
+										@renderAssetNode(child, repoId)
+									}
+								</ul>
+							}
+						</section>
 						<section class="files">
 							if files, err := db.Q.GetRepositoryFiles(ctx, repoId, "main"); err == nil {
 								if len(files) > 0 {

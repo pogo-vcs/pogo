@@ -74,7 +74,14 @@ func (c *cliClient) RunContainer(ctx context.Context, opts RunOptions) error {
 			args = append(args, "-v", fmt.Sprintf("%s:%s", host, container))
 		}
 
+		if len(opts.Entrypoint) > 0 {
+			args = append(args, "--entrypoint", opts.Entrypoint[0])
+		}
+
 		args = append(args, opts.Image)
+		if len(opts.Entrypoint) > 1 {
+			args = append(args, opts.Entrypoint[1:]...)
+		}
 		args = append(args, opts.Commands...)
 
 		cmd := exec.CommandContext(ctx, "docker", args...)
@@ -107,7 +114,14 @@ func (c *cliClient) RunContainer(ctx context.Context, opts RunOptions) error {
 		args = append(args, "-v", fmt.Sprintf("%s:%s", host, container))
 	}
 
+	if len(opts.Entrypoint) > 0 {
+		args = append(args, "--entrypoint", opts.Entrypoint[0])
+	}
+
 	args = append(args, opts.Image)
+	if len(opts.Entrypoint) > 1 {
+		args = append(args, opts.Entrypoint[1:]...)
+	}
 	args = append(args, opts.Commands...)
 
 	cmd := exec.CommandContext(ctx, "docker", args...)
@@ -163,6 +177,22 @@ func (c *cliClient) StartContainer(ctx context.Context, containerID string, stdo
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("start container: %w", err)
+	}
+
+	return nil
+}
+
+func (c *cliClient) ExecInContainer(ctx context.Context, containerID string, command string, stdout io.Writer, stderr io.Writer) error {
+	cmd := exec.CommandContext(ctx, "docker", "exec", containerID, "sh", "-c", command)
+	if stdout != nil {
+		cmd.Stdout = stdout
+	}
+	if stderr != nil {
+		cmd.Stderr = stderr
+	}
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("exec in container: %w", err)
 	}
 
 	return nil

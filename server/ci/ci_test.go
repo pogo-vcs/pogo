@@ -60,8 +60,7 @@ on:
   push:
     bookmarks: ["main"]
 do:
-  - type: webhook
-    webhook:
+  - webhook:
       url: %s/webhook
       method: POST
       headers:
@@ -84,8 +83,7 @@ on:
   remove:
     bookmarks: ["v*"]
 do:
-  - type: webhook
-    webhook:
+  - webhook:
       url: %s/webhook
       method: DELETE
       headers:
@@ -110,8 +108,7 @@ on:
   push:
     bookmarks: ["production"]
 do:
-  - type: webhook
-    webhook:
+  - webhook:
       url: %s/webhook
       method: POST
 `, testServer.URL)),
@@ -134,12 +131,10 @@ on:
   push:
     bookmarks: ["*"]
 do:
-  - type: webhook
-    webhook:
+  - webhook:
       url: %s/webhook1
       method: POST
-  - type: webhook
-    webhook:
+  - webhook:
       url: %s/webhook2
       method: PUT
 `, testServer.URL, testServer.URL)),
@@ -162,8 +157,7 @@ on:
   push:
     bookmarks: ["main"]
 do:
-  - type: webhook
-    webhook:
+  - webhook:
       url: %s/webhook
       method: POST
 `, testServer.URL)),
@@ -236,8 +230,7 @@ on:
   push:
     bookmarks: ["main"]
 do:
-  - type: webhook
-    webhook:
+  - webhook:
       url: %s/webhook
       method: POST
       retry_policy:
@@ -297,8 +290,7 @@ on:
   push:
     bookmarks: ["main"]
 do:
-  - type: webhook
-    webhook:
+  - webhook:
       url: %s/webhook
       method: POST
       retry_policy:
@@ -370,8 +362,7 @@ on:
   push:
     bookmarks: ["{{ .Rev }}"]
 do:
-  - type: webhook
-    webhook:
+  - webhook:
       url: https://api.example.com/webhook
       method: POST
       body: |

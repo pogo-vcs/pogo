@@ -45,13 +45,11 @@ on:
   push:
     bookmarks: ["main"]
 do:
-  - type: container
-    container:
+  - container:
       image: alpine:latest
       commands:
-        - sh
-        - -c
-        - "apk add --no-cache curl && curl -f %s"
+        - apk add --no-cache curl
+        - curl -f %s
 `, testURL)
 
 	configFiles := map[string][]byte{

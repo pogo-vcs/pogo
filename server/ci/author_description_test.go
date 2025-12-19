@@ -12,8 +12,7 @@ on:
   push:
     bookmarks: ["main"]
 do:
-  - type: webhook
-    webhook:
+  - webhook:
       url: https://example.com/webhook
       method: POST
       body: |

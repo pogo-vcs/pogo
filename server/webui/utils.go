@@ -2,7 +2,10 @@ package webui
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -205,5 +208,87 @@ func FormatTimestamptz(ts interface{}) string {
 		return t.Format("Jan 2, 2006 3:04 PM")
 	default:
 		return "N/A"
+	}
+}
+
+// AssetNode represents a file or directory in the asset tree.
+type AssetNode struct {
+	Name     string
+	FullPath string
+	IsDir    bool
+	Children []*AssetNode
+}
+
+// ListRepoAssets returns a list of all asset paths for a repository.
+func ListRepoAssets(repoID int32) []string {
+	repoAssetsDir := filepath.Join("data/assets", fmt.Sprintf("%d", repoID))
+
+	var assets []string
+	_ = filepath.Walk(repoAssetsDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !info.IsDir() {
+			relPath, _ := filepath.Rel(repoAssetsDir, path)
+			assets = append(assets, filepath.ToSlash(relPath))
+		}
+		return nil
+	})
+
+	return assets
+}
+
+// BuildAssetTree builds a tree structure from a flat list of asset paths.
+func BuildAssetTree(assetPaths []string) *AssetNode {
+	root := &AssetNode{IsDir: true, Children: []*AssetNode{}}
+
+	for _, assetPath := range assetPaths {
+		parts := strings.Split(assetPath, "/")
+		current := root
+
+		for i, part := range parts {
+			isLastPart := i == len(parts)-1
+
+			var child *AssetNode
+			for _, c := range current.Children {
+				if c.Name == part {
+					child = c
+					break
+				}
+			}
+
+			if child == nil {
+				child = &AssetNode{
+					Name:     part,
+					FullPath: strings.Join(parts[:i+1], "/"),
+					IsDir:    !isLastPart,
+					Children: []*AssetNode{},
+				}
+				current.Children = append(current.Children, child)
+			}
+
+			current = child
+		}
+	}
+
+	sortAssetNodes(root)
+	return root
+}
+
+func sortAssetNodes(node *AssetNode) {
+	if !node.IsDir {
+		return
+	}
+
+	sort.Slice(node.Children, func(i, j int) bool {
+		// Directories first, then alphabetically
+		if node.Children[i].IsDir != node.Children[j].IsDir {
+			return node.Children[i].IsDir
+		}
+		return node.Children[i].Name < node.Children[j].Name
+	})
+
+	for _, child := range node.Children {
+		sortAssetNodes(child)
 	}
 }

@@ -2,24 +2,23 @@
 .TH "pogo" "1" "Dec 2025" "pogo/dev" "Pogo Manual"
 
 .SH NAME
-pogo-daemon-install - Install Pogo daemon service
+pogo-assets-list - List all assets in the repository
 
 
 .SH SYNOPSIS
-\fBpogo daemon install [flags]\fP
+\fBpogo assets list [flags]\fP
 
 
 .SH DESCRIPTION
-Install the Pogo daemon service to run automatically.
+List all assets in the repository.
 
 .PP
-This will create the necessary service configuration files and register
-the daemon with the system service manager.
+This shows all uploaded assets with their names/paths.
 
 
 .SH OPTIONS
 \fB-h\fP, \fB--help\fP[=false]
-	help for install
+	help for list
 
 
 .SH OPTIONS INHERITED FROM PARENT COMMANDS
@@ -31,5 +30,15 @@ the daemon with the system service manager.
 	Enable verbose debug logging
 
 
+.SH EXAMPLE
+.EX
+  # List all assets
+  pogo assets list
+
+  # Using the short alias
+  pogo assets ls
+.EE
+
+
 .SH SEE ALSO
-\fBpogo-daemon(1)\fP
+\fBpogo-assets(1)\fP

@@ -67,8 +67,6 @@ type (
 		Bookmarks []string `yaml:"bookmarks" json:"bookmarks"`
 	}
 	Task struct {
-		// Type of task: "webhook" or "container"
-		Type string `yaml:"type" json:"type"`
 		// Webhook-specific fields
 		Webhook *WebhookTask `yaml:"webhook,omitempty" json:"webhook,omitempty"`
 		// Container-specific fields
@@ -135,6 +133,12 @@ type Event struct {
 	Author string
 	// Description is the description of the change
 	Description string
+	// AccessToken is a temporary token for authenticated requests during CI runs
+	AccessToken string
+	// ServerUrl is the public URL of the server
+	ServerUrl string
+	// RepositoryID is the ID of the repository (needed for asset URLs)
+	RepositoryID int32
 }
 
 func makeUnmarshalConfigFuncs(secrets map[string]string) template.FuncMap {
@@ -144,11 +148,18 @@ func makeUnmarshalConfigFuncs(secrets map[string]string) template.FuncMap {
 		"trim":    strings.TrimSpace,
 		"btoa":    func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) },
 		"atob":    func(s string) string { b, _ := base64.StdEncoding.DecodeString(s); return string(b) },
-		"secret": func(key string) string {
-			if secrets == nil {
-				return ""
+		"secret": func(key string) (string, error) {
+			// First check the secrets map (populated from server/database)
+			if secrets != nil {
+				if value, ok := secrets[key]; ok {
+					return value, nil
+				}
 			}
-			return secrets[key]
+			// Fall back to environment variables (useful for local testing)
+			if value := os.Getenv(key); value != "" {
+				return value, nil
+			}
+			return "", fmt.Errorf("secret %q not found (checked secrets store and environment variables)", key)
 		},
 	}
 }
@@ -283,19 +294,13 @@ func (e *Executor) executeTasks(ctx context.Context, tasks []Task) ([]TaskExecut
 }
 
 func (e *Executor) executeTask(ctx context.Context, task Task) (TaskExecutionResult, error) {
-	switch task.Type {
-	case "webhook":
-		if task.Webhook == nil {
-			return TaskExecutionResult{TaskType: task.Type, Success: false}, fmt.Errorf("webhook task missing webhook configuration")
-		}
+	switch {
+	case task.Webhook != nil:
 		return e.executeWebhookTask(ctx, *task.Webhook)
-	case "container":
-		if task.Container == nil {
-			return TaskExecutionResult{TaskType: task.Type, Success: false}, fmt.Errorf("container task missing container configuration")
-		}
+	case task.Container != nil:
 		return e.executeContainerTask(ctx, *task.Container)
 	default:
-		return TaskExecutionResult{TaskType: task.Type, Success: false}, fmt.Errorf("unknown task type: %s", task.Type)
+		return TaskExecutionResult{TaskType: "unknown", Success: false}, fmt.Errorf("task must have either webhook or container configuration")
 	}
 }
 
@@ -439,24 +444,26 @@ func (e *Executor) executeContainerTask(ctx context.Context, task ContainerTask)
 		return result, fmt.Errorf("pull image: %w", err)
 	}
 
-	if e.repoContentDir != "" {
-		containerName := fmt.Sprintf("pogo-ci-%d", time.Now().UnixNano())
+	containerName := fmt.Sprintf("pogo-ci-%d", time.Now().UnixNano())
+	workingDir := task.WorkingDir
+	if workingDir == "" {
+		workingDir = "/workspace"
+	}
 
+	// When commands are provided, run each command via docker exec
+	if len(task.Commands) > 0 {
+		// Create container with entrypoint override to keep it alive
 		runOpts := docker.RunOptions{
 			Image:       task.Image,
-			Commands:    task.Commands,
 			Environment: task.Environment,
-			WorkingDir:  task.WorkingDir,
+			WorkingDir:  workingDir,
 			NetworkName: networkName,
 			CreateOnly:  true,
 			Name:        containerName,
+			Entrypoint:  []string{"tail", "-f", "/dev/null"},
 		}
 
-		if runOpts.WorkingDir == "" {
-			runOpts.WorkingDir = "/workspace"
-		}
-
-		fmt.Fprintf(logWriter, "Creating container %s with commands: %s\n", task.Image, strings.Join(task.Commands, " "))
+		fmt.Fprintf(logWriter, "Creating container %s\n", task.Image)
 
 		if err := e.dockerClient.RunContainer(ctx, runOpts); err != nil {
 			result.Log = logBuf.String()
@@ -464,10 +471,72 @@ func (e *Executor) executeContainerTask(ctx context.Context, task ContainerTask)
 			result.FinishedAt = time.Now()
 			return result, fmt.Errorf("create container: %w", err)
 		}
+		defer e.dockerClient.RemoveContainer(context.Background(), containerName)
+
+		if e.repoContentDir != "" {
+			fmt.Fprintf(logWriter, "Copying repository content to /workspace\n")
+			if err := e.dockerClient.CopyToContainer(ctx, containerName, e.repoContentDir, "/workspace"); err != nil {
+				result.Log = logBuf.String()
+				result.StatusCode = -1
+				result.FinishedAt = time.Now()
+				return result, fmt.Errorf("copy to container: %w", err)
+			}
+		}
+
+		fmt.Fprintf(logWriter, "Starting container %s\n", task.Image)
+		// Start container in background (it will stay alive due to tail -f /dev/null)
+		go e.dockerClient.StartContainer(context.Background(), containerName, io.Discard, io.Discard)
+		time.Sleep(500 * time.Millisecond) // Give container time to start
+
+		// Execute each command via docker exec
+		for i, cmd := range task.Commands {
+			fmt.Fprintf(logWriter, "Running command %d/%d: %s\n", i+1, len(task.Commands), cmd)
+			if err := e.dockerClient.ExecInContainer(ctx, containerName, cmd, logWriter, logWriter); err != nil {
+				statusCode := exitCodeFromError(err)
+				result.StatusCode = statusCode
+				result.Success = false
+				result.FinishedAt = time.Now()
+				result.Log = logBuf.String()
+				if statusCode == -1 {
+					result.Log += fmt.Sprintf("\nError: %v\n", err)
+				}
+				return result, fmt.Errorf("exec command %q: %w", cmd, err)
+			}
+		}
+
+		result.StatusCode = 0
+		result.Success = true
+		result.FinishedAt = time.Now()
+		result.Log = logBuf.String()
+		return result, nil
+	}
+
+	// No commands provided - run container with default entrypoint
+	runOpts := docker.RunOptions{
+		Image:       task.Image,
+		Environment: task.Environment,
+		WorkingDir:  workingDir,
+		NetworkName: networkName,
+		Stdout:      logWriter,
+		Stderr:      logWriter,
+	}
+
+	if e.repoContentDir != "" {
+		runOpts.CreateOnly = true
+		runOpts.Name = containerName
+
+		fmt.Fprintf(logWriter, "Creating container %s\n", task.Image)
+
+		if err := e.dockerClient.RunContainer(ctx, runOpts); err != nil {
+			result.Log = logBuf.String()
+			result.StatusCode = -1
+			result.FinishedAt = time.Now()
+			return result, fmt.Errorf("create container: %w", err)
+		}
+		defer e.dockerClient.RemoveContainer(context.Background(), containerName)
 
 		fmt.Fprintf(logWriter, "Copying repository content to /workspace\n")
 		if err := e.dockerClient.CopyToContainer(ctx, containerName, e.repoContentDir, "/workspace"); err != nil {
-			e.dockerClient.RemoveContainer(context.Background(), containerName)
 			result.Log = logBuf.String()
 			result.StatusCode = -1
 			result.FinishedAt = time.Now()
@@ -476,7 +545,6 @@ func (e *Executor) executeContainerTask(ctx context.Context, task ContainerTask)
 
 		fmt.Fprintf(logWriter, "Starting container %s\n", task.Image)
 		err := e.dockerClient.StartContainer(ctx, containerName, logWriter, logWriter)
-		e.dockerClient.RemoveContainer(context.Background(), containerName)
 		result.FinishedAt = time.Now()
 		result.Log = logBuf.String()
 
@@ -495,17 +563,7 @@ func (e *Executor) executeContainerTask(ctx context.Context, task ContainerTask)
 		return result, nil
 	}
 
-	runOpts := docker.RunOptions{
-		Image:       task.Image,
-		Commands:    task.Commands,
-		Environment: task.Environment,
-		WorkingDir:  task.WorkingDir,
-		NetworkName: networkName,
-		Stdout:      logWriter,
-		Stderr:      logWriter,
-	}
-
-	fmt.Fprintf(logWriter, "Running container %s with commands: %s\n", task.Image, strings.Join(task.Commands, " "))
+	fmt.Fprintf(logWriter, "Running container %s\n", task.Image)
 
 	err := e.dockerClient.RunContainer(ctx, runOpts)
 	result.FinishedAt = time.Now()

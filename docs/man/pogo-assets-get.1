@@ -1,0 +1,48 @@
+.nh
+.TH "pogo" "1" "Dec 2025" "pogo/dev" "Pogo Manual"
+
+.SH NAME
+pogo-assets-get - Download an asset to stdout
+
+
+.SH SYNOPSIS
+\fBpogo assets get  [flags]\fP
+
+
+.SH DESCRIPTION
+Download an asset and write its contents to stdout.
+
+.PP
+This is useful for piping asset contents to other commands or for
+inspecting small text-based assets.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for get
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--time\fP[=false]
+	Measure command execution time
+
+.PP
+\fB-v\fP, \fB--verbose\fP[=false]
+	Enable verbose debug logging
+
+
+.SH EXAMPLE
+.EX
+  # Download an asset to stdout
+  pogo assets get release/v1.0/binary
+
+  # Save to a file
+  pogo assets get release/v1.0/binary > binary
+
+  # Using the short alias
+  pogo assets cat README.md
+.EE
+
+
+.SH SEE ALSO
+\fBpogo-assets(1)\fP

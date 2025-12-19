@@ -5,9 +5,13 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/charmbracelet/huh"
 	"github.com/pogo-vcs/pogo/client"
+	"github.com/pogo-vcs/pogo/tty"
 	"github.com/spf13/cobra"
 )
+
+var rmForce bool
 
 var rmCmd = &cobra.Command{
 	Use:   "rm <change-name>",
@@ -36,7 +40,10 @@ This command is useful for:
 - Removing accidentally created changes
 - Pruning unnecessary history before archiving
 
-This command pushes any changes before running.`,
+This command pushes any changes before running.
+
+In interactive mode, you will be prompted to confirm before deletion.
+Use --force to skip confirmation.`,
 	Example: `# Remove a change and all its descendants
 pogo rm experimental-feature-27
 
@@ -45,6 +52,9 @@ pogo rm broken-change-15 --keep-children
 
 # Remove a change that was created by mistake
 pogo rm accidental-branch-3
+
+# Skip confirmation prompt
+pogo rm experimental-feature-27 --force
 
 # Cannot remove bookmarked changes
 pogo rm main  # Error: cannot remove bookmarked change`,
@@ -66,6 +76,61 @@ pogo rm main  # Error: cannot remove bookmarked change`,
 
 		_ = c.PushFull(false)
 
+		// Interactive confirmation (unless --force or non-interactive shell)
+		if !rmForce && tty.IsInteractive() {
+			logData, err := c.GetLogData(0) // 0 means all changes
+			if err != nil {
+				return errors.Join(errors.New("get log data"), err)
+			}
+
+			// Find the target change
+			targetChange := logData.FindChangeByPrefix(changeName)
+			if targetChange == nil {
+				// Change not found in log, let the server handle the error
+				if err := c.RemoveChange(changeName, keepChildren); err != nil {
+					return errors.Join(errors.New("remove change"), err)
+				}
+				return nil
+			}
+
+			// Collect changes to be deleted
+			var changesToDelete []client.LogChangeData
+			changesToDelete = append(changesToDelete, *targetChange)
+
+			if !keepChildren {
+				descendants := logData.FindDescendants(targetChange.Name)
+				changesToDelete = append(changesToDelete, descendants...)
+			}
+
+			// Display changes to be deleted
+			fmt.Fprintln(cmd.OutOrStdout(), "The following changes will be deleted:")
+			for _, change := range changesToDelete {
+				desc := "(no description)"
+				if change.Description != nil {
+					desc = *change.Description
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "  - %s: %s\n", change.Name, desc)
+			}
+			fmt.Fprintln(cmd.OutOrStdout())
+
+			// Ask for confirmation
+			var confirmed bool
+			confirmMsg := fmt.Sprintf("Are you sure you want to delete %d change(s)?", len(changesToDelete))
+			if err := huh.NewConfirm().
+				Title(confirmMsg).
+				Affirmative("Yes").
+				Negative("No").
+				Value(&confirmed).
+				Run(); err != nil {
+				return errors.Join(errors.New("confirmation prompt"), err)
+			}
+
+			if !confirmed {
+				fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
+				return nil
+			}
+		}
+
 		if err := c.RemoveChange(changeName, keepChildren); err != nil {
 			return errors.Join(errors.New("remove change"), err)
 		}
@@ -82,5 +147,6 @@ pogo rm main  # Error: cannot remove bookmarked change`,
 
 func init() {
 	rmCmd.Flags().Bool("keep-children", false, "Only remove the specified change and move its children to its parents")
+	rmCmd.Flags().BoolVarP(&rmForce, "force", "f", false, "Skip confirmation prompt")
 	RootCmd.AddCommand(rmCmd)
 }

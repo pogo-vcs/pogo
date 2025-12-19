@@ -86,6 +86,11 @@ homebrew_casks:
       - pogo@@{{ .Version }}
       - pogo@{{ .Major }}
     manpages:
+      - docs/man/pogo-assets-delete.1
+      - docs/man/pogo-assets-get.1
+      - docs/man/pogo-assets-list.1
+      - docs/man/pogo-assets-put.1
+      - docs/man/pogo-assets.1
       - docs/man/pogo-bookmark-list.1
       - docs/man/pogo-bookmark-remove.1
       - docs/man/pogo-bookmark-set.1

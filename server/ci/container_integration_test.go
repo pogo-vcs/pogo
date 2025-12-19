@@ -24,13 +24,10 @@ on:
   push:
     bookmarks: ["main"]
 do:
-  - type: container
-    container:
+  - container:
       image: alpine:latest
       commands:
-        - sh
-        - -c
-        - "echo 'Container task executed successfully'"
+        - echo 'Container task executed successfully'
 `
 
 	configFiles := map[string][]byte{
@@ -77,16 +74,14 @@ on:
   push:
     bookmarks: ["main"]
 do:
-  - type: container
-    container:
+  - container:
       image: alpine:latest
       services:
         - name: nginx
           image: nginx:alpine
       commands:
-        - sh
-        - -c
-        - "apk add --no-cache curl && curl -f http://nginx:80"
+        - apk add --no-cache curl
+        - curl -f http://nginx:80
 `
 
 	configFiles := map[string][]byte{
@@ -146,13 +141,11 @@ on:
   push:
     bookmarks: ["main"]
 do:
-  - type: container
-    container:
+  - container:
       image: alpine:latest
       commands:
-        - sh
-        - -c
-        - "ls -la /workspace && cat /workspace/test.txt"
+        - ls -la /workspace
+        - cat /workspace/test.txt
 `
 
 	configFiles := map[string][]byte{

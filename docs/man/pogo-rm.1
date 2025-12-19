@@ -1,5 +1,5 @@
 .nh
-.TH "pogo" "1" "Oct 2025" "pogo/dev" "Pogo Manual"
+.TH "pogo" "1" "Dec 2025" "pogo/dev" "Pogo Manual"
 
 .SH NAME
 pogo-rm - Remove a change from the repository
@@ -42,8 +42,16 @@ This command is useful for:
 .PP
 This command pushes any changes before running.
 
+.PP
+In interactive mode, you will be prompted to confirm before deletion.
+Use --force to skip confirmation.
+
 
 .SH OPTIONS
+\fB-f\fP, \fB--force\fP[=false]
+	Skip confirmation prompt
+
+.PP
 \fB-h\fP, \fB--help\fP[=false]
 	help for rm
 
@@ -71,6 +79,9 @@ pogo rm broken-change-15 --keep-children
 
 # Remove a change that was created by mistake
 pogo rm accidental-branch-3
+
+# Skip confirmation prompt
+pogo rm experimental-feature-27 --force
 
 # Cannot remove bookmarked changes
 pogo rm main  # Error: cannot remove bookmarked change

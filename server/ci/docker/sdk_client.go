@@ -134,6 +134,7 @@ func (c *sdkClient) RunContainer(ctx context.Context, opts RunOptions) error {
 		Env:          env,
 		WorkingDir:   opts.WorkingDir,
 		Cmd:          opts.Commands,
+		Entrypoint:   opts.Entrypoint,
 		AttachStdout: true,
 		AttachStderr: true,
 	}
@@ -321,6 +322,57 @@ func (c *sdkClient) StartContainer(ctx context.Context, containerID string, stdo
 
 	if copyErr := <-outputErrCh; copyErr != nil {
 		return fmt.Errorf("read container output: %w", copyErr)
+	}
+
+	return nil
+}
+
+func (c *sdkClient) ExecInContainer(ctx context.Context, containerID string, command string, stdout io.Writer, stderr io.Writer) error {
+	if stdout == nil {
+		stdout = io.Discard
+	}
+	if stderr == nil {
+		stderr = io.Discard
+	}
+
+	execConfig := container.ExecOptions{
+		Cmd:          []string{"sh", "-c", command},
+		AttachStdout: true,
+		AttachStderr: true,
+	}
+
+	execResp, err := c.cli.ContainerExecCreate(ctx, containerID, execConfig)
+	if err != nil {
+		return fmt.Errorf("create exec: %w", err)
+	}
+
+	attachResp, err := c.cli.ContainerExecAttach(ctx, execResp.ID, container.ExecAttachOptions{})
+	if err != nil {
+		return fmt.Errorf("attach exec: %w", err)
+	}
+	defer attachResp.Close()
+
+	outputErrCh := make(chan error, 1)
+	go func() {
+		_, copyErr := stdcopy.StdCopy(stdout, stderr, attachResp.Reader)
+		if copyErr != nil && !errors.Is(copyErr, io.EOF) && !strings.Contains(copyErr.Error(), "use of closed network connection") {
+			outputErrCh <- copyErr
+		} else {
+			outputErrCh <- nil
+		}
+	}()
+
+	if copyErr := <-outputErrCh; copyErr != nil {
+		return fmt.Errorf("read exec output: %w", copyErr)
+	}
+
+	inspectResp, err := c.cli.ContainerExecInspect(ctx, execResp.ID)
+	if err != nil {
+		return fmt.Errorf("inspect exec: %w", err)
+	}
+
+	if inspectResp.ExitCode != 0 {
+		return dockerExitError{statusCode: inspectResp.ExitCode}
 	}
 
 	return nil

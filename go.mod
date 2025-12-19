@@ -7,7 +7,7 @@ replace github.com/nulab/autog v0.10.0 => github.com/tsukinoko-kun/autog v0.10.1
 require (
 	github.com/DataDog/zstd v1.5.7
 	github.com/Microsoft/go-winio v0.6.2
-	github.com/a-h/templ v0.3.943
+	github.com/a-h/templ v0.3.960
 	github.com/alecthomas/chroma/v2 v2.20.0
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.4

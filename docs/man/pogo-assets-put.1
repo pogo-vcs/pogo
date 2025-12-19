@@ -1,0 +1,52 @@
+.nh
+.TH "pogo" "1" "Dec 2025" "pogo/dev" "Pogo Manual"
+
+.SH NAME
+pogo-assets-put - Upload an asset
+
+
+.SH SYNOPSIS
+\fBpogo assets put  [file] [flags]\fP
+
+
+.SH DESCRIPTION
+Upload an asset to the repository.
+
+.PP
+If a file path is provided, the file's contents are uploaded.
+If no file is provided, the asset content is read from stdin.
+
+.PP
+Asset names can contain slashes to create a directory-like structure
+(e.g., "release/v1.0/binary").
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for put
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--time\fP[=false]
+	Measure command execution time
+
+.PP
+\fB-v\fP, \fB--verbose\fP[=false]
+	Enable verbose debug logging
+
+
+.SH EXAMPLE
+.EX
+  # Upload from a file
+  pogo assets put release/v1.0/binary ./build/output
+
+  # Upload from stdin
+  cat ./build/output | pogo assets put release/v1.0/binary
+
+  # Using the short alias
+  pogo assets upload docs/README.md ./README.md
+.EE
+
+
+.SH SEE ALSO
+\fBpogo-assets(1)\fP

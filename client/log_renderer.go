@@ -137,6 +137,58 @@ func ExtractLogData(response *protos.LogResponse) *LogData {
 	}
 }
 
+// FindChangeByPrefix finds a change by name prefix (fuzzy match)
+func (data *LogData) FindChangeByPrefix(prefix string) *LogChangeData {
+	for i := range data.Changes {
+		if strings.HasPrefix(data.Changes[i].Name, prefix) {
+			return &data.Changes[i]
+		}
+	}
+	return nil
+}
+
+// FindDescendants returns all descendants of a change (children, grandchildren, etc.)
+// The adjacency list format is [childName, parentName] pairs
+func (data *LogData) FindDescendants(changeName string) []LogChangeData {
+	// Build parent -> children map
+	childrenOf := make(map[string][]string)
+	for _, edge := range data.AdjacencyList {
+		childName := edge[0]
+		parentName := edge[1]
+		childrenOf[parentName] = append(childrenOf[parentName], childName)
+	}
+
+	// Build name -> change map for lookup
+	changesByName := make(map[string]*LogChangeData)
+	for i := range data.Changes {
+		changesByName[data.Changes[i].Name] = &data.Changes[i]
+	}
+
+	// BFS to find all descendants
+	var descendants []LogChangeData
+	visited := make(map[string]bool)
+	queue := childrenOf[changeName]
+
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+
+		if visited[current] {
+			continue
+		}
+		visited[current] = true
+
+		if change, ok := changesByName[current]; ok {
+			descendants = append(descendants, *change)
+		}
+
+		// Add children of current to queue
+		queue = append(queue, childrenOf[current]...)
+	}
+
+	return descendants
+}
+
 // RenderLogAsJSON renders the log output as JSON
 func RenderLogAsJSON(response *protos.LogResponse) (string, error) {
 	data := ExtractLogData(response)
