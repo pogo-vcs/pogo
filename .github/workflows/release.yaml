@@ -17,29 +17,51 @@ jobs:
           - goos: linux
             goarch: amd64
             runner: ubuntu-latest
-          - goos: linux
-            goarch: arm64
-            runner: ubuntu-24.04-arm
+            container: alpine:3.21
           - goos: windows
             goarch: amd64
             runner: blacksmith-2vcpu-windows-2025
+            container: ""
           - goos: windows
             goarch: arm64
             runner: blacksmith-2vcpu-windows-2025
+            container: ""
           - goos: darwin
             goarch: amd64
             runner: macos-15-intel
+            container: ""
           - goos: darwin
             goarch: arm64
             runner: macos-26
+            container: ""
     runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container || null }}
     steps:
+      - name: Install Alpine build dependencies
+        if: matrix.container == 'alpine:3.21'
+        run: |
+          apk add --no-cache \
+            git gcc musl-dev pkgconf \
+            libxkbcommon-dev libxkbcommon-static \
+            vulkan-headers vulkan-loader-dev \
+            mesa-dev libx11-dev libx11-static libxcb-static \
+            libxcursor-dev wayland-dev \
+            protobuf protobuf-dev \
+            nodejs npm \
+            just tar gzip \
+            gcompat libc6-compat
+
       - name: Checkout
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: Install Protoc
+      - name: Configure git safe directory (Alpine)
+        if: matrix.container == 'alpine:3.21'
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Install Protoc (non-Alpine)
+        if: matrix.container != 'alpine:3.21'
         uses: arduino/setup-protoc@v3
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -50,7 +72,8 @@ jobs:
           version: latest
           run_install: false
 
-      - name: Install Node
+      - name: Install Node (non-Alpine)
+        if: matrix.container != 'alpine:3.21'
         uses: actions/setup-node@v5
         with:
           node-version: lts/*
@@ -72,7 +95,8 @@ jobs:
           go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
           go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 
-      - name: Install Just
+      - name: Install Just (non-Alpine)
+        if: matrix.container != 'alpine:3.21'
         uses: extractions/setup-just@v3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -80,41 +104,13 @@ jobs:
       - name: Run code generation
         run: just prebuild
 
-      # Linux: install Zig and configure musl-static CGO toolchain via Zig
-      - name: Install Zig (Linux)
+      - name: Setup Linux CGO environment (Alpine musl)
         if: matrix.goos == 'linux'
-        uses: mlugg/setup-zig@v2
-        with:
-          version: master
-
-      - name: Setup Linux CGO toolchain (musl static via Zig)
-        if: matrix.goos == 'linux'
-        shell: bash
+        shell: sh
         run: |
-          set -euxo pipefail
-          sudo apt-get update && sudo apt-get install -y gcc pkg-config libwayland-dev libx11-dev libx11-xcb-dev libxkbcommon-x11-dev libgles2-mesa-dev libegl1-mesa-dev libffi-dev libxcursor-dev libvulkan-dev
-          case "${{ matrix.goarch }}" in
-            amd64)
-              echo "CC=zig cc -target x86_64-linux-musl" >> "$GITHUB_ENV"
-              echo "CXX=zig c++ -target x86_64-linux-musl" >> "$GITHUB_ENV"
-              ;;
-            arm64)
-              echo "CC=zig cc -target aarch64-linux-musl" >> "$GITHUB_ENV"
-              echo "CXX=zig c++ -target aarch64-linux-musl" >> "$GITHUB_ENV"
-              ;;
-            *)
-              echo "Unsupported arch for Linux: ${{ matrix.goarch }}" >&2
-              exit 1
-              ;;
-          esac
-          # Ensure cgo is used and force a fully static link
           echo "CGO_ENABLED=1" >> "$GITHUB_ENV"
-          echo "CGO_LDFLAGS=-static" >> "$GITHUB_ENV"
-          # Force external linker (zig cc) and pass -static to the linker
-          # Using two -ldflags avoids quoting issues in GOFLAGS.
-          echo "GOFLAGS=-ldflags=-linkmode=external -ldflags=-extldflags=-static" >> "$GITHUB_ENV"
 
-      # Windows ARM64 CGO with Zig (existing)
+      # Windows ARM64 CGO with Zig
       - name: Setup Windows ARM64 CGO toolchain
         if: matrix.goos == 'windows' && matrix.goarch == 'arm64'
         shell: powershell

@@ -7,6 +7,7 @@ pogo_data/
 /pogo.exe
 /tmp/
 node_modules/
+.pnpm-store/
 .pogo.yaml
 
 # generated files
