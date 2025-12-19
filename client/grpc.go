@@ -1122,6 +1122,10 @@ func (c *Client) RemoveChange(changeName string, keepChildren bool) error {
 	return nil
 }
 
+func (c *Client) GetCurrentChangeId() int64 {
+	return c.changeId
+}
+
 func (c *Client) GetRepositoryInfo(repoName string) (*protos.GetRepositoryInfoResponse, error) {
 	request := &protos.GetRepositoryInfoRequest{
 		Auth:     c.GetAuth(),

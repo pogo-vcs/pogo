@@ -76,32 +76,41 @@ pogo rm main  # Error: cannot remove bookmarked change`,
 
 		_ = c.PushFull(false)
 
-		// Interactive confirmation (unless --force or non-interactive shell)
+		// Step 1: Always get log data to validate and collect changes to delete
+		// Note: We use a large number (10000) to get all changes since LIMIT 0 returns no rows
+		logData, err := c.GetLogData(10000)
+		if err != nil {
+			return errors.Join(errors.New("get log data"), err)
+		}
+
+		// Step 2: Find the target change
+		targetChange := logData.FindChangeByPrefix(changeName)
+		if targetChange == nil {
+			// Change not found in log, let the server handle the error
+			if err := c.RemoveChange(changeName, keepChildren); err != nil {
+				return errors.Join(errors.New("remove change"), err)
+			}
+			return nil
+		}
+
+		// Step 3: Collect changes to be deleted
+		var changesToDelete []client.LogChangeData
+		changesToDelete = append(changesToDelete, *targetChange)
+
+		if !keepChildren {
+			descendants := logData.FindDescendants(targetChange.Name)
+			changesToDelete = append(changesToDelete, descendants...)
+		}
+
+		// Step 4: Check if current change would be deleted
+		for _, change := range changesToDelete {
+			if change.IsCheckedOut {
+				return fmt.Errorf("cannot delete change '%s': it is currently checked out. Switch to a different change first with 'pogo edit'", change.Name)
+			}
+		}
+
+		// Step 5: Interactive confirmation (unless --force or non-interactive shell)
 		if !rmForce && tty.IsInteractive() {
-			logData, err := c.GetLogData(0) // 0 means all changes
-			if err != nil {
-				return errors.Join(errors.New("get log data"), err)
-			}
-
-			// Find the target change
-			targetChange := logData.FindChangeByPrefix(changeName)
-			if targetChange == nil {
-				// Change not found in log, let the server handle the error
-				if err := c.RemoveChange(changeName, keepChildren); err != nil {
-					return errors.Join(errors.New("remove change"), err)
-				}
-				return nil
-			}
-
-			// Collect changes to be deleted
-			var changesToDelete []client.LogChangeData
-			changesToDelete = append(changesToDelete, *targetChange)
-
-			if !keepChildren {
-				descendants := logData.FindDescendants(targetChange.Name)
-				changesToDelete = append(changesToDelete, descendants...)
-			}
-
 			// Display changes to be deleted
 			fmt.Fprintln(cmd.OutOrStdout(), "The following changes will be deleted:")
 			for _, change := range changesToDelete {
@@ -131,6 +140,7 @@ pogo rm main  # Error: cannot remove bookmarked change`,
 			}
 		}
 
+		// Step 6: Execute deletion
 		if err := c.RemoveChange(changeName, keepChildren); err != nil {
 			return errors.Join(errors.New("remove change"), err)
 		}
