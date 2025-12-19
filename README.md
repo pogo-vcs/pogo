@@ -84,7 +84,7 @@ The intended workflow for Pogo is simple and efficient:
 1.  **describe your changes:** Before you start working, use the `pogo describe` command to write a detailed description of the changes you are about to make and why. This helps you to think about the changes and to communicate them to others.
 2.  **Make your changes:** Make the changes to your files as you normally would.
 3.  **Iterate on the description:** As you work, you can iterate on the description to reflect the changes you are making. Maybe your implementation plan changed and you need your description to reflect that.
-4.  **Push your changes:** Regularly push your changes to the server using the `pogo push` command. A daemon process that pushes automatically will be added later. You constantly overwrite the current change until you are satisfied with it.
+4.  **Push your changes:** Regularly push your changes to the server using the `pogo push` command. You constantly overwrite the current change until you are satisfied with it.
 5.  **Create a new change:** When you are done with your changes, create a new one using the `pogo new` command. You can optionally add one or more parent changes to the command. By default, your current change is used as the parent.
 6.  **Maintain a "main" bookmark:** Use bookmarks to tag important changes. You can set a bookmark with `pogo bookmark set main` to set the current change as the main one, or `pogo bookmark set main <change>` to set a specific change as main. "main" ist just a string, you can use any format for version bookmarks you want. But "main" is a special value, treated like a default branch in Git.
 
@@ -112,11 +112,6 @@ For running the server, you need to have a PostgreSQL database running and the f
 |                 | `runs inspect` |                | Show the detailed log output for a CI run.                                                  |
 | `pogo clone`    |            |                    | Clone a repository from a Pogo server.                                                      |
 | `pogo commit`   |            |                    | Combines `describe`, `push`, and `new` into a single command.                               |
-| `pogo daemon`   |            | `service`          | Manage Pogo daemon service.                                                                 |
-|                 | `install`  |                    | Install Pogo daemon service.                                                                |
-|                 | `stop`     |                    | Stop the Pogo daemon service.                                                               |
-|                 | `start`    |                    | Start the Pogo daemon service.                                                              |
-|                 | `uninstall`|                    | Uninstall Pogo daemon service.                                                              |
 | `pogo describe` |            | `desc`, `rephrase` | Set the description for the current change.                                                 |
 | `pogo diff`     |            |                    | Show differences between changes in unified diff format.                                    |
 | `pogo diff local` |          |                    | Show differences between local unpushed changes and the remote state.                       |

@@ -1,0 +1,25 @@
+version: 1
+on:
+  push:
+    bookmarks:
+      - v*
+do:
+  - container:
+      image: ghcr.io/tsukinoko-kun/go-common:1
+      commands:
+        - apt-get update && apt-get install -y gcc pkg-config libwayland-dev libx11-dev libx11-xcb-dev libxkbcommon-x11-dev libgles2-mesa-dev libegl1-mesa-dev libffi-dev libxcursor-dev libvulkan-dev
+        - go mod download
+        - pnpm install
+        - just prebuild
+        - just docs
+        - mkdir -p dist
+        # Build commands
+        - CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o dist/pogo_windows_amd64.exe .
+        - CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -o dist/pogo_windows_arm64.exe .
+        - CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -tags nogui -o dist/pogo_darwin_amd64 .
+        - CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 GOARM64=v8.5 go build -tags nogui -o dist/pogo_darwin_arm64 .
+        - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags nogui -o dist/pogo_linux_amd64 .
+        - CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -tags nogui -o dist/pogo_linux_arm64 .
+        # Checksums and Upload
+        - for f in dist/*; do shasum -a 256 "$f" > "$f.sha256"; done
+        - 'for f in dist/*; do curl -X PUT -H "Authorization: Bearer {{.AccessToken}}" "https://pogo.bloodmagesoftware.de/assets/{{.RepositoryID}}/releases/{{.Rev}}/$(basename "$f")" -T "$f"; done'

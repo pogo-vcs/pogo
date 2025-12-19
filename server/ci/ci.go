@@ -393,6 +393,12 @@ func (e *Executor) executeContainerTask(ctx context.Context, task ContainerTask)
 	var logBuf bytes.Buffer
 	logWriter := io.MultiWriter(os.Stdout, &logBuf)
 
+	// Set CI=true for all container runs, allowing user overrides
+	env := map[string]string{"CI": "true"}
+	for k, v := range task.Environment {
+		env[k] = v
+	}
+
 	networkName := fmt.Sprintf("pogo-ci-%d", time.Now().UnixNano())
 
 	if err := e.dockerClient.CreateNetwork(ctx, networkName); err != nil {
@@ -455,7 +461,7 @@ func (e *Executor) executeContainerTask(ctx context.Context, task ContainerTask)
 		// Create container with entrypoint override to keep it alive
 		runOpts := docker.RunOptions{
 			Image:       task.Image,
-			Environment: task.Environment,
+			Environment: env,
 			WorkingDir:  workingDir,
 			NetworkName: networkName,
 			CreateOnly:  true,
@@ -514,7 +520,7 @@ func (e *Executor) executeContainerTask(ctx context.Context, task ContainerTask)
 	// No commands provided - run container with default entrypoint
 	runOpts := docker.RunOptions{
 		Image:       task.Image,
-		Environment: task.Environment,
+		Environment: env,
 		WorkingDir:  workingDir,
 		NetworkName: networkName,
 		Stdout:      logWriter,

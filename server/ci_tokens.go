@@ -49,4 +49,3 @@ func RevokeCIToken(token string) {
 	delete(ciTokens, token)
 	ciTokensMu.Unlock()
 }
-

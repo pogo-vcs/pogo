@@ -227,4 +227,3 @@ func init() {
 
 	RootCmd.AddCommand(assetsCmd)
 }
-

@@ -301,4 +301,3 @@ func handleDeleteAsset(w http.ResponseWriter, r *http.Request, repoID int32, ass
 		"success": true,
 	})
 }
-

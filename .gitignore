@@ -2,6 +2,7 @@
 .idea
 .vscode
 data/
+pogo_data/
 /pogo
 /pogo.exe
 /tmp/

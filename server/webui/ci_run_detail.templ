@@ -91,9 +91,17 @@ templ CIRunDetail() {
 									</div>
 									<div class="mt-6">
 										<h2 class="text-xl font-bold mb-2">Log Output</h2>
-										<div class="bg-ctp-base rounded-lg p-4 overflow-x-auto">
-											<pre class="text-sm"><code>{ GetSanitizedLog(ctx, repoId, run.Log) }</code></pre>
-										</div>
+										if IsLoggedIn(ctx) {
+											<div class="bg-ctp-base rounded-lg p-4 overflow-x-auto">
+												<pre class="text-sm"><code>{ GetSanitizedLog(ctx, repoId, run.Log) }</code></pre>
+											</div>
+										} else {
+											<div class="bg-ctp-surface0 rounded-lg p-4">
+												<p class="text-ctp-subtext0">
+													<a href="/login" class="text-ctp-blue hover:underline">Log in</a> to view the log output.
+												</p>
+											</div>
+										}
 									</div>
 								}
 							}

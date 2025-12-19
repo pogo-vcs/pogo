@@ -5,7 +5,7 @@ tmp_dir = "tmp"
 [build]
 args_bin = ["serve"]
 bin = "./tmp/pogo"
-cmd = "go build -o ./tmp/pogo ."
+cmd = "go build -tags='nogui' -o ./tmp/pogo ."
 delay = 1000
 exclude_dir = ["tmp", "node_modules", "data"]
 exclude_file = []
@@ -55,3 +55,4 @@ proxy_port = 0
 [screen]
 clear_on_rebuild = false
 keep_scroll = true
+

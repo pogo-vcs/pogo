@@ -148,7 +148,6 @@ graph TB
             CiCmd[ci.go]
             CiRunsCmd[ci_runs.go]
             CloneCmd[clone.go]
-            DaemonCmd[daemon.go]
             InviteCmd[invite.go]
             SecretsCmd[secrets.go]
         end
@@ -246,7 +245,6 @@ graph TB
     rootCmd --> WhoamiCmd
     rootCmd --> CiCmd
     rootCmd --> CloneCmd
-    rootCmd --> DaemonCmd
     rootCmd --> InviteCmd
     rootCmd --> SecretsCmd
 
@@ -269,7 +267,6 @@ graph TB
     WhoamiCmd --> Client
     CiCmd --> Client
     CloneCmd --> Client
-    DaemonCmd --> Client
     InviteCmd --> Client
     SecretsCmd --> Client
 

@@ -140,4 +140,3 @@ func (c *Client) DeleteAsset(name string) error {
 
 	return nil
 }
-

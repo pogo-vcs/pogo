@@ -17,12 +17,12 @@ styles:
 
 completions:
     mkdir -p docs/completions
-    go run . completion bash > docs/completions/pogo.bash
-    go run . completion zsh > docs/completions/pogo.zsh
-    go run . completion fish > docs/completions/pogo.fish
+    go run -tags="nogui" . completion bash > docs/completions/pogo.bash
+    go run -tags="nogui" . completion zsh > docs/completions/pogo.zsh
+    go run -tags="nogui" . completion fish > docs/completions/pogo.fish
 
 man:
-    go run ./scripts man ./docs/man
+    go run -tags="nogui" ./scripts man ./docs/man
 
 docs:
     @just completions
@@ -42,8 +42,8 @@ build:
 test:
     @just prebuild
     just docs
-    go build -tags=fakekeyring ./...
-    go test -tags=fakekeyring ./...
+    go build -tags="fakekeyring,nogui" ./...
+    go test -tags="fakekeyring,nogui" ./...
 
 install:
     @just prebuild
