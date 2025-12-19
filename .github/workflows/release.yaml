@@ -22,13 +22,13 @@ jobs:
             runner: ubuntu-24.04-arm
           - goos: windows
             goarch: amd64
-            runner: windows-latest
+            runner: blacksmith-2vcpu-windows-2025
           - goos: windows
             goarch: arm64
-            runner: windows-latest
+            runner: blacksmith-2vcpu-windows-2025
           - goos: darwin
             goarch: amd64
-            runner: macos-15
+            runner: macos-15-intel
           - goos: darwin
             goarch: arm64
             runner: macos-26
@@ -92,7 +92,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          apt-get update && apt-get install -y gcc pkg-config libwayland-dev libx11-dev libx11-xcb-dev libxkbcommon-x11-dev libgles2-mesa-dev libegl1-mesa-dev libffi-dev libxcursor-dev libvulkan-dev
+          sudo apt-get update && sudo apt-get install -y gcc pkg-config libwayland-dev libx11-dev libx11-xcb-dev libxkbcommon-x11-dev libgles2-mesa-dev libegl1-mesa-dev libffi-dev libxcursor-dev libvulkan-dev
           case "${{ matrix.goarch }}" in
             amd64)
               echo "CC=zig cc -target x86_64-linux-musl" >> "$GITHUB_ENV"
