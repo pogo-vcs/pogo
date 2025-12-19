@@ -92,6 +92,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
+          apt-get update && apt-get install -y gcc pkg-config libwayland-dev libx11-dev libx11-xcb-dev libxkbcommon-x11-dev libgles2-mesa-dev libegl1-mesa-dev libffi-dev libxcursor-dev libvulkan-dev
           case "${{ matrix.goarch }}" in
             amd64)
               echo "CC=zig cc -target x86_64-linux-musl" >> "$GITHUB_ENV"
@@ -194,7 +195,7 @@ jobs:
 
   docs:
     name: Generate docs
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -242,11 +243,11 @@ jobs:
           path: homepage
           fetch-depth: 0
       - name: Run generator
-        run: go run ./scripts md ./homepage/src/content/docs/reference/
+        run: go run -tags="nogui" ./scripts md ./homepage/src/content/docs/reference/
       - name: Generate dependencies documentation
         env:
           GITHUB_TOKEN: ${{ secrets.PAT }}
-        run: go run ./scripts deps ./homepage/src/content/docs/concepts/dependencies.md
+        run: go run -tags="nogui" ./scripts deps ./homepage/src/content/docs/concepts/dependencies.md
       - name: Detect changes in homepage repo
         id: detect
         run: |

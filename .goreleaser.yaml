@@ -80,6 +80,17 @@ npms:
     repository: https://github.com/pogo-vcs/pogo
     bugs: https://github.com/pogo-vcs/pogo/issues
 
+brews:
+  - name: pogo
+    alternative_names:
+      - pogo@@{{ .Version }}
+      - pogo@{{ .Major }}
+    url_template: "https://github.com/pogo-vcs/pogo/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    repository:
+      owner: pogo-vcs
+      name: homebrew-tap
+      branch: main
+
 homebrew_casks:
   - name: pogo
     alternative_names:
