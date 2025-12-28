@@ -46,7 +46,11 @@ func (a *Server) Handle(pattern string, handler http.Handler) {
 }
 
 func (a *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.ProtoMajor == 2 && strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
+	// Route based on Content-Type only, not HTTP version.
+	// This is necessary because reverse proxies (like Cloudflare) may
+	// downgrade HTTP/2 to HTTP/1.1 between edge and origin, causing
+	// r.ProtoMajor to be 1 even for valid gRPC requests.
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
 		a.grpcServer.ServeHTTP(w, r)
 	} else {
 		if isGoProxyRequest(r) {
