@@ -89,19 +89,60 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			}
 
 			// If regular token validation failed, try CI token
+			// CI tokens are stored directly in context without a fake user
 			if ciTokenInfo := ValidateCIToken(token); ciTokenInfo != nil {
-				// Use the special CI user (ID=-1, Username="CI")
-				webUser := &db.User{
-					ID:       -1,
-					Username: "CI",
-				}
-				ctx := context.WithValue(r.Context(), auth.UserCtxKey, webUser)
-				ctx = context.WithValue(ctx, CITokenCtxKey, ciTokenInfo)
+				ctx := context.WithValue(r.Context(), CITokenCtxKey, ciTokenInfo)
 				r = r.WithContext(ctx)
 			}
 		}
 		next(w, r)
 	}
+}
+
+// GetCITokenInfo returns the CI token info from context if present, nil otherwise.
+func GetCITokenInfo(ctx context.Context) *CITokenInfo {
+	if info, ok := ctx.Value(CITokenCtxKey).(*CITokenInfo); ok {
+		return info
+	}
+	return nil
+}
+
+// CheckRepoAccess checks if the request has access to the given repository.
+// It handles both regular user authentication and CI token authentication.
+// Returns true if access is granted, false otherwise.
+func CheckRepoAccess(ctx context.Context, repoID int32) bool {
+	// First check for CI token - CI tokens are scoped to a specific repository
+	if ciToken := GetCITokenInfo(ctx); ciToken != nil {
+		return ciToken.RepoID == repoID
+	}
+
+	// Check for regular user authentication
+	userInterface := ctx.Value(auth.UserCtxKey)
+	if userInterface == nil {
+		return false
+	}
+	user, ok := userInterface.(*db.User)
+	if !ok || user == nil {
+		return false
+	}
+
+	hasAccess, err := db.Q.CheckUserRepositoryAccess(ctx, repoID, user.ID)
+	return err == nil && hasAccess
+}
+
+// IsAuthenticated checks if there's any form of authentication (user or CI token).
+func IsAuthenticated(ctx context.Context) bool {
+	// Check for CI token
+	if GetCITokenInfo(ctx) != nil {
+		return true
+	}
+	// Check for user
+	if userInterface := ctx.Value(auth.UserCtxKey); userInterface != nil {
+		if user, ok := userInterface.(*db.User); ok && user != nil {
+			return true
+		}
+	}
+	return false
 }
 
 func RegisterWebUI(s *Server) {
@@ -380,19 +421,7 @@ func handleZipDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !repository.Public {
-		userInterface := ctx.Value(auth.UserCtxKey)
-		if userInterface == nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-		user, ok := userInterface.(*db.User)
-		if !ok || user == nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		hasAccess, err := db.Q.CheckUserRepositoryAccess(ctx, repository.ID, user.ID)
-		if err != nil || !hasAccess {
+		if !CheckRepoAccess(ctx, repository.ID) {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}

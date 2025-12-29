@@ -757,6 +757,3 @@ FROM files f
 JOIN change_files cf ON f.id = cf.file_id
 WHERE cf.change_id = $1
 ORDER BY f.name;
-
--- name: EnsureCIUser :exec
-INSERT INTO users (id, username) VALUES (-1, 'CI') ON CONFLICT (id) DO NOTHING;

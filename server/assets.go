@@ -9,9 +9,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-
-	"github.com/pogo-vcs/pogo/auth"
-	"github.com/pogo-vcs/pogo/db"
 )
 
 const assetsDir = "data/assets"
@@ -170,32 +167,10 @@ func handlePutAsset(w http.ResponseWriter, r *http.Request, repoID int32, assetN
 
 	ctx := r.Context()
 
-	// Check authentication
-	userInterface := ctx.Value(auth.UserCtxKey)
-	if userInterface == nil {
-		http.Error(w, "Authentication required", http.StatusUnauthorized)
+	// Check authentication and repository access
+	if !CheckRepoAccess(ctx, repoID) {
+		http.Error(w, "Access denied", http.StatusForbidden)
 		return
-	}
-	user, ok := userInterface.(*db.User)
-	if !ok || user == nil {
-		http.Error(w, "Authentication required", http.StatusUnauthorized)
-		return
-	}
-
-	// Check if this is a CI token - if so, verify repo access
-	if ciTokenInfo := ctx.Value(CITokenCtxKey); ciTokenInfo != nil {
-		tokenInfo := ciTokenInfo.(*CITokenInfo)
-		if tokenInfo.RepoID != repoID {
-			http.Error(w, "CI token does not have access to this repository", http.StatusForbidden)
-			return
-		}
-	} else {
-		// Regular user - check repository access
-		hasAccess, err := db.Q.CheckUserRepositoryAccess(ctx, repoID, user.ID)
-		if err != nil || !hasAccess {
-			http.Error(w, "Access denied", http.StatusForbidden)
-			return
-		}
 	}
 
 	assetPath := filepath.Join(assetsDir, fmt.Sprintf("%d", repoID), filepath.FromSlash(assetName))
@@ -249,32 +224,10 @@ func handleDeleteAsset(w http.ResponseWriter, r *http.Request, repoID int32, ass
 
 	ctx := r.Context()
 
-	// Check authentication
-	userInterface := ctx.Value(auth.UserCtxKey)
-	if userInterface == nil {
-		http.Error(w, "Authentication required", http.StatusUnauthorized)
+	// Check authentication and repository access
+	if !CheckRepoAccess(ctx, repoID) {
+		http.Error(w, "Access denied", http.StatusForbidden)
 		return
-	}
-	user, ok := userInterface.(*db.User)
-	if !ok || user == nil {
-		http.Error(w, "Authentication required", http.StatusUnauthorized)
-		return
-	}
-
-	// Check if this is a CI token - if so, verify repo access
-	if ciTokenInfo := ctx.Value(CITokenCtxKey); ciTokenInfo != nil {
-		tokenInfo := ciTokenInfo.(*CITokenInfo)
-		if tokenInfo.RepoID != repoID {
-			http.Error(w, "CI token does not have access to this repository", http.StatusForbidden)
-			return
-		}
-	} else {
-		// Regular user - check repository access
-		hasAccess, err := db.Q.CheckUserRepositoryAccess(ctx, repoID, user.ID)
-		if err != nil || !hasAccess {
-			http.Error(w, "Access denied", http.StatusForbidden)
-			return
-		}
 	}
 
 	assetPath := filepath.Join(assetsDir, fmt.Sprintf("%d", repoID), filepath.FromSlash(assetName))

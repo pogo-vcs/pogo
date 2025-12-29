@@ -9,18 +9,13 @@ import (
 )
 
 func Setup(ctx context.Context) error {
-	// Ensure CI user exists (used for CI token authentication)
-	if err := Q.EnsureCIUser(ctx); err != nil {
-		return fmt.Errorf("failed to ensure CI user: %w", err)
-	}
-
 	count, err := Q.CountUsers(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to count users: %w", err)
 	}
 
-	// Count includes CI user (id=-1), so check for > 1
-	if count > 1 {
+	// If there are any users, setup is complete
+	if count > 0 {
 		return nil
 	}
 
