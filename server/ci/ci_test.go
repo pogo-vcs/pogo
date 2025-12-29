@@ -382,7 +382,7 @@ do:
 		Description: "Add new feature",
 	}
 
-	config, err := UnmarshalConfig(configYAML, event)
+	config, _, err := UnmarshalConfig(configYAML, event)
 	if err != nil {
 		t.Fatalf("UnmarshalConfig() error = %v", err)
 	}

@@ -30,7 +30,7 @@ do:
 		Description: "Add new CI feature",
 	}
 
-	config, err := UnmarshalConfig([]byte(configYAML), event)
+	config, _, err := UnmarshalConfig([]byte(configYAML), event)
 	if err != nil {
 		t.Fatalf("UnmarshalConfig() error = %v", err)
 	}

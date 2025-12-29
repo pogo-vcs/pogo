@@ -164,11 +164,11 @@ func makeUnmarshalConfigFuncs(secrets map[string]string) template.FuncMap {
 	}
 }
 
-func UnmarshalConfig(yamlString []byte, data Event) (*Config, error) {
+func UnmarshalConfig(yamlString []byte, data Event) (*Config, string, error) {
 	return UnmarshalConfigWithSecrets(yamlString, data, nil)
 }
 
-func UnmarshalConfigWithSecrets(yamlString []byte, data Event, secrets map[string]string) (*Config, error) {
+func UnmarshalConfigWithSecrets(yamlString []byte, data Event, secrets map[string]string) (*Config, string, error) {
 	var c Config
 
 	t, err := template.New("ci_config").
@@ -177,25 +177,27 @@ func UnmarshalConfigWithSecrets(yamlString []byte, data Event, secrets map[strin
 
 	if err != nil {
 		if yamlErr := yaml.Unmarshal(yamlString, &c); yamlErr != nil {
-			return nil, errors.Join(
+			return nil, "", errors.Join(
 				fmt.Errorf("unmarshal plain config: %w", yamlErr),
 				fmt.Errorf("parse template: %w", err),
 			)
 		}
-		return &c, nil
+		warning := fmt.Sprintf("WARNING: Template parsing failed (%v), falling back to plain YAML. "+
+			"Template expressions like {{secret \"...\"}} and {{.ArchiveUrl}} will NOT be replaced.", err)
+		return &c, warning, nil
 	}
 
 	sb := strings.Builder{}
 
 	if err := t.Execute(&sb, data); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	if err := yaml.Unmarshal([]byte(sb.String()), &c); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return &c, nil
+	return &c, "", nil
 }
 
 type Executor struct {
@@ -231,7 +233,7 @@ func (e *Executor) ExecuteForBookmarkEvent(ctx context.Context, configFiles map[
 			continue
 		}
 
-		config, err := UnmarshalConfigWithSecrets(configData, event, e.secrets)
+		config, configWarning, err := UnmarshalConfigWithSecrets(configData, event, e.secrets)
 		if err != nil {
 			return allResults, fmt.Errorf("unmarshal config %s: %w", filename, err)
 		}
@@ -248,6 +250,9 @@ func (e *Executor) ExecuteForBookmarkEvent(ctx context.Context, configFiles map[
 						taskResults[i].Rev = event.Rev
 						taskResults[i].Pattern = pattern
 						taskResults[i].Reason = reason
+						if configWarning != "" {
+							taskResults[i].Log = configWarning + "\n\n" + taskResults[i].Log
+						}
 					}
 					allResults = append(allResults, taskResults...)
 					if execErr != nil {
@@ -268,6 +273,9 @@ func (e *Executor) ExecuteForBookmarkEvent(ctx context.Context, configFiles map[
 						taskResults[i].Rev = event.Rev
 						taskResults[i].Pattern = pattern
 						taskResults[i].Reason = reason
+						if configWarning != "" {
+							taskResults[i].Log = configWarning + "\n\n" + taskResults[i].Log
+						}
 					}
 					allResults = append(allResults, taskResults...)
 					if execErr != nil {
