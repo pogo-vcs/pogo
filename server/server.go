@@ -46,12 +46,18 @@ func (a *Server) Handle(pattern string, handler http.Handler) {
 }
 
 func (a *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Route based on Content-Type only, not HTTP version.
-	// This is necessary because reverse proxies (like Cloudflare) may
-	// downgrade HTTP/2 to HTTP/1.1 between edge and origin, causing
-	// r.ProtoMajor to be 1 even for valid gRPC requests.
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
-		a.grpcServer.ServeHTTP(w, r)
+		if r.ProtoMajor == 2 {
+			a.grpcServer.ServeHTTP(w, r)
+		} else {
+			// gRPC requires HTTP/2 but received HTTP/1.1.
+			// This happens when a reverse proxy (like Cloudflare) downgrades the connection.
+			// Return a proper gRPC error instead of falling through to 404.
+			w.Header().Set("Content-Type", "application/grpc")
+			w.Header().Set("Grpc-Status", "14") // UNAVAILABLE
+			w.Header().Set("Grpc-Message", "gRPC requires HTTP/2. Your reverse proxy is using HTTP/1.1. Enable 'gRPC' and 'HTTP/2 to Origin' in Cloudflare, or check your proxy configuration.")
+			w.WriteHeader(http.StatusOK)
+		}
 	} else {
 		if isGoProxyRequest(r) {
 			a.httpGoMux.ServeHTTP(w, r)
