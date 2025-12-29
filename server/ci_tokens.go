@@ -4,12 +4,18 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"sync"
+	"time"
 )
 
 // CITokenInfo contains information about a CI access token.
 type CITokenInfo struct {
 	RepoID int32
 }
+
+// CITokenTTL is the time-to-live for CI tokens. After this duration, the token
+// will be automatically revoked. This gives external CI systems enough time to
+// use the token after being triggered by a webhook.
+const CITokenTTL = 1 * time.Hour
 
 var (
 	ciTokensMu sync.RWMutex
@@ -48,4 +54,13 @@ func RevokeCIToken(token string) {
 	ciTokensMu.Lock()
 	delete(ciTokens, token)
 	ciTokensMu.Unlock()
+}
+
+// ScheduleCITokenRevocation schedules a token to be revoked after CITokenTTL.
+// This uses time.AfterFunc which is energy-efficient as it doesn't block or
+// consume CPU while waiting - it simply schedules a timer in the runtime.
+func ScheduleCITokenRevocation(token string) {
+	time.AfterFunc(CITokenTTL, func() {
+		RevokeCIToken(token)
+	})
 }

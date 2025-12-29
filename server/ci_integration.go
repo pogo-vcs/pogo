@@ -203,8 +203,11 @@ func executeCIForBookmarkEvent(ctx context.Context, changeId int64, bookmarkName
 	}
 
 	go func() {
-		// Revoke the CI token when done
-		defer RevokeCIToken(accessToken)
+		// Schedule the CI token to be revoked after CITokenTTL (1 hour).
+		// We don't revoke immediately because webhook tasks trigger external CI systems
+		// that need time to actually use the token. The time.AfterFunc call is
+		// energy-efficient as it just sets a timer without blocking.
+		ScheduleCITokenRevocation(accessToken)
 
 		tempDir, err := extractRepositoryContentToTemp(context.Background(), change.RepositoryID, bookmarkName)
 		if err != nil {
