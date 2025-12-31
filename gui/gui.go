@@ -903,8 +903,8 @@ func (a *App) layoutDiffLine(gtx layout.Context, lineText string, lineType proto
 				}
 				return lbl.Layout(gtx)
 			}),
-			// Content with syntax highlighting
-			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			// Content with syntax highlighting (no wrapping)
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.layoutHighlightedLine(gtx, displayText, lexer)
 			}),
 		)
@@ -915,10 +915,11 @@ func (a *App) layoutHighlightedLine(gtx layout.Context, lineText string, lexer c
 	// Tokenize the line
 	iterator, err := lexer.Tokenise(nil, lineText)
 	if err != nil {
-		// Fallback to plain text
+		// Fallback to plain text (no wrapping)
 		lbl := material.Label(a.theme, unit.Sp(12), lineText)
 		lbl.Font.Typeface = "monospace"
 		lbl.Color = Text
+		lbl.MaxLines = 1
 		return lbl.Layout(gtx)
 	}
 
@@ -938,6 +939,7 @@ func (a *App) renderTokens(gtx layout.Context, iterator chroma.Iterator) layout.
 		lbl := material.Label(a.theme, unit.Sp(12), token.Value)
 		lbl.Font.Typeface = "monospace"
 		lbl.Color = tokenColor
+		lbl.MaxLines = 1
 
 		// Offset by accumulated width
 		offset := op.Offset(image.Point{X: dims.Size.X, Y: 0}).Push(gtx.Ops)
