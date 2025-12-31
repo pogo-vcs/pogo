@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"time"
 
 	"github.com/pogo-vcs/pogo/client/difftui"
@@ -555,6 +556,11 @@ func (c *Client) CollectDiffLocal(usePatience, includeLargeFiles bool) (difftui.
 		}
 	}
 	data.Files = newFilesList
+
+	// Sort files lexically by path
+	sort.Slice(data.Files, func(i, j int) bool {
+		return data.Files[i].Header.Path < data.Files[j].Header.Path
+	})
 
 	return data, nil
 }
@@ -1303,6 +1309,11 @@ func (c *Client) CollectDiff(rev1, rev2 *string, usePatience, includeLargeFiles 
 	if currentFile != nil && len(currentFile.Blocks) > 0 {
 		data.Files = append(data.Files, *currentFile)
 	}
+
+	// Sort files lexically by path
+	sort.Slice(data.Files, func(i, j int) bool {
+		return data.Files[i].Header.Path < data.Files[j].Header.Path
+	})
 
 	return data, nil
 }

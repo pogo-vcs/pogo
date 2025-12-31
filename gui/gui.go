@@ -771,11 +771,34 @@ func (a *App) layoutFileItem(gtx layout.Context, file difftui.DiffFile, selected
 				lbl.Font.Weight = font.Bold
 				return lbl.Layout(gtx)
 			}),
-			// File path
+			// File path (directory in gray, basename in normal color)
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				lbl := material.Label(a.theme, unit.Sp(12), file.Header.Path)
-				lbl.Color = Text
-				return lbl.Layout(gtx)
+				dir := filepath.Dir(file.Header.Path)
+				base := filepath.Base(file.Header.Path)
+
+				// If there's no directory (file is in root), just show the basename
+				if dir == "." {
+					lbl := material.Label(a.theme, unit.Sp(12), base)
+					lbl.Color = Text
+					lbl.MaxLines = 1
+					return lbl.Layout(gtx)
+				}
+
+				// Show directory in gray followed by basename
+				return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						lblDir := material.Label(a.theme, unit.Sp(12), dir+"/")
+						lblDir.Color = Overlay0
+						lblDir.MaxLines = 1
+						return lblDir.Layout(gtx)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						lblBase := material.Label(a.theme, unit.Sp(12), base)
+						lblBase.Color = Text
+						lblBase.MaxLines = 1
+						return lblBase.Layout(gtx)
+					}),
+				)
 			}),
 		)
 	})
