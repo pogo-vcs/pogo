@@ -771,10 +771,9 @@ func (a *App) layoutFileItem(gtx layout.Context, file difftui.DiffFile, selected
 				lbl.Font.Weight = font.Bold
 				return lbl.Layout(gtx)
 			}),
-			// Filename
+			// File path
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				filename := filepath.Base(file.Header.Path)
-				lbl := material.Label(a.theme, unit.Sp(12), filename)
+				lbl := material.Label(a.theme, unit.Sp(12), file.Header.Path)
 				lbl.Color = Text
 				return lbl.Layout(gtx)
 			}),
