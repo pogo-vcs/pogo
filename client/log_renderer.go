@@ -31,6 +31,7 @@ type LogChangeData struct {
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 	IsCheckedOut  bool      `json:"is_checked_out"`
+	Bookmarks     []string  `json:"bookmarks"`
 	X             int       `json:"x"`
 	Y             int       `json:"y"`
 }
@@ -248,6 +249,20 @@ func RenderLog(response *protos.LogResponse, coloredOutput bool) string {
 			} else {
 				output.WriteString(change.UpdatedAt.Format(timeFormat))
 			}
+			if len(change.Bookmarks) > 0 {
+				output.WriteString(" ")
+				for _, bookmark := range change.Bookmarks {
+					output.WriteString(" ")
+					if coloredOutput {
+						output.WriteString(colors.BrightBlack)
+						output.WriteString(bookmark)
+						output.WriteString(colors.Reset)
+					} else {
+						output.WriteString(bookmark)
+					}
+				}
+			}
+			output.WriteString(" ")
 
 			if change.Description != nil {
 				output.WriteString("\n  ")
