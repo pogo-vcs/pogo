@@ -338,7 +338,7 @@ func (a *Server) SetBookmark(ctx context.Context, req *protos.SetBookmarkRequest
 
 	var changeId int64
 	if req.ChangeName != nil {
-		changeId, err = tx.FindChangeByNameFuzzy(ctx, req.RepoId, *req.ChangeName)
+		changeId, err = tx.FindChangeByNameFuzzyUnique(ctx, req.RepoId, *req.ChangeName)
 		if err != nil {
 			return nil, fmt.Errorf("find change by name: %w", err)
 		}
@@ -767,7 +767,7 @@ func (a *Server) NewChange(ctx context.Context, req *protos.NewChangeRequest) (*
 	if len(req.ParentChangeNames) > 0 {
 		// Use provided parent change names
 		for _, parentName := range req.ParentChangeNames {
-			parentId, err := tx.FindChangeByNameFuzzy(ctx, req.RepoId, parentName)
+			parentId, err := tx.FindChangeByNameFuzzyUnique(ctx, req.RepoId, parentName)
 			if err != nil {
 				return nil, fmt.Errorf("find parent change by name %s: %w", parentName, err)
 			}
@@ -1000,7 +1000,7 @@ func (a *Server) Edit(req *protos.EditRequest, stream grpc.ServerStreamingServer
 	if req.Revision != "" {
 		revision = req.Revision
 		var err error
-		changeId, err = db.Q.FindChangeByNameFuzzy(ctx, req.RepoId, req.Revision)
+		changeId, err = db.Q.FindChangeByNameFuzzyUnique(ctx, req.RepoId, req.Revision)
 		if err != nil {
 			return fmt.Errorf("revision '%s' not found", req.Revision)
 		}
@@ -1146,7 +1146,7 @@ func (a *Server) RemoveChange(ctx context.Context, req *protos.RemoveChangeReque
 	}
 	defer tx.Close()
 
-	changeId, err := tx.FindChangeByNameFuzzy(ctx, req.RepoId, req.ChangeName)
+	changeId, err := tx.FindChangeByNameFuzzyUnique(ctx, req.RepoId, req.ChangeName)
 	if err != nil {
 		return nil, fmt.Errorf("find change by name %s: %w", req.ChangeName, err)
 	}

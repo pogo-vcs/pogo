@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -176,4 +177,24 @@ func (r *Queries) GenerateChangeName(ctx context.Context, repositoryID int32) (s
 		}
 	}
 	return "", errors.New("too many attempts")
+}
+
+// FindChangeByNameFuzzyUnique resolves a revision to a unique change ID.
+// Returns an error if not found or if the prefix is ambiguous.
+func (q *Queries) FindChangeByNameFuzzyUnique(ctx context.Context, repoID int32, revision string) (int64, error) {
+	matches, err := q.FindChangeByNameFuzzy(ctx, repoID, revision)
+	if err != nil {
+		return 0, err
+	}
+	if len(matches) == 0 {
+		return 0, fmt.Errorf("revision '%s' not found", revision)
+	}
+	if len(matches) > 1 {
+		names := make([]string, len(matches))
+		for i, m := range matches {
+			names[i] = m.MatchName
+		}
+		return 0, fmt.Errorf("ambiguous revision '%s' matches: %s", revision, strings.Join(names, ", "))
+	}
+	return matches[0].ID, nil
 }

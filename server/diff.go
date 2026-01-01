@@ -210,11 +210,11 @@ func (s *Server) Diff(req *protos.DiffRequest, stream protos.Pogo_DiffServer) er
 		if req.Rev1 == nil {
 			return fmt.Errorf("rev1 is required when rev2 is provided")
 		}
-		change1Id, err = db.Q.FindChangeByNameFuzzy(ctx, req.RepoId, *req.Rev1)
+		change1Id, err = db.Q.FindChangeByNameFuzzyUnique(ctx, req.RepoId, *req.Rev1)
 		if err != nil {
 			return fmt.Errorf("resolve rev1 %q: %w", *req.Rev1, err)
 		}
-		change2Id, err = db.Q.FindChangeByNameFuzzy(ctx, req.RepoId, *req.Rev2)
+		change2Id, err = db.Q.FindChangeByNameFuzzyUnique(ctx, req.RepoId, *req.Rev2)
 		if err != nil {
 			return fmt.Errorf("resolve rev2 %q: %w", *req.Rev2, err)
 		}
@@ -222,7 +222,7 @@ func (s *Server) Diff(req *protos.DiffRequest, stream protos.Pogo_DiffServer) er
 		if req.CheckedOutChangeId == nil {
 			return fmt.Errorf("current change id is required when only rev1 is provided")
 		}
-		change1Id, err = db.Q.FindChangeByNameFuzzy(ctx, req.RepoId, *req.Rev1)
+		change1Id, err = db.Q.FindChangeByNameFuzzyUnique(ctx, req.RepoId, *req.Rev1)
 		if err != nil {
 			return fmt.Errorf("resolve rev1 %q: %w", *req.Rev1, err)
 		}

@@ -381,10 +381,10 @@ DELETE FROM change_files WHERE change_id = $1;
 -- name: FindChangeByNameExact :one
 SELECT id FROM changes WHERE repository_id = $1 AND name = @revision::text;
 
--- name: FindChangeByNameFuzzy :one
+-- name: FindChangeByNameFuzzy :many
 WITH matches AS (
     -- First priority: exact bookmark match
-    SELECT b.change_id AS id, 1 AS priority
+    SELECT b.change_id AS id, b.name AS match_name, 1 AS priority
     FROM bookmarks b
     WHERE b.repository_id = @repository
       AND b.name = @revision::text
@@ -392,7 +392,7 @@ WITH matches AS (
     UNION ALL
 
     -- Second priority: exact change name match
-    SELECT c.id, 2 AS priority
+    SELECT c.id, c.name AS match_name, 2 AS priority
     FROM changes c
     WHERE c.repository_id = @repository
       AND c.name = @revision::text
@@ -400,15 +400,18 @@ WITH matches AS (
     UNION ALL
 
     -- Third priority: change name prefix match
-    SELECT c.id, 3 AS priority
+    SELECT c.id, c.name AS match_name, 3 AS priority
     FROM changes c
     WHERE c.repository_id = @repository
       AND c.name LIKE @revision::text || '%'
       AND c.name != @revision::text  -- Exclude exact matches (already covered above)
+),
+best_priority AS (
+    SELECT MIN(priority) AS min_priority FROM matches
 )
-SELECT id FROM matches
-ORDER BY priority ASC
-LIMIT 1;
+SELECT m.id, m.match_name FROM matches m, best_priority bp
+WHERE m.priority = bp.min_priority
+ORDER BY m.match_name;
 
 -- name: GetUniquePrefix :one
 SELECT get_unique_prefix($1::BIGINT) AS unique_prefix;
