@@ -254,7 +254,11 @@ func RenderLog(response *protos.LogResponse, coloredOutput bool) string {
 				for _, bookmark := range change.Bookmarks {
 					output.WriteString(" ")
 					if coloredOutput {
-						output.WriteString(colors.BrightBlack)
+						if bookmark == "main" {
+							output.WriteString(colors.Green)
+						} else {
+							output.WriteString(colors.BrightBlack)
+						}
 						output.WriteString(bookmark)
 						output.WriteString(colors.Reset)
 					} else {
