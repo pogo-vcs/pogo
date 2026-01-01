@@ -871,16 +871,16 @@ func (a *Server) Log(ctx context.Context, req *protos.LogRequest) (*protos.LogRe
 		return nil, fmt.Errorf("get newest changes: %w", err)
 	}
 
-	bookmarksMap := make(map[int64][]string)
+	bookmarksMap := make(map[string][]string)
 	{
 		bookmarks, err := db.Q.GetBookmarks(ctx, req.RepoId)
 		if err != nil {
 			return nil, fmt.Errorf("get bookmarks: %w", err)
 		}
 		for _, b := range bookmarks {
-			bs := bookmarksMap[b.ChangeID]
+			bs := bookmarksMap[b.ChangeName]
 			bs = append(bs, b.Bookmark)
-			bookmarksMap[b.ChangeID] = bs
+			bookmarksMap[b.ChangeName] = bs
 		}
 	}
 
@@ -915,7 +915,7 @@ func (a *Server) Log(ctx context.Context, req *protos.LogRequest) (*protos.LogRe
 			UniquePrefix: change.UniquePrefix,
 			CreatedAt:    change.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
 			UpdatedAt:    change.UpdatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
-			Bookmarks:    bookmarksMap[change.ID],
+			Bookmarks:    bookmarksMap[change.Name],
 		}
 		if change.Description != nil {
 			logChange.Description = change.Description

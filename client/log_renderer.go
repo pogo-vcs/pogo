@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"strings"
 	"time"
@@ -16,6 +17,8 @@ import (
 const noDescription = "(no description)"
 
 const timeFormat = time.RFC3339
+
+var dateSize = len(time.Now().Format(timeFormat))
 
 type LogData struct {
 	Changes       []LogChangeData `json:"changes"`
@@ -100,6 +103,7 @@ func ExtractLogData(response *protos.LogResponse) *LogData {
 					IsCheckedOut:  protoChange.Name == head,
 					X:             int(math.Round(n.X)),
 					Y:             int(math.Round(n.Y)),
+					Bookmarks:     protoChange.Bookmarks,
 				})
 			} else {
 				// Placeholder node (like "~")
@@ -128,6 +132,7 @@ func ExtractLogData(response *protos.LogResponse) *LogData {
 				IsCheckedOut:  change.Name == head,
 				X:             0,
 				Y:             i * 3,
+				Bookmarks:     change.Bookmarks,
 			}
 		}
 	}
@@ -250,6 +255,7 @@ func RenderLog(response *protos.LogResponse, coloredOutput bool) string {
 				output.WriteString(change.UpdatedAt.Format(timeFormat))
 			}
 			if len(change.Bookmarks) > 0 {
+				fmt.Printf("  %s\n", strings.Join(change.Bookmarks, " "))
 				output.WriteString(" ")
 				for _, bookmark := range change.Bookmarks {
 					output.WriteString(" ")
@@ -274,7 +280,7 @@ func RenderLog(response *protos.LogResponse, coloredOutput bool) string {
 			} else {
 				output.WriteString("\n  ")
 				if coloredOutput {
-					output.WriteString(colors.Green)
+					output.WriteString(colors.Blue)
 					output.WriteString(noDescription)
 					output.WriteString(colors.Reset)
 				} else {
@@ -365,8 +371,23 @@ func RenderLog(response *protos.LogResponse, coloredOutput bool) string {
 				}
 				// Add modification time on the same line
 				drawer.WriteX(startX+len(change.Name)+1+conflictSize, y, colors.BrightBlack, change.UpdatedAt.Format(timeFormat), colors.Reset)
+				if len(change.Bookmarks) > 0 {
+					bookmarksX := startX + len(change.Name) + 1 + conflictSize + dateSize + 1
+					drawer.WriteX(bookmarksX, y, colors.BrightBlack, "", colors.Reset)
+					bookmarksX += 2
+					for _, bookmark := range change.Bookmarks {
+						var color string
+						if bookmark == "main" {
+							color = colors.Green
+						} else {
+							color = colors.BrightBlack
+						}
+						drawer.WriteX(bookmarksX, y, color, bookmark, colors.Reset)
+						bookmarksX += len(bookmark) + 1
+					}
+				}
 				if change.Description == nil {
-					drawer.WriteX(startX, y+1, colors.Green, noDescription, colors.Reset)
+					drawer.WriteX(startX, y+1, colors.Blue, noDescription, colors.Reset)
 				} else {
 					drawer.Write(startX, y+1, *change.Description)
 				}
@@ -380,6 +401,15 @@ func RenderLog(response *protos.LogResponse, coloredOutput bool) string {
 				}
 				// Add modification time on the same line
 				drawer.Write(startX+len(change.Name)+1+conflictSize, y, change.UpdatedAt.Format(timeFormat))
+				if len(change.Bookmarks) > 0 {
+					bookmarksX := startX + len(change.Name) + 1 + conflictSize + dateSize + 1
+					drawer.Write(bookmarksX, y, "")
+					bookmarksX += 2
+					for _, bookmark := range change.Bookmarks {
+						drawer.Write(bookmarksX, y, bookmark)
+						bookmarksX += len(bookmark) + 1
+					}
+				}
 				if change.Description == nil {
 					drawer.Write(startX, y+1, noDescription)
 				} else {
