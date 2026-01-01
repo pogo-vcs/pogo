@@ -603,6 +603,16 @@ WHERE id = ANY(@file_ids::BIGINT[]);
 -- name: CheckFileHashExists :one
 SELECT EXISTS(SELECT 1 FROM files WHERE content_hash = $1) AS exists;
 
+-- name: IsContentHashReferenced :one
+-- Checks if a content_hash is still referenced by any change (via change_files).
+-- This is more conservative than checking file existence - it verifies the content
+-- is actually in use before allowing deletion from the filesystem.
+SELECT EXISTS (
+    SELECT 1 FROM files f
+    JOIN change_files cf ON f.id = cf.file_id
+    WHERE f.content_hash = $1
+) AS is_referenced;
+
 -- name: CheckMultipleFileHashesExist :many
 SELECT input.hash AS content_hash
 FROM (SELECT unnest(@hashes::BYTEA[]) AS hash) AS input

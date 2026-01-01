@@ -1409,11 +1409,30 @@ func cleanupOrphanedFiles(ctx context.Context, candidateFiles []db.GetChangeFile
 		return fmt.Errorf("commit cleanup transaction: %w", err)
 	}
 
-	// Now remove files from filesystem
+	// Now remove files from filesystem, but ONLY if the content_hash is no longer
+	// referenced by ANY file record. This is important because multiple file records
+	// with different names can share the same content_hash (content-addressable storage).
 	var deletedCount int
 	var totalSize int64
+	var skippedCount int
 
 	for _, file := range orphanedFiles {
+		// CRITICAL: Before deleting from filesystem, verify no other file record
+		// references this content_hash. This prevents deleting content that's still
+		// needed by other files with different names but the same content.
+		isReferenced, err := db.Q.IsContentHashReferenced(ctx, file.ContentHash)
+		if err != nil {
+			// Log error but continue - better to leave orphaned files than crash
+			fmt.Printf("warning: failed to check if content hash is referenced: %v\n", err)
+			continue
+		}
+
+		if isReferenced {
+			// Another file record still references this content - do NOT delete!
+			skippedCount++
+			continue
+		}
+
 		hashStr := base64.URLEncoding.EncodeToString(file.ContentHash)
 		filePath := filecontents.GetFilePathFromHash(hashStr)
 
@@ -1433,6 +1452,9 @@ func cleanupOrphanedFiles(ctx context.Context, candidateFiles []db.GetChangeFile
 
 	if deletedCount > 0 {
 		fmt.Printf("GC: deleted %d orphaned files during push (%d bytes freed)\n", deletedCount, totalSize)
+	}
+	if skippedCount > 0 {
+		fmt.Printf("GC: skipped %d files (content still referenced by other file records)\n", skippedCount)
 	}
 
 	return nil
