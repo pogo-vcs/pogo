@@ -73,7 +73,7 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 		Database("pogo").
 		Username("pogo").
 		Password("testpass").
-		Version(embeddedpostgres.V16).
+		Version(embeddedpostgres.V18).
 		StartTimeout(30 * time.Second).
 		RuntimePath(runtimeDir)
 

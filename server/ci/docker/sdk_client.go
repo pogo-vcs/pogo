@@ -15,8 +15,8 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/errdefs"
-	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/moby/go-archive"
 )
 
 type sdkClient struct {
@@ -261,7 +261,7 @@ func (c *sdkClient) CopyToContainer(ctx context.Context, containerID string, src
 	}
 	defer tarReader.Close()
 
-	err = c.cli.CopyToContainer(ctx, containerID, dstPath, tarReader, dockerTypes.CopyToContainerOptions{})
+	err = c.cli.CopyToContainer(ctx, containerID, dstPath, tarReader, container.CopyToContainerOptions{})
 	if err != nil {
 		return fmt.Errorf("copy %s to container %s:%s: %w", srcPath, containerID, dstPath, err)
 	}
