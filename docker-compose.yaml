@@ -21,7 +21,7 @@ services:
     # tmpfs:
     #   - /data/
   db:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     environment:
       - POSTGRES_USER=pogo
       - POSTGRES_PASSWORD=pogo
@@ -37,4 +37,3 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
