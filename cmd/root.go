@@ -1,9 +1,12 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/pogo-vcs/pogo/client"
@@ -64,9 +67,21 @@ func configureClientOutputs(cmd *cobra.Command, c *client.Client) {
 }
 
 func Execute() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	RootCmd.Version = Version
-	err := RootCmd.Execute()
+	go func() {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGABRT)
+		<-c
+		cancel()
+	}()
+	err := RootCmd.ExecuteContext(ctx)
 	if err != nil {
 		os.Exit(1)
 	}
+}
+
+func defaultPushLogger(file client.LocalFile) {
+	fmt.Printf("Pushing %s\n", file)
 }

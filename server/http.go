@@ -453,7 +453,7 @@ func handleZipDownload(w http.ResponseWriter, r *http.Request) {
 				log.Printf("Failed to create zip entry %q: %s", zipEntryName, err.Error())
 				return
 			}
-			
+
 			symlinkInfo := fmt.Sprintf("SYMLINK: %s\nTarget: %s\n", vcsFile.Name, *vcsFile.SymlinkTarget)
 			if _, err := fileWriter.Write([]byte(symlinkInfo)); err != nil {
 				log.Printf("Failed to write symlink info %q to zip: %s", vcsFile.Name, err.Error())

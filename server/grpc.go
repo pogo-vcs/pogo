@@ -99,7 +99,35 @@ func (a *Server) Init(ctx context.Context, req *protos.InitRequest) (*protos.Ini
 	}, nil
 }
 
-// func (a *Server) PushFull(stream protos.Pogo_PushFullServer) error {
+func (a *Server) DeleteRepository(ctx context.Context, req *protos.DeleteRepositoryRequest) (*protos.DeleteRepositoryResponse, error) {
+	gcMutex.Lock()
+	defer gcMutex.Unlock()
+
+	// Check repository access
+	_, err := checkRepositoryAccessFromAuth(ctx, req.Auth, req.RepoId)
+	if err != nil {
+		return nil, fmt.Errorf("check repository access: %w", err)
+	}
+
+	tx, err := db.Q.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("open db transaction: %w", err)
+	}
+	defer tx.Close()
+
+	// Delete repository
+	if err := tx.DeleteRepository(ctx, req.RepoId); err != nil {
+		return nil, fmt.Errorf("delete repository: %w", err)
+	}
+
+	// Commit transaction
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return &protos.DeleteRepositoryResponse{}, nil
+}
+
 func (a *Server) PushFull(stream grpc.ClientStreamingServer[protos.PushFullRequest, protos.PushFullResponse]) error {
 	var previousFiles []db.GetChangeFilesRow
 
@@ -264,24 +292,24 @@ func (a *Server) PushFull(stream grpc.ClientStreamingServer[protos.PushFullReque
 
 			var hash []byte
 			var symlinkTarget *string
-			
+
 			// Check if this is a symlink
 			if header.SymlinkTarget != nil {
 				// Symlink: validate and store metadata
 				target := *header.SymlinkTarget
-				
+
 				// Validate that symlink target is relative (client should have ensured this)
 				if filepath.IsAbs(target) {
 					return fmt.Errorf("symlink %s has absolute target %s (not allowed)", relPath, target)
 				}
-				
+
 				// Check if target points within repository bounds
 				symlinkDir := filepath.Dir(filepath.FromSlash(relPath))
 				targetAbs := filepath.Clean(filepath.Join(symlinkDir, filepath.FromSlash(target)))
 				if strings.HasPrefix(targetAbs, "..") {
 					return fmt.Errorf("symlink %s points outside repository: %s", relPath, target)
 				}
-				
+
 				symlinkTarget = &target
 				hash = header.ContentHash // Client sends hash of target path
 			} else {
@@ -311,7 +339,6 @@ func (a *Server) PushFull(stream grpc.ClientStreamingServer[protos.PushFullReque
 				}
 			}
 
-			fmt.Printf("AddFileToChange ChangeId: %d, relPath: %s, exec: %t, hash: %x, hasConflicts: %t, hadContent: %t, symlink: %v\n", changeId.ChangeId, relPath, exec, hash, hasConflicts, filesWithContent[relPath], symlinkTarget)
 			if err := tx.AddFileToChange(ctx, changeId.ChangeId, relPath, exec, hash, hasConflicts, symlinkTarget); err != nil {
 				return fmt.Errorf("add file %s to change: %w", relPath, err)
 			}
@@ -589,7 +616,7 @@ func (a *Server) processMergeFile(ctx context.Context, tx *db.TxQueries, newChan
 	aExists := mergeFile.AContentHash != nil
 	oExists := mergeFile.LcaContentHash != nil
 	bExists := mergeFile.BContentHash != nil
-	
+
 	aIsSymlink := mergeFile.ASymlinkTarget != nil
 	oIsSymlink := mergeFile.LcaSymlinkTarget != nil
 	bIsSymlink := mergeFile.BSymlinkTarget != nil
@@ -674,19 +701,19 @@ func (a *Server) handleSymlinkMerge(ctx context.Context, tx *db.TxQueries, newCh
 			return tx.AddFileToChange(ctx, newChangeId, mergeFile.FileName, executable, mergeFile.AContentHash, false, mergeFile.ASymlinkTarget)
 		}
 	}
-	
+
 	// Case 2: Conflicting changes - symlink vs symlink with different targets, or symlink vs regular file
 	// Mark as conflict and create conflict files
-	
+
 	executable := threeWayMergeExecutable(mergeFile.AExecutable, mergeFile.LcaExecutable, mergeFile.BExecutable)
-	
+
 	// Add LCA version if it exists
 	if oExists {
 		if err := tx.AddFileToChange(ctx, newChangeId, mergeFile.FileName, executable, mergeFile.LcaContentHash, true, mergeFile.LcaSymlinkTarget); err != nil {
 			return fmt.Errorf("add LCA file %s to change: %w", mergeFile.FileName, err)
 		}
 	}
-	
+
 	// Add A version if it exists
 	if aExists {
 		aFileName := fmt.Sprintf("%s.%s", mergeFile.FileName, changeA.Name)
@@ -694,7 +721,7 @@ func (a *Server) handleSymlinkMerge(ctx context.Context, tx *db.TxQueries, newCh
 			return fmt.Errorf("add A file %s to change: %w", aFileName, err)
 		}
 	}
-	
+
 	// Add B version if it exists
 	if bExists {
 		bFileName := fmt.Sprintf("%s.%s", mergeFile.FileName, changeB.Name)
@@ -702,7 +729,7 @@ func (a *Server) handleSymlinkMerge(ctx context.Context, tx *db.TxQueries, newCh
 			return fmt.Errorf("add B file %s to change: %w", bFileName, err)
 		}
 	}
-	
+
 	return nil
 }
 

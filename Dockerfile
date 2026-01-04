@@ -15,7 +15,7 @@ COPY --from=tailwind /app/server/public/styles.css /app/server/public/styles.css
 RUN protoc --go_out=paths=source_relative:. --go-grpc_out=paths=source_relative:. protos/messages.proto && \
     sqlc generate && \
     templ generate && \
-    go build -tags nogui -o /bin/pogo .
+    go build -o /bin/pogo .
 
 FROM alpine:latest AS runner
 WORKDIR /

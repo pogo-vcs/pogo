@@ -17,12 +17,12 @@ styles:
 
 completions:
     mkdir -p docs/completions
-    go run -tags="nogui" . completion bash > docs/completions/pogo.bash
-    go run -tags="nogui" . completion zsh > docs/completions/pogo.zsh
-    go run -tags="nogui" . completion fish > docs/completions/pogo.fish
+    go run . completion bash > docs/completions/pogo.bash
+    go run . completion zsh > docs/completions/pogo.zsh
+    go run . completion fish > docs/completions/pogo.fish
 
 man:
-    go run -tags="nogui" ./scripts man ./docs/man
+    go run ./scripts man ./docs/man
 
 docs:
     @just completions
@@ -42,18 +42,23 @@ build:
 test:
     @just prebuild
     just docs
-    go build -tags="fakekeyring,nogui" ./...
-    go test -tags="fakekeyring,nogui" ./...
+    go build -tags="fakekeyring" ./...
+    go test -tags="fakekeyring" ./...
 
 install:
     @just prebuild
     just docs
     go install .
 
-serve:
+serve-dev:
     @just prebuild
     just docs
     PORT=4321 DATABASE_URL=postgres://pogo:pogo@localhost:5432/pogo ROOT_TOKEN=HP9X+pubni2ufsXTeDreWsxcY+MyxFHBgM+py1hWOks= PUBLIC_ADDRESS=http://localhost:4321 air
+
+serve:
+    @just prebuild
+    just docs
+    PORT=4321 DATABASE_URL=postgres://pogo:pogo@localhost:5432/pogo ROOT_TOKEN=HP9X+pubni2ufsXTeDreWsxcY+MyxFHBgM+py1hWOks= PUBLIC_ADDRESS=http://localhost:4321 go run . serve
 
 deamon:
     @just prebuild

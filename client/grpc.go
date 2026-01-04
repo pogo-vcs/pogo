@@ -41,8 +41,24 @@ func (c *Client) Init(name string, public bool) (repo int32, change int64, err e
 	return
 }
 
+func (c *Client) DeleteRepo() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	request := &protos.DeleteRepositoryRequest{
+		Auth:   c.GetAuth(),
+		RepoId: c.repoId,
+	}
+
+	_, err := c.Pogo.DeleteRepository(ctx, request)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Client) PushFull(force bool) error {
-	ctx, cancel := context.WithTimeout(c.ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(c.ctx, 30*time.Minute)
 	defer cancel()
 
 	// First, collect all file hashes
@@ -58,6 +74,13 @@ func (c *Client) PushFull(force bool) error {
 	var allHashes [][]byte
 
 	for file := range c.UnignoredFiles {
+		// check if context is canceled
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
 		// Check if file is a symlink
 		isSymlink, target, err := c.IsSymlink(file.AbsPath)
 		if err != nil {
@@ -110,6 +133,11 @@ func (c *Client) PushFull(force bool) error {
 	// Create a set of needed hashes for quick lookup
 	neededHashes := make(map[string]bool)
 	for _, hash := range checkResp.NeededHashes {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
 		hashStr := base64.URLEncoding.EncodeToString(hash)
 		neededHashes[hashStr] = true
 	}
@@ -148,6 +176,12 @@ func (c *Client) PushFull(force bool) error {
 
 	// Send all files with their metadata
 	for _, fileInfo := range files {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
 		hashStr := base64.URLEncoding.EncodeToString(fileInfo.hash)
 		needsContent := neededHashes[hashStr]
 
@@ -1167,10 +1201,10 @@ func (c *Client) plainEditRequest(request *protos.EditRequest) error {
 				target := *payload.FileHeader.SymlinkTarget
 				// Remove existing file/symlink if it exists
 				_ = os.Remove(absPath)
-				
+
 				// Convert forward slashes to OS-specific separators
 				targetPath := filepath.FromSlash(target)
-				
+
 				if err := CreateSymlink(targetPath, absPath); err != nil {
 					return errors.Join(fmt.Errorf("create symlink %s -> %s", currentFileName, target), err)
 				}

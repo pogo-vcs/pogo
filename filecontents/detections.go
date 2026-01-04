@@ -1148,7 +1148,5 @@ func HasConflictMarkers(filePath string) (bool, error) {
 var binaryConflictFileNameRegex = regexp.MustCompile(`^.*\.conflict-(?:a|b)-[abcdefhkmnprwxyACDEFHJKLMNPRXY34]{16}$`)
 
 func IsBinaryConflictFileName(filePath string) bool {
-	c := binaryConflictFileNameRegex.MatchString(filePath)
-	fmt.Printf("IsBinaryConflictFileName: %q %t\n", filePath, c)
-	return c
+	return binaryConflictFileNameRegex.MatchString(filePath)
 }

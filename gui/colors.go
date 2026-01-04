@@ -1,6 +1,4 @@
-//go:build !nogui
-
-package gui
+package main
 
 import "image/color"
 

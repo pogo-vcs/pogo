@@ -6,6 +6,8 @@ option go_package = "github.com/pogo-vcs/pogo/protos";
 
 service Pogo {
   rpc Init(InitRequest) returns (InitResponse);
+  rpc DeleteRepository(DeleteRepositoryRequest)
+      returns (DeleteRepositoryResponse);
   rpc CheckNeededFiles(CheckNeededFilesRequest)
       returns (CheckNeededFilesResponse);
   rpc PushFull(stream PushFullRequest) returns (PushFullResponse);
@@ -55,6 +57,13 @@ message InitResponse {
   int32 repo_id = 1;
   int64 change_id = 2;
 }
+
+message DeleteRepositoryRequest {
+  Auth auth = 1;
+  int32 repo_id = 2;
+}
+
+message DeleteRepositoryResponse {}
 
 message CheckNeededFilesRequest {
   Auth auth = 1;

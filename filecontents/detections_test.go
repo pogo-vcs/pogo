@@ -46,6 +46,12 @@ func TestDetectFileType(t *testing.T) {
 			filecontents.FileType{true, filecontents.UnknownEncoding, false, filecontents.UnknownLineEnding},
 			false,
 		},
+		{
+			"otf font",
+			"AdobeVFPrototype.default.all.wght=650,CNTR=50.otf",
+			filecontents.FileType{true, filecontents.UnknownEncoding, false, filecontents.UnknownLineEnding},
+			false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -70,25 +70,25 @@ func TestValidateAndNormalizeSymlink(t *testing.T) {
 	c := &Client{Location: tmpDir}
 
 	tests := []struct {
-		name          string
-		symlinkPath   string
-		target        string
+		name           string
+		symlinkPath    string
+		target         string
 		wantNormalized string
-		wantError     bool
+		wantError      bool
 	}{
 		{
-			name:          "relative path within repo",
-			symlinkPath:   filepath.Join(subDir, "link.txt"),
-			target:        "../file.txt",
+			name:           "relative path within repo",
+			symlinkPath:    filepath.Join(subDir, "link.txt"),
+			target:         "../file.txt",
 			wantNormalized: "../file.txt",
-			wantError:     false,
+			wantError:      false,
 		},
 		{
-			name:          "relative path to same dir",
-			symlinkPath:   filepath.Join(subDir, "link.txt"),
-			target:        "file.txt",
+			name:           "relative path to same dir",
+			symlinkPath:    filepath.Join(subDir, "link.txt"),
+			target:         "file.txt",
 			wantNormalized: "file.txt",
-			wantError:     false,
+			wantError:      false,
 		},
 		{
 			name:        "path outside repo",
@@ -97,11 +97,11 @@ func TestValidateAndNormalizeSymlink(t *testing.T) {
 			wantError:   true,
 		},
 		{
-			name:          "absolute path within repo",
-			symlinkPath:   filepath.Join(subDir, "link.txt"),
-			target:        filepath.Join(tmpDir, "file.txt"),
+			name:           "absolute path within repo",
+			symlinkPath:    filepath.Join(subDir, "link.txt"),
+			target:         filepath.Join(tmpDir, "file.txt"),
 			wantNormalized: "../file.txt",
-			wantError:     false,
+			wantError:      false,
 		},
 	}
 
