@@ -99,7 +99,35 @@ func (a *Server) Init(ctx context.Context, req *protos.InitRequest) (*protos.Ini
 	}, nil
 }
 
-// func (a *Server) PushFull(stream protos.Pogo_PushFullServer) error {
+func (a *Server) DeleteRepository(ctx context.Context, req *protos.DeleteRepositoryRequest) (*protos.DeleteRepositoryResponse, error) {
+	gcMutex.Lock()
+	defer gcMutex.Unlock()
+
+	// Check repository access
+	_, err := checkRepositoryAccessFromAuth(ctx, req.Auth, req.RepoId)
+	if err != nil {
+		return nil, fmt.Errorf("check repository access: %w", err)
+	}
+
+	tx, err := db.Q.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("open db transaction: %w", err)
+	}
+	defer tx.Close()
+
+	// Delete repository
+	if err := tx.DeleteRepository(ctx, req.RepoId); err != nil {
+		return nil, fmt.Errorf("delete repository: %w", err)
+	}
+
+	// Commit transaction
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return &protos.DeleteRepositoryResponse{}, nil
+}
+
 func (a *Server) PushFull(stream grpc.ClientStreamingServer[protos.PushFullRequest, protos.PushFullResponse]) error {
 	var previousFiles []db.GetChangeFilesRow
 
@@ -311,7 +339,6 @@ func (a *Server) PushFull(stream grpc.ClientStreamingServer[protos.PushFullReque
 				}
 			}
 
-			fmt.Printf("AddFileToChange ChangeId: %d, relPath: %s, exec: %t, hash: %x, hasConflicts: %t, hadContent: %t, symlink: %v\n", changeId.ChangeId, relPath, exec, hash, hasConflicts, filesWithContent[relPath], symlinkTarget)
 			if err := tx.AddFileToChange(ctx, changeId.ChangeId, relPath, exec, hash, hasConflicts, symlinkTarget); err != nil {
 				return fmt.Errorf("add file %s to change: %w", relPath, err)
 			}

@@ -1,6 +1,9 @@
 -- name: CreateRepository :one
 INSERT INTO repositories (name, public) VALUES ($1, $2) RETURNING id;
 
+-- name: DeleteRepository :exec
+DELETE FROM repositories WHERE id = $1;
+
 -- name: GrantRepositoryAccess :exec
 INSERT INTO repository_access (repository_id, user_id) VALUES ($1, $2)
 ON CONFLICT (repository_id, user_id) DO NOTHING;

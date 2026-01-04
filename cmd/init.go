@@ -45,6 +45,15 @@ pogo init --server pogo.example.com:8080 --name open-source-project --public`,
 			return fmt.Errorf("init repository: %w", err)
 		}
 
+		initialized := false
+		defer func() {
+			if !initialized {
+				if err := c.DeleteRepo(); err != nil {
+					_, _ = fmt.Fprintf(cmd.OutOrStderr(), "warning: failed to delete repository: %v\n", err)
+				}
+			}
+		}()
+
 		if err := c.PushFull(false); err != nil {
 			return fmt.Errorf("push full: %w", err)
 		}
@@ -59,6 +68,7 @@ pogo init --server pogo.example.com:8080 --name open-source-project --public`,
 			return fmt.Errorf("save repo file: %w", err)
 		}
 
+		initialized = true
 		return nil
 	},
 }
