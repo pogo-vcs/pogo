@@ -1167,10 +1167,10 @@ func (c *Client) plainEditRequest(request *protos.EditRequest) error {
 				target := *payload.FileHeader.SymlinkTarget
 				// Remove existing file/symlink if it exists
 				_ = os.Remove(absPath)
-				
+
 				// Convert forward slashes to OS-specific separators
 				targetPath := filepath.FromSlash(target)
-				
+
 				if err := CreateSymlink(targetPath, absPath); err != nil {
 					return errors.Join(fmt.Errorf("create symlink %s -> %s", currentFileName, target), err)
 				}

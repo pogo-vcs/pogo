@@ -264,24 +264,24 @@ func (a *Server) PushFull(stream grpc.ClientStreamingServer[protos.PushFullReque
 
 			var hash []byte
 			var symlinkTarget *string
-			
+
 			// Check if this is a symlink
 			if header.SymlinkTarget != nil {
 				// Symlink: validate and store metadata
 				target := *header.SymlinkTarget
-				
+
 				// Validate that symlink target is relative (client should have ensured this)
 				if filepath.IsAbs(target) {
 					return fmt.Errorf("symlink %s has absolute target %s (not allowed)", relPath, target)
 				}
-				
+
 				// Check if target points within repository bounds
 				symlinkDir := filepath.Dir(filepath.FromSlash(relPath))
 				targetAbs := filepath.Clean(filepath.Join(symlinkDir, filepath.FromSlash(target)))
 				if strings.HasPrefix(targetAbs, "..") {
 					return fmt.Errorf("symlink %s points outside repository: %s", relPath, target)
 				}
-				
+
 				symlinkTarget = &target
 				hash = header.ContentHash // Client sends hash of target path
 			} else {
@@ -589,7 +589,7 @@ func (a *Server) processMergeFile(ctx context.Context, tx *db.TxQueries, newChan
 	aExists := mergeFile.AContentHash != nil
 	oExists := mergeFile.LcaContentHash != nil
 	bExists := mergeFile.BContentHash != nil
-	
+
 	aIsSymlink := mergeFile.ASymlinkTarget != nil
 	oIsSymlink := mergeFile.LcaSymlinkTarget != nil
 	bIsSymlink := mergeFile.BSymlinkTarget != nil
@@ -674,19 +674,19 @@ func (a *Server) handleSymlinkMerge(ctx context.Context, tx *db.TxQueries, newCh
 			return tx.AddFileToChange(ctx, newChangeId, mergeFile.FileName, executable, mergeFile.AContentHash, false, mergeFile.ASymlinkTarget)
 		}
 	}
-	
+
 	// Case 2: Conflicting changes - symlink vs symlink with different targets, or symlink vs regular file
 	// Mark as conflict and create conflict files
-	
+
 	executable := threeWayMergeExecutable(mergeFile.AExecutable, mergeFile.LcaExecutable, mergeFile.BExecutable)
-	
+
 	// Add LCA version if it exists
 	if oExists {
 		if err := tx.AddFileToChange(ctx, newChangeId, mergeFile.FileName, executable, mergeFile.LcaContentHash, true, mergeFile.LcaSymlinkTarget); err != nil {
 			return fmt.Errorf("add LCA file %s to change: %w", mergeFile.FileName, err)
 		}
 	}
-	
+
 	// Add A version if it exists
 	if aExists {
 		aFileName := fmt.Sprintf("%s.%s", mergeFile.FileName, changeA.Name)
@@ -694,7 +694,7 @@ func (a *Server) handleSymlinkMerge(ctx context.Context, tx *db.TxQueries, newCh
 			return fmt.Errorf("add A file %s to change: %w", aFileName, err)
 		}
 	}
-	
+
 	// Add B version if it exists
 	if bExists {
 		bFileName := fmt.Sprintf("%s.%s", mergeFile.FileName, changeB.Name)
@@ -702,7 +702,7 @@ func (a *Server) handleSymlinkMerge(ctx context.Context, tx *db.TxQueries, newCh
 			return fmt.Errorf("add B file %s to change: %w", bFileName, err)
 		}
 	}
-	
+
 	return nil
 }
 

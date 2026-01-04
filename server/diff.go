@@ -88,12 +88,12 @@ func determineFileOperations(oldFiles, newFiles map[string]FileState) []FileDiff
 			// Check if file changed (content, executable bit, or symlink status)
 			oldIsSymlink := oldFile.SymlinkTarget != nil
 			newIsSymlink := newFile.SymlinkTarget != nil
-			
-			filesChanged := !bytes.Equal(oldFile.ContentHash, newFile.ContentHash) || 
+
+			filesChanged := !bytes.Equal(oldFile.ContentHash, newFile.ContentHash) ||
 				oldFile.Executable != newFile.Executable ||
 				oldIsSymlink != newIsSymlink ||
 				(oldIsSymlink && newIsSymlink && *oldFile.SymlinkTarget != *newFile.SymlinkTarget)
-			
+
 			if filesChanged {
 				diffs = append(diffs, FileDiff{
 					Path:      path,
@@ -455,7 +455,7 @@ func (s *Server) streamFileDiff(stream protos.Pogo_DiffServer, fileDiff FileDiff
 		} else if oldIsSymlink && newIsSymlink {
 			// Symlink target changed
 			blocks = []*protos.DiffBlock{{
-				Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
+				Type: protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
 				Lines: []string{
 					fmt.Sprintf("symlink target changed:"),
 					fmt.Sprintf("- %s", *fileDiff.OldState.SymlinkTarget),

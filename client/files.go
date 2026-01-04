@@ -38,7 +38,7 @@ func (c *Client) UnignoredFiles(yield func(LocalFile) bool) {
 		}
 		isDir := info.IsDir()
 		isSymlink := info.Mode()&os.ModeSymlink != 0
-		
+
 		relPath, err := filepath.Rel(c.Location, absPath)
 		if err != nil {
 			return fmt.Errorf("get relative path of %s to %s: %w", absPath, c.Location, err)
@@ -151,16 +151,16 @@ func (c *Client) IsSymlink(absPath string) (bool, string, error) {
 	if err != nil {
 		return false, "", fmt.Errorf("lstat file: %w", err)
 	}
-	
+
 	if info.Mode()&os.ModeSymlink == 0 {
 		return false, "", nil
 	}
-	
+
 	target, err := os.Readlink(absPath)
 	if err != nil {
 		return true, "", fmt.Errorf("read symlink: %w", err)
 	}
-	
+
 	return true, target, nil
 }
 
@@ -168,7 +168,7 @@ func (c *Client) IsSymlink(absPath string) (bool, string, error) {
 // Returns the normalized target path and an error if validation fails
 func (c *Client) ValidateAndNormalizeSymlink(symlinkAbsPath string, target string) (string, error) {
 	symlinkDir := filepath.Dir(symlinkAbsPath)
-	
+
 	var targetAbsPath string
 	if filepath.IsAbs(target) {
 		// Absolute symlink - try to convert to relative
@@ -177,27 +177,27 @@ func (c *Client) ValidateAndNormalizeSymlink(symlinkAbsPath string, target strin
 		// Relative symlink - resolve it
 		targetAbsPath = filepath.Clean(filepath.Join(symlinkDir, target))
 	}
-	
+
 	// Check if target is within repository
 	relToRepo, err := filepath.Rel(c.Location, targetAbsPath)
 	if err != nil {
 		return "", fmt.Errorf("resolve target relative to repository: %w", err)
 	}
-	
+
 	// Check if path escapes repository (contains ..)
 	if strings.HasPrefix(relToRepo, "..") {
 		return "", fmt.Errorf("symlink target points outside repository: %s", target)
 	}
-	
+
 	// Convert to relative path from symlink to target
 	relTarget, err := filepath.Rel(symlinkDir, targetAbsPath)
 	if err != nil {
 		return "", fmt.Errorf("convert to relative path: %w", err)
 	}
-	
+
 	// Always use forward slashes for cross-platform compatibility
 	normalizedTarget := filepath.ToSlash(relTarget)
-	
+
 	return normalizedTarget, nil
 }
 
