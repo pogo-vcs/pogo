@@ -39,7 +39,7 @@ SELECT * FROM repositories WHERE id = $1;
 SELECT * FROM repositories WHERE name = $1;
 
 -- name: GetRepositoryFiles :many
-SELECT DISTINCT f.name, f.executable, f.content_hash, f.conflict
+SELECT DISTINCT f.name, f.executable, f.content_hash, f.conflict, f.symlink_target
 FROM files f
 JOIN change_files cf ON f.id = cf.file_id
 JOIN changes c ON cf.change_id = c.id
@@ -121,7 +121,7 @@ WHERE cf.change_id = $1
 ORDER BY f.name;
 
 -- name: GetRepositoryBookmarkFileByName :one
-SELECT DISTINCT f.name, f.executable, f.content_hash, f.conflict
+SELECT DISTINCT f.name, f.executable, f.content_hash, f.conflict, f.symlink_target
 FROM files f
 JOIN change_files cf ON f.id = cf.file_id
 JOIN changes c ON cf.change_id = c.id
@@ -318,21 +318,21 @@ WITH all_file_names AS (
     WHERE cf.change_id IN (@lca, @a, @b)
 ),
 lca_files AS (
-    SELECT DISTINCT ON (f.name) f.id, f.name, f.executable, f.content_hash
+    SELECT DISTINCT ON (f.name) f.id, f.name, f.executable, f.content_hash, f.symlink_target
     FROM change_files cf
     JOIN files f ON cf.file_id = f.id
     WHERE cf.change_id = @lca
     ORDER BY f.name, f.id
 ),
 a_files AS (
-    SELECT DISTINCT ON (f.name) f.id, f.name, f.executable, f.content_hash
+    SELECT DISTINCT ON (f.name) f.id, f.name, f.executable, f.content_hash, f.symlink_target
     FROM change_files cf
     JOIN files f ON cf.file_id = f.id
     WHERE cf.change_id = @a
     ORDER BY f.name, f.id
 ),
 b_files AS (
-    SELECT DISTINCT ON (f.name) f.id, f.name, f.executable, f.content_hash
+    SELECT DISTINCT ON (f.name) f.id, f.name, f.executable, f.content_hash, f.symlink_target
     FROM change_files cf
     JOIN files f ON cf.file_id = f.id
     WHERE cf.change_id = @b
@@ -343,12 +343,15 @@ SELECT
     lca.id as lca_file_id,
     lca.executable as lca_executable,
     lca.content_hash as lca_content_hash,
+    lca.symlink_target as lca_symlink_target,
     a.id as a_file_id,
     a.executable as a_executable,
     a.content_hash as a_content_hash,
+    a.symlink_target as a_symlink_target,
     b.id as b_file_id,
     b.executable as b_executable,
-    b.content_hash as b_content_hash
+    b.content_hash as b_content_hash,
+    b.symlink_target as b_symlink_target
 FROM all_file_names afn
 LEFT JOIN lca_files lca ON afn.name = lca.name
 LEFT JOIN a_files a ON afn.name = a.name
@@ -424,8 +427,8 @@ UPDATE changes SET description = @description::text WHERE id = $1;
 
 -- name: AddFileToChange :exec
 WITH ins AS (
-  INSERT INTO files (name, executable, content_hash, conflict)
-  VALUES ($2, $3, $4, $5)
+  INSERT INTO files (name, executable, content_hash, conflict, symlink_target)
+  VALUES ($2, $3, $4, $5, $6)
   ON CONFLICT (name, executable, content_hash) DO UPDATE SET conflict = $5
   RETURNING id
 )
@@ -765,7 +768,7 @@ WITH deleted AS (
 SELECT COUNT(*) FROM deleted;
 
 -- name: GetFilesForChange :many
-SELECT f.name, f.executable, f.content_hash
+SELECT f.name, f.executable, f.content_hash, f.symlink_target
 FROM files f
 JOIN change_files cf ON f.id = cf.file_id
 WHERE cf.change_id = $1

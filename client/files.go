@@ -31,7 +31,14 @@ func (c *Client) UnignoredFiles(yield func(LocalFile) bool) {
 		if err != nil {
 			return err
 		}
-		isDir := d.IsDir()
+		// Use Lstat to detect symlinks without following them
+		info, err := os.Lstat(absPath)
+		if err != nil {
+			return err
+		}
+		isDir := info.IsDir()
+		isSymlink := info.Mode()&os.ModeSymlink != 0
+		
 		relPath, err := filepath.Rel(c.Location, absPath)
 		if err != nil {
 			return fmt.Errorf("get relative path of %s to %s: %w", absPath, c.Location, err)
@@ -44,7 +51,18 @@ func (c *Client) UnignoredFiles(yield func(LocalFile) bool) {
 			}
 			return nil
 		}
+		// Don't descend into symlinked directories
 		if isDir {
+			if isSymlink {
+				// Treat symlinked directory as a file (track the symlink itself)
+				if !yield(LocalFile{
+					AbsPath: absPath,
+					Name:    filepath.ToSlash(relPath),
+				}) {
+					return filepath.SkipAll
+				}
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		if !yield(LocalFile{
@@ -125,4 +143,67 @@ func GetContentHash(absPath string) ([]byte, error) {
 	}
 
 	return h.Sum(nil), nil
+}
+
+// IsSymlink checks if a path is a symlink and returns its target
+func (c *Client) IsSymlink(absPath string) (bool, string, error) {
+	info, err := os.Lstat(absPath)
+	if err != nil {
+		return false, "", fmt.Errorf("lstat file: %w", err)
+	}
+	
+	if info.Mode()&os.ModeSymlink == 0 {
+		return false, "", nil
+	}
+	
+	target, err := os.Readlink(absPath)
+	if err != nil {
+		return true, "", fmt.Errorf("read symlink: %w", err)
+	}
+	
+	return true, target, nil
+}
+
+// ValidateAndNormalizeSymlink validates a symlink target and normalizes it to a relative path
+// Returns the normalized target path and an error if validation fails
+func (c *Client) ValidateAndNormalizeSymlink(symlinkAbsPath string, target string) (string, error) {
+	symlinkDir := filepath.Dir(symlinkAbsPath)
+	
+	var targetAbsPath string
+	if filepath.IsAbs(target) {
+		// Absolute symlink - try to convert to relative
+		targetAbsPath = filepath.Clean(target)
+	} else {
+		// Relative symlink - resolve it
+		targetAbsPath = filepath.Clean(filepath.Join(symlinkDir, target))
+	}
+	
+	// Check if target is within repository
+	relToRepo, err := filepath.Rel(c.Location, targetAbsPath)
+	if err != nil {
+		return "", fmt.Errorf("resolve target relative to repository: %w", err)
+	}
+	
+	// Check if path escapes repository (contains ..)
+	if strings.HasPrefix(relToRepo, "..") {
+		return "", fmt.Errorf("symlink target points outside repository: %s", target)
+	}
+	
+	// Convert to relative path from symlink to target
+	relTarget, err := filepath.Rel(symlinkDir, targetAbsPath)
+	if err != nil {
+		return "", fmt.Errorf("convert to relative path: %w", err)
+	}
+	
+	// Always use forward slashes for cross-platform compatibility
+	normalizedTarget := filepath.ToSlash(relTarget)
+	
+	return normalizedTarget, nil
+}
+
+// GetSymlinkHash computes hash of the symlink target path (not the target's content)
+func GetSymlinkHash(target string) []byte {
+	h := sha256.New()
+	h.Write([]byte(target))
+	return h.Sum(nil)
 }

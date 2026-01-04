@@ -443,27 +443,46 @@ func handleZipDownload(w http.ResponseWriter, r *http.Request) {
 	defer zipWriter.Close()
 
 	for _, vcsFile := range vcsFiles {
-		hashStr := base64.URLEncoding.EncodeToString(vcsFile.ContentHash)
-		f, err := filecontents.OpenFileByHash(hashStr)
-		if err != nil {
-			// Can't use http.Error after headers are sent, log the error instead
-			log.Printf("Failed to open file %q for zip: %s", vcsFile.Name, err.Error())
-			return
-		}
+		// Check if file is a symlink
+		if vcsFile.SymlinkTarget != nil {
+			// For symlinks, create a text file with the target path
+			// ZIP format doesn't have great cross-platform symlink support
+			zipEntryName := vcsFile.Name + ".symlink"
+			fileWriter, err := zipWriter.Create(zipEntryName)
+			if err != nil {
+				log.Printf("Failed to create zip entry %q: %s", zipEntryName, err.Error())
+				return
+			}
+			
+			symlinkInfo := fmt.Sprintf("SYMLINK: %s\nTarget: %s\n", vcsFile.Name, *vcsFile.SymlinkTarget)
+			if _, err := fileWriter.Write([]byte(symlinkInfo)); err != nil {
+				log.Printf("Failed to write symlink info %q to zip: %s", vcsFile.Name, err.Error())
+				return
+			}
+		} else {
+			// Regular file
+			hashStr := base64.URLEncoding.EncodeToString(vcsFile.ContentHash)
+			f, err := filecontents.OpenFileByHash(hashStr)
+			if err != nil {
+				// Can't use http.Error after headers are sent, log the error instead
+				log.Printf("Failed to open file %q for zip: %s", vcsFile.Name, err.Error())
+				return
+			}
 
-		zipEntryName := vcsFile.Name
-		fileWriter, err := zipWriter.Create(zipEntryName)
-		if err != nil {
-			f.Close()
-			log.Printf("Failed to create zip entry %q: %s", zipEntryName, err.Error())
-			return
-		}
+			zipEntryName := vcsFile.Name
+			fileWriter, err := zipWriter.Create(zipEntryName)
+			if err != nil {
+				f.Close()
+				log.Printf("Failed to create zip entry %q: %s", zipEntryName, err.Error())
+				return
+			}
 
-		_, err = io.Copy(fileWriter, f)
-		f.Close() // Close immediately after copying
-		if err != nil {
-			log.Printf("Failed to copy file %q to zip entry: %s", vcsFile.Name, err.Error())
-			return
+			_, err = io.Copy(fileWriter, f)
+			f.Close() // Close immediately after copying
+			if err != nil {
+				log.Printf("Failed to copy file %q to zip entry: %s", vcsFile.Name, err.Error())
+				return
+			}
 		}
 	}
 }

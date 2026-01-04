@@ -48,23 +48,51 @@ func (c *Client) PushFull(force bool) error {
 	// First, collect all file hashes
 	fmt.Fprintln(c.VerboseOut, "Collecting file hashes...")
 	type fileInfo struct {
-		file       LocalFile
-		hash       []byte
-		executable *bool
+		file          LocalFile
+		hash          []byte
+		executable    *bool
+		isSymlink     bool
+		symlinkTarget string
 	}
 	var files []fileInfo
 	var allHashes [][]byte
 
 	for file := range c.UnignoredFiles {
-		hash, err := filecontents.HashFile(file.AbsPath)
+		// Check if file is a symlink
+		isSymlink, target, err := c.IsSymlink(file.AbsPath)
 		if err != nil {
-			return errors.Join(fmt.Errorf("hash file %s", file.Name), err)
+			return errors.Join(fmt.Errorf("check symlink %s", file.Name), err)
 		}
-		files = append(files, fileInfo{
-			file:       file,
-			hash:       hash,
-			executable: IsExecutable(file.AbsPath),
-		})
+
+		var hash []byte
+		if isSymlink {
+			// Validate and normalize symlink target
+			normalizedTarget, err := c.ValidateAndNormalizeSymlink(file.AbsPath, target)
+			if err != nil {
+				return errors.Join(fmt.Errorf("validate symlink %s", file.Name), err)
+			}
+			// Hash the symlink target path
+			hash = GetSymlinkHash(normalizedTarget)
+			files = append(files, fileInfo{
+				file:          file,
+				hash:          hash,
+				executable:    nil,
+				isSymlink:     true,
+				symlinkTarget: normalizedTarget,
+			})
+		} else {
+			// Regular file
+			hash, err = filecontents.HashFile(file.AbsPath)
+			if err != nil {
+				return errors.Join(fmt.Errorf("hash file %s", file.Name), err)
+			}
+			files = append(files, fileInfo{
+				file:       file,
+				hash:       hash,
+				executable: IsExecutable(file.AbsPath),
+				isSymlink:  false,
+			})
+		}
 		allHashes = append(allHashes, hash)
 	}
 
@@ -123,26 +151,46 @@ func (c *Client) PushFull(force bool) error {
 		hashStr := base64.URLEncoding.EncodeToString(fileInfo.hash)
 		needsContent := neededHashes[hashStr]
 
-		if needsContent {
+		if fileInfo.isSymlink {
+			fmt.Fprintf(c.VerboseOut, "Pushing symlink: %s -> %s\n", fileInfo.file.Name, fileInfo.symlinkTarget)
+		} else if needsContent {
 			fmt.Fprintf(c.VerboseOut, "Pushing new file: %s\n", fileInfo.file.Name)
 		} else {
 			fmt.Fprintf(c.VerboseOut, "Skipping existing file: %s\n", fileInfo.file.Name)
 		}
 
 		// Send file header with hash
+		fileHeader := &protos.FileHeader{
+			Name:        fileInfo.file.Name,
+			Executable:  fileInfo.executable,
+			ContentHash: fileInfo.hash,
+		}
+		if fileInfo.isSymlink {
+			fileHeader.SymlinkTarget = &fileInfo.symlinkTarget
+		}
+
 		if err := stream.Send(&protos.PushFullRequest{
 			Payload: &protos.PushFullRequest_FileHeader{
-				&protos.FileHeader{
-					Name:        fileInfo.file.Name,
-					Executable:  fileInfo.executable,
-					ContentHash: fileInfo.hash,
-				},
+				fileHeader,
 			},
 		}); err != nil {
 			return errors.Join(fmt.Errorf("send file %s header", fileInfo.file.Name), err)
 		}
 
-		// Send has_content flag
+		// For symlinks, don't send content
+		if fileInfo.isSymlink {
+			// Send has_content = false
+			if err := stream.Send(&protos.PushFullRequest{
+				Payload: &protos.PushFullRequest_HasContent{
+					HasContent: false,
+				},
+			}); err != nil {
+				return errors.Join(fmt.Errorf("send file %s has_content", fileInfo.file.Name), err)
+			}
+			continue
+		}
+
+		// Send has_content flag for regular files
 		if err := stream.Send(&protos.PushFullRequest{
 			Payload: &protos.PushFullRequest_HasContent{
 				HasContent: needsContent,
@@ -409,22 +457,50 @@ func (c *Client) CollectDiffLocal(usePatience, includeLargeFiles bool) (difftui.
 	}
 
 	type fileInfo struct {
-		file       LocalFile
-		hash       []byte
-		executable *bool
+		file          LocalFile
+		hash          []byte
+		executable    *bool
+		isSymlink     bool
+		symlinkTarget string
 	}
 	var files []fileInfo
 
 	for file := range c.UnignoredFiles {
-		hash, err := filecontents.HashFile(file.AbsPath)
+		// Check if file is a symlink
+		isSymlink, target, err := c.IsSymlink(file.AbsPath)
 		if err != nil {
-			return difftui.DiffData{}, errors.Join(fmt.Errorf("hash file %s", file.Name), err)
+			return difftui.DiffData{}, errors.Join(fmt.Errorf("check symlink %s", file.Name), err)
 		}
-		files = append(files, fileInfo{
-			file:       file,
-			hash:       hash,
-			executable: IsExecutable(file.AbsPath),
-		})
+
+		var hash []byte
+		if isSymlink {
+			// Validate and normalize symlink target
+			normalizedTarget, err := c.ValidateAndNormalizeSymlink(file.AbsPath, target)
+			if err != nil {
+				return difftui.DiffData{}, errors.Join(fmt.Errorf("validate symlink %s", file.Name), err)
+			}
+			// Hash the symlink target path
+			hash = GetSymlinkHash(normalizedTarget)
+			files = append(files, fileInfo{
+				file:          file,
+				hash:          hash,
+				executable:    nil,
+				isSymlink:     true,
+				symlinkTarget: normalizedTarget,
+			})
+		} else {
+			// Regular file
+			hash, err = filecontents.HashFile(file.AbsPath)
+			if err != nil {
+				return difftui.DiffData{}, errors.Join(fmt.Errorf("hash file %s", file.Name), err)
+			}
+			files = append(files, fileInfo{
+				file:       file,
+				hash:       hash,
+				executable: IsExecutable(file.AbsPath),
+				isSymlink:  false,
+			})
+		}
 	}
 
 	for _, fileInfo := range files {
@@ -613,22 +689,50 @@ func (c *Client) DiffLocalWithOutput(out io.Writer, colored, usePatience, includ
 	}
 
 	type fileInfo struct {
-		file       LocalFile
-		hash       []byte
-		executable *bool
+		file          LocalFile
+		hash          []byte
+		executable    *bool
+		isSymlink     bool
+		symlinkTarget string
 	}
 	var files []fileInfo
 
 	for file := range c.UnignoredFiles {
-		hash, err := filecontents.HashFile(file.AbsPath)
+		// Check if file is a symlink
+		isSymlink, target, err := c.IsSymlink(file.AbsPath)
 		if err != nil {
-			return errors.Join(fmt.Errorf("hash file %s", file.Name), err)
+			return errors.Join(fmt.Errorf("check symlink %s", file.Name), err)
 		}
-		files = append(files, fileInfo{
-			file:       file,
-			hash:       hash,
-			executable: IsExecutable(file.AbsPath),
-		})
+
+		var hash []byte
+		if isSymlink {
+			// Validate and normalize symlink target
+			normalizedTarget, err := c.ValidateAndNormalizeSymlink(file.AbsPath, target)
+			if err != nil {
+				return errors.Join(fmt.Errorf("validate symlink %s", file.Name), err)
+			}
+			// Hash the symlink target path
+			hash = GetSymlinkHash(normalizedTarget)
+			files = append(files, fileInfo{
+				file:          file,
+				hash:          hash,
+				executable:    nil,
+				isSymlink:     true,
+				symlinkTarget: normalizedTarget,
+			})
+		} else {
+			// Regular file
+			hash, err = filecontents.HashFile(file.AbsPath)
+			if err != nil {
+				return errors.Join(fmt.Errorf("hash file %s", file.Name), err)
+			}
+			files = append(files, fileInfo{
+				file:       file,
+				hash:       hash,
+				executable: IsExecutable(file.AbsPath),
+				isSymlink:  false,
+			})
+		}
 	}
 
 	for _, fileInfo := range files {
@@ -1051,15 +1155,35 @@ func (c *Client) plainEditRequest(request *protos.EditRequest) error {
 				currentFile = nil
 			}
 
-			// Create new file
+			// Create new file or symlink
 			currentFileName = payload.FileHeader.Name
 			currentFileExecutable = payload.FileHeader.Executable != nil && *payload.FileHeader.Executable
 			absPath := filepath.Join(c.Location, filepath.FromSlash(currentFileName))
 			_ = os.MkdirAll(filepath.Dir(absPath), 0755)
 
-			currentFile, err = os.Create(absPath)
-			if err != nil {
-				return errors.Join(fmt.Errorf("create file %s", currentFileName), err)
+			// Check if this is a symlink
+			if payload.FileHeader.SymlinkTarget != nil {
+				// Create symlink
+				target := *payload.FileHeader.SymlinkTarget
+				// Remove existing file/symlink if it exists
+				_ = os.Remove(absPath)
+				
+				// Convert forward slashes to OS-specific separators
+				targetPath := filepath.FromSlash(target)
+				
+				if err := CreateSymlink(targetPath, absPath); err != nil {
+					return errors.Join(fmt.Errorf("create symlink %s -> %s", currentFileName, target), err)
+				}
+				filesCreated++
+				// No file content will follow for symlinks, so reset currentFile
+				currentFile = nil
+				currentFileName = ""
+			} else {
+				// Regular file - create it
+				currentFile, err = os.Create(absPath)
+				if err != nil {
+					return errors.Join(fmt.Errorf("create file %s", currentFileName), err)
+				}
 			}
 
 		case *protos.EditResponse_FileContent:

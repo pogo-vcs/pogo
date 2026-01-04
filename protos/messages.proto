@@ -48,6 +48,7 @@ message FileHeader {
   string name = 1;
   optional bool executable = 2;
   bytes content_hash = 3;
+  optional string symlink_target = 4;
 }
 
 message InitResponse {

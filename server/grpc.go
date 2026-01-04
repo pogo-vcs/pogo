@@ -263,29 +263,56 @@ func (a *Server) PushFull(stream grpc.ClientStreamingServer[protos.PushFullReque
 			}
 
 			var hash []byte
-			if filesWithContent[relPath] {
-				// Use hash from newly stored file
-				hash = moved[relPath]
+			var symlinkTarget *string
+			
+			// Check if this is a symlink
+			if header.SymlinkTarget != nil {
+				// Symlink: validate and store metadata
+				target := *header.SymlinkTarget
+				
+				// Validate that symlink target is relative (client should have ensured this)
+				if filepath.IsAbs(target) {
+					return fmt.Errorf("symlink %s has absolute target %s (not allowed)", relPath, target)
+				}
+				
+				// Check if target points within repository bounds
+				symlinkDir := filepath.Dir(filepath.FromSlash(relPath))
+				targetAbs := filepath.Clean(filepath.Join(symlinkDir, filepath.FromSlash(target)))
+				if strings.HasPrefix(targetAbs, "..") {
+					return fmt.Errorf("symlink %s points outside repository: %s", relPath, target)
+				}
+				
+				symlinkTarget = &target
+				hash = header.ContentHash // Client sends hash of target path
 			} else {
-				// File already exists, use hash from metadata
-				hash = header.ContentHash
+				// Regular file
+				if filesWithContent[relPath] {
+					// Use hash from newly stored file
+					hash = moved[relPath]
+				} else {
+					// File already exists, use hash from metadata
+					hash = header.ContentHash
+				}
 			}
 
-			// Check for conflicts
-			hasConflicts := filecontents.IsBinaryConflictFileName(relPath)
-			if !hasConflicts {
-				hashStr := base64.URLEncoding.EncodeToString(hash)
-				filePath := filecontents.GetFilePathFromHash(hashStr)
-				if hasConflicts = filecontents.IsBinaryConflictFileName(relPath); !hasConflicts {
-					hasConflicts, err = filecontents.HasConflictMarkers(filePath)
-					if err != nil {
-						return fmt.Errorf("check conflict markers for file %s: %w", relPath, err)
+			// Check for conflicts (only for regular files)
+			hasConflicts := false
+			if symlinkTarget == nil {
+				hasConflicts = filecontents.IsBinaryConflictFileName(relPath)
+				if !hasConflicts {
+					hashStr := base64.URLEncoding.EncodeToString(hash)
+					filePath := filecontents.GetFilePathFromHash(hashStr)
+					if hasConflicts = filecontents.IsBinaryConflictFileName(relPath); !hasConflicts {
+						hasConflicts, err = filecontents.HasConflictMarkers(filePath)
+						if err != nil {
+							return fmt.Errorf("check conflict markers for file %s: %w", relPath, err)
+						}
 					}
 				}
 			}
 
-			fmt.Printf("AddFileToChange ChangeId: %d, relPath: %s, exec: %t, hash: %x, hasConflicts: %t, hadContent: %t\n", changeId.ChangeId, relPath, exec, hash, hasConflicts, filesWithContent[relPath])
-			if err := tx.AddFileToChange(ctx, changeId.ChangeId, relPath, exec, hash, hasConflicts); err != nil {
+			fmt.Printf("AddFileToChange ChangeId: %d, relPath: %s, exec: %t, hash: %x, hasConflicts: %t, hadContent: %t, symlink: %v\n", changeId.ChangeId, relPath, exec, hash, hasConflicts, filesWithContent[relPath], symlinkTarget)
+			if err := tx.AddFileToChange(ctx, changeId.ChangeId, relPath, exec, hash, hasConflicts, symlinkTarget); err != nil {
 				return fmt.Errorf("add file %s to change: %w", relPath, err)
 			}
 		}
@@ -562,6 +589,10 @@ func (a *Server) processMergeFile(ctx context.Context, tx *db.TxQueries, newChan
 	aExists := mergeFile.AContentHash != nil
 	oExists := mergeFile.LcaContentHash != nil
 	bExists := mergeFile.BContentHash != nil
+	
+	aIsSymlink := mergeFile.ASymlinkTarget != nil
+	oIsSymlink := mergeFile.LcaSymlinkTarget != nil
+	bIsSymlink := mergeFile.BSymlinkTarget != nil
 
 	if a.shouldSkipFile(mergeFile, aExists, oExists, bExists) {
 		return nil
@@ -569,6 +600,11 @@ func (a *Server) processMergeFile(ctx context.Context, tx *db.TxQueries, newChan
 
 	if a.isSimpleCase(aExists, oExists, bExists) {
 		return a.handleSimpleCase(ctx, tx, newChangeId, mergeFile, aExists, bExists)
+	}
+
+	// Handle symlink conflicts
+	if aIsSymlink || bIsSymlink || oIsSymlink {
+		return a.handleSymlinkMerge(ctx, tx, newChangeId, mergeFile, changeA, changeB, aExists, oExists, bExists, aIsSymlink, oIsSymlink, bIsSymlink)
 	}
 
 	return a.handleThreeWayMerge(ctx, tx, newChangeId, mergeFile, changeA, changeB, tempDir, aExists, oExists, bExists)
@@ -594,13 +630,16 @@ func (a *Server) isSimpleCase(aExists, oExists, bExists bool) bool {
 func (a *Server) handleSimpleCase(ctx context.Context, tx *db.TxQueries, newChangeId int64, mergeFile db.GetThreeWayMergeFilesRow, aExists, bExists bool) error {
 	var hash []byte
 	var executable bool
+	var symlinkTarget *string
 
 	if aExists {
 		hash = mergeFile.AContentHash
 		executable = *mergeFile.AExecutable
+		symlinkTarget = mergeFile.ASymlinkTarget
 	} else {
 		hash = mergeFile.BContentHash
 		executable = *mergeFile.BExecutable
+		symlinkTarget = mergeFile.BSymlinkTarget
 	}
 
 	hashStr := base64.URLEncoding.EncodeToString(hash)
@@ -609,14 +648,62 @@ func (a *Server) handleSimpleCase(ctx context.Context, tx *db.TxQueries, newChan
 		hasConflicts bool
 		err          error
 	)
-	if hasConflicts = filecontents.IsBinaryConflictFileName(mergeFile.FileName); !hasConflicts {
-		hasConflicts, err = filecontents.HasConflictMarkers(filePath)
-		if err != nil {
-			return fmt.Errorf("check conflict markers for file %s: %w", filePath, err)
+	// Only check for conflicts in regular files
+	if symlinkTarget == nil {
+		if hasConflicts = filecontents.IsBinaryConflictFileName(mergeFile.FileName); !hasConflicts {
+			hasConflicts, err = filecontents.HasConflictMarkers(filePath)
+			if err != nil {
+				return fmt.Errorf("check conflict markers for file %s: %w", filePath, err)
+			}
 		}
 	}
 
-	return tx.AddFileToChange(ctx, newChangeId, mergeFile.FileName, executable, hash, hasConflicts)
+	return tx.AddFileToChange(ctx, newChangeId, mergeFile.FileName, executable, hash, hasConflicts, symlinkTarget)
+}
+
+// handleSymlinkMerge handles merging when at least one version is a symlink
+func (a *Server) handleSymlinkMerge(ctx context.Context, tx *db.TxQueries, newChangeId int64, mergeFile db.GetThreeWayMergeFilesRow, changeA, changeB *db.GetChangeRow, aExists, oExists, bExists, aIsSymlink, oIsSymlink, bIsSymlink bool) error {
+	// Case 1: Both A and B are symlinks with the same target - no conflict
+	if aIsSymlink && bIsSymlink && aExists && bExists {
+		if *mergeFile.ASymlinkTarget == *mergeFile.BSymlinkTarget {
+			// Same symlink target, no conflict
+			executable := false
+			if mergeFile.AExecutable != nil {
+				executable = *mergeFile.AExecutable
+			}
+			return tx.AddFileToChange(ctx, newChangeId, mergeFile.FileName, executable, mergeFile.AContentHash, false, mergeFile.ASymlinkTarget)
+		}
+	}
+	
+	// Case 2: Conflicting changes - symlink vs symlink with different targets, or symlink vs regular file
+	// Mark as conflict and create conflict files
+	
+	executable := threeWayMergeExecutable(mergeFile.AExecutable, mergeFile.LcaExecutable, mergeFile.BExecutable)
+	
+	// Add LCA version if it exists
+	if oExists {
+		if err := tx.AddFileToChange(ctx, newChangeId, mergeFile.FileName, executable, mergeFile.LcaContentHash, true, mergeFile.LcaSymlinkTarget); err != nil {
+			return fmt.Errorf("add LCA file %s to change: %w", mergeFile.FileName, err)
+		}
+	}
+	
+	// Add A version if it exists
+	if aExists {
+		aFileName := fmt.Sprintf("%s.%s", mergeFile.FileName, changeA.Name)
+		if err := tx.AddFileToChange(ctx, newChangeId, aFileName, executable, mergeFile.AContentHash, true, mergeFile.ASymlinkTarget); err != nil {
+			return fmt.Errorf("add A file %s to change: %w", aFileName, err)
+		}
+	}
+	
+	// Add B version if it exists
+	if bExists {
+		bFileName := fmt.Sprintf("%s.%s", mergeFile.FileName, changeB.Name)
+		if err := tx.AddFileToChange(ctx, newChangeId, bFileName, executable, mergeFile.BContentHash, true, mergeFile.BSymlinkTarget); err != nil {
+			return fmt.Errorf("add B file %s to change: %w", bFileName, err)
+		}
+	}
+	
+	return nil
 }
 
 func (a *Server) handleThreeWayMerge(ctx context.Context, tx *db.TxQueries, newChangeId int64, mergeFile db.GetThreeWayMergeFilesRow, changeA, changeB *db.GetChangeRow, tempDir string, aExists, oExists, bExists bool) error {
@@ -670,21 +757,21 @@ func (a *Server) closeReader(reader io.Reader) {
 
 func (a *Server) handleBinaryConflict(ctx context.Context, tx *db.TxQueries, newChangeId int64, mergeFile db.GetThreeWayMergeFilesRow, changeA, changeB *db.GetChangeRow, aExists, oExists, bExists bool, executable bool) error {
 	if oExists {
-		if err := tx.AddFileToChange(ctx, newChangeId, mergeFile.FileName, executable, mergeFile.LcaContentHash, true); err != nil {
+		if err := tx.AddFileToChange(ctx, newChangeId, mergeFile.FileName, executable, mergeFile.LcaContentHash, true, mergeFile.LcaSymlinkTarget); err != nil {
 			return fmt.Errorf("add LCA file %s to change: %w", mergeFile.FileName, err)
 		}
 	}
 
 	if aExists {
 		aFileName := fmt.Sprintf("%s.%s", mergeFile.FileName, changeA.Name)
-		if err := tx.AddFileToChange(ctx, newChangeId, aFileName, executable, mergeFile.AContentHash, true); err != nil {
+		if err := tx.AddFileToChange(ctx, newChangeId, aFileName, executable, mergeFile.AContentHash, true, mergeFile.ASymlinkTarget); err != nil {
 			return fmt.Errorf("add A file %s to change: %w", aFileName, err)
 		}
 	}
 
 	if bExists {
 		bFileName := fmt.Sprintf("%s.%s", mergeFile.FileName, changeB.Name)
-		if err := tx.AddFileToChange(ctx, newChangeId, bFileName, executable, mergeFile.BContentHash, true); err != nil {
+		if err := tx.AddFileToChange(ctx, newChangeId, bFileName, executable, mergeFile.BContentHash, true, mergeFile.BSymlinkTarget); err != nil {
 			return fmt.Errorf("add B file %s to change: %w", bFileName, err)
 		}
 	}
@@ -726,7 +813,7 @@ func (a *Server) handleTextMerge(ctx context.Context, tx *db.TxQueries, newChang
 		return fmt.Errorf("store merged file %s: %w", mergeFile.FileName, err)
 	}
 
-	return tx.AddFileToChange(ctx, newChangeId, mergeFile.FileName, executable, hash, hasConflicts)
+	return tx.AddFileToChange(ctx, newChangeId, mergeFile.FileName, executable, hash, hasConflicts, nil)
 }
 
 func threeWayMergeExecutable(a, o, b *bool) bool {
@@ -1092,6 +1179,10 @@ func (a *Server) Edit(req *protos.EditRequest, stream grpc.ServerStreamingServer
 		if revisionFile.Executable {
 			fileHeader.Executable = &revisionFile.Executable
 		}
+		// Check if file has symlink_target in database
+		if revisionFile.SymlinkTarget != nil {
+			fileHeader.SymlinkTarget = revisionFile.SymlinkTarget
+		}
 
 		if err := stream.Send(&protos.EditResponse{
 			Payload: &protos.EditResponse_FileHeader{
@@ -1101,7 +1192,19 @@ func (a *Server) Edit(req *protos.EditRequest, stream grpc.ServerStreamingServer
 			return fmt.Errorf("send file header %s: %w", fileName, err)
 		}
 
-		// Send file content
+		// If symlink, send EOF immediately (no content)
+		if revisionFile.SymlinkTarget != nil {
+			if err := stream.Send(&protos.EditResponse{
+				Payload: &protos.EditResponse_Eof{
+					Eof: &protos.EOF{},
+				},
+			}); err != nil {
+				return fmt.Errorf("send eof %s: %w", fileName, err)
+			}
+			continue
+		}
+
+		// Send file content for regular files
 		hashStr := base64.URLEncoding.EncodeToString(revisionFile.ContentHash)
 		f, _, err := filecontents.OpenFileByHashWithType(hashStr)
 		if err != nil {

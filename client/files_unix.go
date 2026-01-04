@@ -16,3 +16,8 @@ func IsExecutable(absPath string) *bool {
 	}
 	return ptr.Bool(f.Mode().Perm()&0111 != 0)
 }
+
+// CreateSymlink creates a symbolic link on Unix systems
+func CreateSymlink(target, linkPath string) error {
+	return os.Symlink(target, linkPath)
+}

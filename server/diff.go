@@ -16,9 +16,10 @@ import (
 const MaxFileSizeForDiff = 1 * 1024 * 1024
 
 type FileState struct {
-	Path        string
-	ContentHash []byte
-	Executable  bool
+	Path          string
+	ContentHash   []byte
+	Executable    bool
+	SymlinkTarget *string
 }
 
 type FileOperation int
@@ -45,9 +46,10 @@ func collectFileStates(ctx context.Context, changeId int64) (map[string]FileStat
 	result := make(map[string]FileState)
 	for _, f := range files {
 		result[f.Name] = FileState{
-			Path:        f.Name,
-			ContentHash: f.ContentHash,
-			Executable:  f.Executable,
+			Path:          f.Name,
+			ContentHash:   f.ContentHash,
+			Executable:    f.Executable,
+			SymlinkTarget: f.SymlinkTarget,
 		}
 	}
 
@@ -83,7 +85,16 @@ func determineFileOperations(oldFiles, newFiles map[string]FileState) []FileDiff
 				NewState:  nil,
 			})
 		} else if existsOld && existsNew {
-			if !bytes.Equal(oldFile.ContentHash, newFile.ContentHash) || oldFile.Executable != newFile.Executable {
+			// Check if file changed (content, executable bit, or symlink status)
+			oldIsSymlink := oldFile.SymlinkTarget != nil
+			newIsSymlink := newFile.SymlinkTarget != nil
+			
+			filesChanged := !bytes.Equal(oldFile.ContentHash, newFile.ContentHash) || 
+				oldFile.Executable != newFile.Executable ||
+				oldIsSymlink != newIsSymlink ||
+				(oldIsSymlink && newIsSymlink && *oldFile.SymlinkTarget != *newFile.SymlinkTarget)
+			
+			if filesChanged {
 				diffs = append(diffs, FileDiff{
 					Path:      path,
 					Operation: FileModified,
@@ -308,163 +319,223 @@ func (s *Server) streamFileDiff(stream protos.Pogo_DiffServer, fileDiff FileDiff
 	var status protos.DiffFileStatus
 	var blocks []*protos.DiffBlock
 
+	// Check if either state is a symlink
+	oldIsSymlink := fileDiff.OldState != nil && fileDiff.OldState.SymlinkTarget != nil
+	newIsSymlink := fileDiff.NewState != nil && fileDiff.NewState.SymlinkTarget != nil
+
 	switch fileDiff.Operation {
 	case FileAdded:
 		status = protos.DiffFileStatus_DIFF_FILE_STATUS_ADDED
 
-		size, err := getFileSize(fileDiff.NewState.ContentHash)
-		if err != nil {
-			return fmt.Errorf("get file size: %w", err)
-		}
-
-		if size > MaxFileSizeForDiff && !includeLargeFiles {
+		if newIsSymlink {
+			// New symlink added
 			blocks = []*protos.DiffBlock{{
 				Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
-				Lines: []string{fmt.Sprintf("File too large (%d bytes). Use --include-large-files to show diff.", size)},
+				Lines: []string{fmt.Sprintf("new symlink: %s", *fileDiff.NewState.SymlinkTarget)},
 			}}
 		} else {
-			isBinary, err := isBinaryFile(fileDiff.NewState.ContentHash)
+			// Regular file added (existing logic)
+			size, err := getFileSize(fileDiff.NewState.ContentHash)
 			if err != nil {
-				return fmt.Errorf("check if binary: %w", err)
+				return fmt.Errorf("get file size: %w", err)
 			}
 
-			if isBinary {
-				status = protos.DiffFileStatus_DIFF_FILE_STATUS_BINARY
+			if size > MaxFileSizeForDiff && !includeLargeFiles {
 				blocks = []*protos.DiffBlock{{
 					Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
-					Lines: []string{"Binary file"},
+					Lines: []string{fmt.Sprintf("File too large (%d bytes). Use --include-large-files to show diff.", size)},
 				}}
 			} else {
-				content, err := readFileContentAsString(fileDiff.NewState.ContentHash)
+				isBinary, err := isBinaryFile(fileDiff.NewState.ContentHash)
 				if err != nil {
-					return fmt.Errorf("read new file content: %w", err)
+					return fmt.Errorf("check if binary: %w", err)
 				}
 
-				lines := strings.Split(content, "\n")
-				newLineCount = int32(len(lines))
+				if isBinary {
+					status = protos.DiffFileStatus_DIFF_FILE_STATUS_BINARY
+					blocks = []*protos.DiffBlock{{
+						Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
+						Lines: []string{"Binary file"},
+					}}
+				} else {
+					content, err := readFileContentAsString(fileDiff.NewState.ContentHash)
+					if err != nil {
+						return fmt.Errorf("read new file content: %w", err)
+					}
 
-				blocks = []*protos.DiffBlock{{
-					Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_ADDED,
-					Lines: lines,
-				}}
+					lines := strings.Split(content, "\n")
+					newLineCount = int32(len(lines))
+
+					blocks = []*protos.DiffBlock{{
+						Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_ADDED,
+						Lines: lines,
+					}}
+				}
 			}
 		}
 
 	case FileDeleted:
 		status = protos.DiffFileStatus_DIFF_FILE_STATUS_DELETED
 
-		size, err := getFileSize(fileDiff.OldState.ContentHash)
-		if err != nil {
-			return fmt.Errorf("get file size: %w", err)
-		}
-
-		if size > MaxFileSizeForDiff && !includeLargeFiles {
+		if oldIsSymlink {
+			// Symlink deleted
 			blocks = []*protos.DiffBlock{{
 				Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
-				Lines: []string{fmt.Sprintf("File too large (%d bytes). Use --include-large-files to show diff.", size)},
+				Lines: []string{fmt.Sprintf("deleted symlink: %s", *fileDiff.OldState.SymlinkTarget)},
 			}}
 		} else {
-			isBinary, err := isBinaryFile(fileDiff.OldState.ContentHash)
+			// Regular file deleted (existing logic)
+			size, err := getFileSize(fileDiff.OldState.ContentHash)
 			if err != nil {
-				return fmt.Errorf("check if binary: %w", err)
+				return fmt.Errorf("get file size: %w", err)
 			}
 
-			if isBinary {
-				status = protos.DiffFileStatus_DIFF_FILE_STATUS_BINARY
+			if size > MaxFileSizeForDiff && !includeLargeFiles {
 				blocks = []*protos.DiffBlock{{
 					Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
-					Lines: []string{"Binary file"},
+					Lines: []string{fmt.Sprintf("File too large (%d bytes). Use --include-large-files to show diff.", size)},
 				}}
 			} else {
-				content, err := readFileContentAsString(fileDiff.OldState.ContentHash)
+				isBinary, err := isBinaryFile(fileDiff.OldState.ContentHash)
 				if err != nil {
-					return fmt.Errorf("read old file content: %w", err)
+					return fmt.Errorf("check if binary: %w", err)
 				}
 
-				lines := strings.Split(content, "\n")
-				oldLineCount = int32(len(lines))
+				if isBinary {
+					status = protos.DiffFileStatus_DIFF_FILE_STATUS_BINARY
+					blocks = []*protos.DiffBlock{{
+						Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
+						Lines: []string{"Binary file"},
+					}}
+				} else {
+					content, err := readFileContentAsString(fileDiff.OldState.ContentHash)
+					if err != nil {
+						return fmt.Errorf("read old file content: %w", err)
+					}
 
-				blocks = []*protos.DiffBlock{{
-					Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_REMOVED,
-					Lines: lines,
-				}}
+					lines := strings.Split(content, "\n")
+					oldLineCount = int32(len(lines))
+
+					blocks = []*protos.DiffBlock{{
+						Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_REMOVED,
+						Lines: lines,
+					}}
+				}
 			}
 		}
 
 	case FileModified:
 		status = protos.DiffFileStatus_DIFF_FILE_STATUS_MODIFIED
 
-		oldSize, err := getFileSize(fileDiff.OldState.ContentHash)
-		if err != nil {
-			return fmt.Errorf("get old file size: %w", err)
-		}
-		newSize, err := getFileSize(fileDiff.NewState.ContentHash)
-		if err != nil {
-			return fmt.Errorf("get new file size: %w", err)
-		}
-
-		maxSize := oldSize
-		if newSize > maxSize {
-			maxSize = newSize
-		}
-
-		if maxSize > MaxFileSizeForDiff && !includeLargeFiles {
+		// Handle symlink type changes
+		if oldIsSymlink && !newIsSymlink {
+			// Symlink changed to regular file
+			blocks = []*protos.DiffBlock{
+				{
+					Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
+					Lines: []string{fmt.Sprintf("deleted symlink: %s", *fileDiff.OldState.SymlinkTarget)},
+				},
+				{
+					Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
+					Lines: []string{"new regular file"},
+				},
+			}
+		} else if !oldIsSymlink && newIsSymlink {
+			// Regular file changed to symlink
+			blocks = []*protos.DiffBlock{
+				{
+					Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
+					Lines: []string{"deleted regular file"},
+				},
+				{
+					Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
+					Lines: []string{fmt.Sprintf("new symlink: %s", *fileDiff.NewState.SymlinkTarget)},
+				},
+			}
+		} else if oldIsSymlink && newIsSymlink {
+			// Symlink target changed
 			blocks = []*protos.DiffBlock{{
 				Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
-				Lines: []string{fmt.Sprintf("File too large (%d bytes). Use --include-large-files to show diff.", maxSize)},
+				Lines: []string{
+					fmt.Sprintf("symlink target changed:"),
+					fmt.Sprintf("- %s", *fileDiff.OldState.SymlinkTarget),
+					fmt.Sprintf("+ %s", *fileDiff.NewState.SymlinkTarget),
+				},
 			}}
 		} else {
-			isBinary1, err := isBinaryFile(fileDiff.OldState.ContentHash)
+			// Regular file modified (existing logic)
+			oldSize, err := getFileSize(fileDiff.OldState.ContentHash)
 			if err != nil {
-				return fmt.Errorf("check if old file is binary: %w", err)
+				return fmt.Errorf("get old file size: %w", err)
 			}
-			isBinary2, err := isBinaryFile(fileDiff.NewState.ContentHash)
+			newSize, err := getFileSize(fileDiff.NewState.ContentHash)
 			if err != nil {
-				return fmt.Errorf("check if new file is binary: %w", err)
+				return fmt.Errorf("get new file size: %w", err)
 			}
 
-			if isBinary1 || isBinary2 {
-				status = protos.DiffFileStatus_DIFF_FILE_STATUS_BINARY
+			maxSize := oldSize
+			if newSize > maxSize {
+				maxSize = newSize
+			}
+
+			if maxSize > MaxFileSizeForDiff && !includeLargeFiles {
 				blocks = []*protos.DiffBlock{{
 					Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
-					Lines: []string{"Binary files differ"},
+					Lines: []string{fmt.Sprintf("File too large (%d bytes). Use --include-large-files to show diff.", maxSize)},
 				}}
 			} else {
-				oldContent, err := readFileContentAsString(fileDiff.OldState.ContentHash)
+				isBinary1, err := isBinaryFile(fileDiff.OldState.ContentHash)
 				if err != nil {
-					return fmt.Errorf("read old file content: %w", err)
+					return fmt.Errorf("check if old file is binary: %w", err)
 				}
-				newContent, err := readFileContentAsString(fileDiff.NewState.ContentHash)
+				isBinary2, err := isBinaryFile(fileDiff.NewState.ContentHash)
 				if err != nil {
-					return fmt.Errorf("read new file content: %w", err)
+					return fmt.Errorf("check if new file is binary: %w", err)
 				}
 
-				oldLines := strings.Split(oldContent, "\n")
-				newLines := strings.Split(newContent, "\n")
-				oldLineCount = int32(len(oldLines))
-				newLineCount = int32(len(newLines))
-
-				if fileDiff.OldState.Executable != fileDiff.NewState.Executable {
-					oldMode := "100644"
-					if fileDiff.OldState.Executable {
-						oldMode = "100755"
-					}
-					newMode := "100644"
-					if fileDiff.NewState.Executable {
-						newMode = "100755"
-					}
-
-					blocks = append(blocks, &protos.DiffBlock{
+				if isBinary1 || isBinary2 {
+					status = protos.DiffFileStatus_DIFF_FILE_STATUS_BINARY
+					blocks = []*protos.DiffBlock{{
 						Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
-						Lines: []string{fmt.Sprintf("old mode %s", oldMode)},
-					})
-					blocks = append(blocks, &protos.DiffBlock{
-						Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
-						Lines: []string{fmt.Sprintf("new mode %s", newMode)},
-					})
+						Lines: []string{"Binary files differ"},
+					}}
+				} else {
+					oldContent, err := readFileContentAsString(fileDiff.OldState.ContentHash)
+					if err != nil {
+						return fmt.Errorf("read old file content: %w", err)
+					}
+					newContent, err := readFileContentAsString(fileDiff.NewState.ContentHash)
+					if err != nil {
+						return fmt.Errorf("read new file content: %w", err)
+					}
+
+					oldLines := strings.Split(oldContent, "\n")
+					newLines := strings.Split(newContent, "\n")
+					oldLineCount = int32(len(oldLines))
+					newLineCount = int32(len(newLines))
+
+					if fileDiff.OldState.Executable != fileDiff.NewState.Executable {
+						oldMode := "100644"
+						if fileDiff.OldState.Executable {
+							oldMode = "100755"
+						}
+						newMode := "100644"
+						if fileDiff.NewState.Executable {
+							newMode = "100755"
+						}
+
+						blocks = append(blocks, &protos.DiffBlock{
+							Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
+							Lines: []string{fmt.Sprintf("old mode %s", oldMode)},
+						})
+						blocks = append(blocks, &protos.DiffBlock{
+							Type:  protos.DiffBlockType_DIFF_BLOCK_TYPE_METADATA,
+							Lines: []string{fmt.Sprintf("new mode %s", newMode)},
+						})
+					}
+
+					blocks = append(blocks, generateFullFileDiffBlocks(oldContent, newContent, usePatience)...)
 				}
-
-				blocks = append(blocks, generateFullFileDiffBlocks(oldContent, newContent, usePatience)...)
 			}
 		}
 	}

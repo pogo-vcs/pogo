@@ -28,6 +28,7 @@ Pogo is a centralized version control system designed to be straightforward and 
 - **🔖 Bookmarks:** Tag versions with bookmarks, like `main` for the current version or `v1.0.0` for a specific version. `main` is treated like a default branch in Git.
 - **📦 Go Module Support:** Import a Pogo repository as a Go module, no additional configuration or software required.
 - **🔒 Adaptive Security:** Automatically detects and uses HTTPS/TLS when available, gracefully falls back to HTTP when needed.
+- **🔗 Symlink Support:** Full support for symbolic links with cross-platform compatibility.
 
 ## 🚀 Installation
 
@@ -160,6 +161,50 @@ The garbage collection system uses an adaptive strategy based on the total numbe
 - **Large-scale (≥ 10 million files):** Uses a batch processing strategy that scales to billions of files with constant memory usage.
 
 The threshold can be configured via the `GC_MEMORY_THRESHOLD` environment variable. CI run logs are cleaned up during this process; the retention window is controlled by `CI_RUN_RETENTION` (default 30 days).
+
+## 🔗 Symbolic Link Support
+
+Pogo provides full support for symbolic links (symlinks) on all platforms, allowing you to track and version control symlinks just like regular files.
+
+### How Symlinks Work
+
+- **Tracking:** Pogo tracks symlinks by their target path, not by the content they point to
+- **Relative Paths Only:** Symlinks must use relative paths and point to files/directories within the repository
+- **Cross-Platform:** Symlink metadata is stored in a platform-independent way using forward slashes
+- **Merging:** Symlinks can be merged just like regular files, with conflict detection for differing targets
+
+### Platform Requirements
+
+- **Unix/macOS:** Full symlink support with no special requirements
+- **Windows:** Requires Developer Mode (Windows 10+) or Administrator privileges to create symlinks
+  - To enable Developer Mode on Windows 10/11: Settings → Update & Security → For Developers → Developer Mode
+
+### Limitations
+
+- **Repository Boundaries:** Symlinks cannot point outside the repository (enforced during push)
+- **Absolute Paths:** Absolute symlink paths are converted to relative paths when possible, or rejected if they cannot be made relative
+- **ZIP Archives:** When downloading a repository as a ZIP archive, symlinks are represented as `.symlink` text files containing the target path
+
+### Examples
+
+```sh
+# Create a symlink in your repository
+ln -s ../target.txt link.txt
+
+# Pogo will track and version the symlink
+pogo push
+
+# The symlink will be recreated when cloned or checked out
+pogo clone server:repo /path/to/clone
+```
+
+### Merge Conflicts
+
+When merging changes that modify symlinks, Pogo handles conflicts intelligently:
+
+- **Same Target:** If both branches change a symlink to the same target, no conflict occurs
+- **Different Targets:** If branches change a symlink to different targets, a conflict is created with separate files for each version
+- **Type Changes:** Converting between symlinks and regular files creates a conflict
 
 ## 🔐 Secrets Management
 
