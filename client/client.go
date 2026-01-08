@@ -25,9 +25,7 @@ type Client struct {
 	Grpc       *grpc.ClientConn
 	Pogo       protos.PogoClient
 	Location   string
-	server     string
-	repoId     int32
-	changeId   int64
+	repoStore  *RepoStore
 	VerboseOut io.Writer
 }
 
@@ -36,14 +34,22 @@ func OpenFromFile(ctx context.Context, location string) (*Client, error) {
 	if err != nil {
 		return nil, errors.Join(errors.New("find repo file"), err)
 	}
-	config := &Repo{}
-	if err := config.Load(file); err != nil {
-		return nil, errors.Join(errors.New("load repo file"), err)
+
+	repoStore, err := OpenRepoStore(filepath.Dir(file))
+	if err != nil {
+		return nil, errors.Join(errors.New("open repo store"), err)
+	}
+
+	server, err := repoStore.GetServer()
+	if err != nil {
+		repoStore.Close()
+		return nil, errors.Join(errors.New("get server from repo store"), err)
 	}
 
 	// Get or create token for this server
-	token, err := GetOrCreateToken(config.Server)
+	token, err := GetOrCreateToken(server)
 	if err != nil {
+		repoStore.Close()
 		return nil, errors.Join(errors.New("get token"), err)
 	}
 
@@ -51,15 +57,14 @@ func OpenFromFile(ctx context.Context, location string) (*Client, error) {
 		ctx:        ctx,
 		Token:      token,
 		Location:   filepath.Dir(file),
-		server:     config.Server,
-		repoId:     config.RepoId,
-		changeId:   config.ChangeId,
+		repoStore:  repoStore,
 		VerboseOut: io.Discard,
 	}
 
-	grpcClient, err := createGRPCClientWithTLSDetection(ctx, config.Server, client.VerboseOut)
+	grpcClient, err := createGRPCClientWithTLSDetection(ctx, server, client.VerboseOut)
 	if err != nil {
-		return nil, errors.Join(fmt.Errorf("open grpc client targeting %s", config.Server), err)
+		client.Close()
+		return nil, errors.Join(fmt.Errorf("open grpc client targeting %s", server), err)
 	}
 
 	client.Grpc = grpcClient
@@ -69,14 +74,7 @@ func OpenFromFile(ctx context.Context, location string) (*Client, error) {
 }
 
 func (c *Client) ConfigSetChangeId(changeId int64) {
-	c.changeId = changeId
-
-	repo := &Repo{
-		Server:   c.server,
-		RepoId:   c.repoId,
-		ChangeId: changeId,
-	}
-	if err := repo.Save(filepath.Join(c.Location, ".pogo.yaml")); err != nil {
+	if err := c.repoStore.SetChangeId(changeId); err != nil {
 		panic(err)
 	}
 }
@@ -84,7 +82,7 @@ func (c *Client) ConfigSetChangeId(changeId int64) {
 func FindRepoFile(root string) (string, error) {
 	dir := root
 	for range 10 {
-		file := filepath.Join(dir, ".pogo.yaml")
+		file := filepath.Join(dir, ".pogo.db")
 		if _, err := os.Stat(file); err == nil {
 			return file, nil
 		}
@@ -112,9 +110,7 @@ func OpenNew(ctx context.Context, addr string, location string) (*Client, error)
 		ctx:        ctx,
 		Token:      token,
 		Location:   location,
-		server:     addr,
-		repoId:     0,
-		changeId:   0,
+		repoStore:  nil, // Will be created after Init call
 		VerboseOut: io.Discard,
 	}
 
@@ -134,12 +130,44 @@ func (c *Client) Close() {
 		_ = c.Grpc.Close()
 		c.Grpc = nil
 	}
+	if c.repoStore != nil {
+		_ = c.repoStore.Close()
+		c.repoStore = nil
+	}
 }
 
 func (c *Client) GetAuth() *protos.Auth {
 	return &protos.Auth{
 		PersonalAccessToken: c.Token,
 	}
+}
+
+func (c *Client) getServer() string {
+	if c.repoStore == nil {
+		return ""
+	}
+	server, _ := c.repoStore.GetServer()
+	return server
+}
+
+func (c *Client) getRepoId() int32 {
+	if c.repoStore == nil {
+		return 0
+	}
+	repoId, _ := c.repoStore.GetRepoId()
+	return repoId
+}
+
+func (c *Client) getChangeId() int64 {
+	if c.repoStore == nil {
+		return 0
+	}
+	changeId, _ := c.repoStore.GetChangeId()
+	return changeId
+}
+
+func (c *Client) setRepoStore(store *RepoStore) {
+	c.repoStore = store
 }
 
 // detectTLSSupport attempts to determine if the server supports TLS/HTTPS

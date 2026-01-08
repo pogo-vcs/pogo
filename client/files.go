@@ -79,7 +79,9 @@ var defaultIgnorePatterns = []gitignore.Pattern{
 	gitignore.ParsePattern(".git", nil),
 	gitignore.ParsePattern(".DS_Store", nil),
 	gitignore.ParsePattern("Thumbs.db", nil),
-	gitignore.ParsePattern(".pogo.yaml", nil),
+	gitignore.ParsePattern(".pogo.db", nil),
+	gitignore.ParsePattern(".pogo.db-shm", nil),
+	gitignore.ParsePattern(".pogo.db-wal", nil),
 }
 
 func (c *Client) GetIgnoreMatcher() (gitignore.Matcher, error) {

@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/pogo-vcs/pogo/client"
 	"github.com/spf13/cobra"
@@ -15,7 +14,7 @@ var initCmd = &cobra.Command{
 	Long: `Initialize a new Pogo repository in the current directory.
 
 This command creates a new repository on the specified Pogo server and configures
-the current directory to track it. A .pogo.yaml file will be created to store
+the current directory to track it. A .pogo.db file will be created to store
 the repository configuration.
 
 The repository can be made public (read-only access for everyone) or kept private
@@ -60,13 +59,11 @@ pogo init --server pogo.example.com:8080 --name open-source-project --public`,
 
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Repository ID: %d\n", repoId)
 
-		if err := (&client.Repo{
-			Server:   cmd.Flag("server").Value.String(),
-			RepoId:   repoId,
-			ChangeId: changeId,
-		}).Save(filepath.Join(wd, ".pogo.yaml")); err != nil {
-			return fmt.Errorf("save repo file: %w", err)
+		repoStore, err := client.CreateRepoStore(wd, cmd.Flag("server").Value.String(), repoId, changeId)
+		if err != nil {
+			return fmt.Errorf("create repo store: %w", err)
 		}
+		defer repoStore.Close()
 
 		initialized = true
 		return nil

@@ -61,14 +61,11 @@ func TestGCPushRaceCondition(t *testing.T) {
 	}
 
 	// Create a base change with our test file
-	config := client.Repo{
-		Server:   testEnv.serverAddr,
-		RepoId:   repoId,
-		ChangeId: emptyChangeId,
+	repoStore, err := client.CreateRepoStore(tmpDirA, testEnv.serverAddr, repoId, emptyChangeId)
+	if err != nil {
+		t.Fatalf("Failed to create repo store: %v", err)
 	}
-	if err := config.Save(filepath.Join(tmpDirA, ".pogo.yaml")); err != nil {
-		t.Fatalf("Failed to save config: %v", err)
-	}
+	repoStore.Close()
 
 	// Create test file
 	testFile := filepath.Join(tmpDirA, "test.txt")
@@ -113,23 +110,20 @@ func TestGCPushRaceCondition(t *testing.T) {
 	// Client B will push to the second change to add the same file back
 
 	// Configure clients for the race
-	configA := client.Repo{
-		Server:   testEnv.serverAddr,
-		RepoId:   repoId,
-		ChangeId: fileChangeId, // Client A works on the original change with file
+	repoStoreA, err := client.OpenRepoStore(tmpDirA)
+	if err != nil {
+		t.Fatalf("Failed to open repo store A: %v", err)
 	}
-	if err := configA.Save(filepath.Join(tmpDirA, ".pogo.yaml")); err != nil {
-		t.Fatalf("Failed to save config A: %v", err)
+	if err := repoStoreA.SetChangeId(fileChangeId); err != nil {
+		t.Fatalf("Failed to set change id for A: %v", err)
 	}
+	repoStoreA.Close()
 
-	configB := client.Repo{
-		Server:   testEnv.serverAddr,
-		RepoId:   repoId,
-		ChangeId: secondChangeId, // Client B works on the new change
+	repoStoreB, err := client.CreateRepoStore(tmpDirB, testEnv.serverAddr, repoId, secondChangeId)
+	if err != nil {
+		t.Fatalf("Failed to create repo store B: %v", err)
 	}
-	if err := configB.Save(filepath.Join(tmpDirB, ".pogo.yaml")); err != nil {
-		t.Fatalf("Failed to save config B: %v", err)
-	}
+	repoStoreB.Close()
 
 	clientB, err := client.OpenFromFile(ctx, tmpDirB)
 	if err != nil {
@@ -263,14 +257,11 @@ func TestGCPushParentFilePreservation(t *testing.T) {
 	}
 
 	// Save config for root change
-	config := client.Repo{
-		Server:   testEnv.serverAddr,
-		RepoId:   repoId,
-		ChangeId: rootChangeId,
+	repoStore, err := client.CreateRepoStore(tmpDir, testEnv.serverAddr, repoId, rootChangeId)
+	if err != nil {
+		t.Fatalf("Failed to create repo store: %v", err)
 	}
-	if err := config.Save(filepath.Join(tmpDir, ".pogo.yaml")); err != nil {
-		t.Fatalf("Failed to save config: %v", err)
-	}
+	repoStore.Close()
 
 	// Create test file that will be ignored later
 	testFile := filepath.Join(tmpDir, "test.level")
@@ -339,10 +330,14 @@ func TestGCPushParentFilePreservation(t *testing.T) {
 	t.Logf("Parent and child share file_id=%d", rootFiles[0].ID)
 
 	// Update config to work on child change
-	config.ChangeId = childChangeId
-	if err := config.Save(filepath.Join(tmpDir, ".pogo.yaml")); err != nil {
-		t.Fatalf("Failed to save config for child: %v", err)
+	repoStore2, err := client.OpenRepoStore(tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to open repo store for child: %v", err)
 	}
+	if err := repoStore2.SetChangeId(childChangeId); err != nil {
+		t.Fatalf("Failed to set change id: %v", err)
+	}
+	repoStore2.Close()
 
 	// Add .pogoignore to ignore *.level files
 	pogoignore := filepath.Join(tmpDir, ".pogoignore")
@@ -466,14 +461,11 @@ func TestGCPushSameContentDifferentNames(t *testing.T) {
 	}
 
 	// Save config
-	config := client.Repo{
-		Server:   testEnv.serverAddr,
-		RepoId:   repoId,
-		ChangeId: changeId,
+	repoStore, err := client.CreateRepoStore(tmpDir, testEnv.serverAddr, repoId, changeId)
+	if err != nil {
+		t.Fatalf("Failed to create repo store: %v", err)
 	}
-	if err := config.Save(filepath.Join(tmpDir, ".pogo.yaml")); err != nil {
-		t.Fatalf("Failed to save config: %v", err)
-	}
+	repoStore.Close()
 
 	// Create TWO files with the SAME content (same hash) but DIFFERENT names
 	sharedContent := "identical content in multiple files"
@@ -597,14 +589,11 @@ func TestGCPushActualDeletion(t *testing.T) {
 	}
 
 	// Save config
-	config := client.Repo{
-		Server:   testEnv.serverAddr,
-		RepoId:   repoId,
-		ChangeId: changeId,
+	repoStore, err := client.CreateRepoStore(tmpDir, testEnv.serverAddr, repoId, changeId)
+	if err != nil {
+		t.Fatalf("Failed to create repo store: %v", err)
 	}
-	if err := config.Save(filepath.Join(tmpDir, ".pogo.yaml")); err != nil {
-		t.Fatalf("Failed to save config: %v", err)
-	}
+	repoStore.Close()
 
 	// Create test file
 	testFile := filepath.Join(tmpDir, "test.txt")

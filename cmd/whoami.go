@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/pogo-vcs/pogo/auth"
 	"github.com/pogo-vcs/pogo/client"
@@ -49,18 +50,24 @@ pogo whoami
 			return errors.Join(errors.New("find repo file - not in a pogo repository"), err)
 		}
 
-		repo := &client.Repo{}
-		if err := repo.Load(file); err != nil {
-			return errors.Join(errors.New("load repo file"), err)
+		repoStore, err := client.OpenRepoStore(filepath.Dir(file))
+		if err != nil {
+			return errors.Join(errors.New("open repo store"), err)
+		}
+		defer repoStore.Close()
+
+		server, err := repoStore.GetServer()
+		if err != nil {
+			return errors.Join(errors.New("get server from repo store"), err)
 		}
 
 		// Get token for this server
-		token, err := client.GetToken(repo.Server)
+		token, err := client.GetToken(server)
 		if err != nil {
 			return errors.Join(errors.New("get token"), err)
 		}
 
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Server: %s\n", repo.Server)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Server: %s\n", server)
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Personal Access Token: %s\n", auth.Encode(token))
 		return nil
 	},

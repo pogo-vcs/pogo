@@ -116,15 +116,12 @@ pogo clone --server localhost:8080 --repo my-project --revision KPHRpdJnwyPcLH4a
 			}
 		}
 
-		// Create .pogo.yaml config file
-		repo := &client.Repo{
-			Server:   server,
-			RepoId:   repoInfo.RepoId,
-			ChangeId: 0, // Will be set by Edit function
+		// Create .pogo.db config file
+		repoStore, err := client.CreateRepoStore(absTargetDir, server, repoInfo.RepoId, 0)
+		if err != nil {
+			return fmt.Errorf("create repo store: %w", err)
 		}
-		if err := repo.Save(filepath.Join(absTargetDir, ".pogo.yaml")); err != nil {
-			return fmt.Errorf("save .pogo.yaml config: %w", err)
-		}
+		repoStore.Close()
 
 		// Open client from the config file we just created
 		c2, err := client.OpenFromFile(cmd.Context(), absTargetDir)

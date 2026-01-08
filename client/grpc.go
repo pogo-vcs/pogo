@@ -33,9 +33,7 @@ func (c *Client) Init(name string, public bool) (repo int32, change int64, err e
 		return
 	}
 
-	c.repoId = initResponse.RepoId
-	c.changeId = initResponse.ChangeId
-
+	// Note: RepoStore will be created by caller (cmd/init.go)
 	repo = initResponse.RepoId
 	change = initResponse.ChangeId
 	return
@@ -47,7 +45,7 @@ func (c *Client) DeleteRepo() error {
 
 	request := &protos.DeleteRepositoryRequest{
 		Auth:   c.GetAuth(),
-		RepoId: c.repoId,
+		RepoId: c.getRepoId(),
 	}
 
 	_, err := c.Pogo.DeleteRepository(ctx, request)
@@ -89,6 +87,7 @@ func (c *Client) PushFull(force bool) error {
 
 		var hash []byte
 		if isSymlink {
+			// No caching for symlinks - target path is small
 			// Validate and normalize symlink target
 			normalizedTarget, err := c.ValidateAndNormalizeSymlink(file.AbsPath, target)
 			if err != nil {
@@ -104,11 +103,41 @@ func (c *Client) PushFull(force bool) error {
 				symlinkTarget: normalizedTarget,
 			})
 		} else {
-			// Regular file
-			hash, err = filecontents.HashFile(file.AbsPath)
+			// Regular file - use cache
+			info, err := os.Lstat(file.AbsPath)
 			if err != nil {
-				return errors.Join(fmt.Errorf("hash file %s", file.Name), err)
+				return errors.Join(fmt.Errorf("stat file %s", file.Name), err)
 			}
+
+			inode := getInode(info)
+			mtimeSec := info.ModTime().Unix()
+			mtimeNsec := info.ModTime().UnixNano() % 1e9
+
+			cachedHash, cacheHit := c.repoStore.GetFileHash(
+				file.Name,
+				info.Size(),
+				mtimeSec,
+				mtimeNsec,
+				inode,
+			)
+
+			if cacheHit {
+				hash = cachedHash
+				fmt.Fprintf(c.VerboseOut, "Cache hit: %s\n", file.Name)
+			} else {
+				// Cache miss - compute and update immediately
+				hash, err = filecontents.HashFile(file.AbsPath)
+				if err != nil {
+					return errors.Join(fmt.Errorf("hash file %s", file.Name), err)
+				}
+
+				if err := c.repoStore.SetFileHash(file.Name, info.Size(), mtimeSec, mtimeNsec, inode, hash); err != nil {
+					// Log warning but continue
+					fmt.Fprintf(c.VerboseOut, "Warning: failed to cache hash for %s: %v\n", file.Name, err)
+				}
+				fmt.Fprintf(c.VerboseOut, "Cache miss: %s\n", file.Name)
+			}
+
 			files = append(files, fileInfo{
 				file:       file,
 				hash:       hash,
@@ -123,7 +152,7 @@ func (c *Client) PushFull(force bool) error {
 	fmt.Fprintf(c.VerboseOut, "Checking which of %d files need to be uploaded...\n", len(files))
 	checkResp, err := c.Pogo.CheckNeededFiles(ctx, &protos.CheckNeededFilesRequest{
 		Auth:       c.GetAuth(),
-		RepoId:     c.repoId,
+		RepoId:     c.getRepoId(),
 		FileHashes: allHashes,
 	})
 	if err != nil {
@@ -160,7 +189,7 @@ func (c *Client) PushFull(force bool) error {
 
 	if err := stream.Send(&protos.PushFullRequest{
 		Payload: &protos.PushFullRequest_ChangeId{
-			ChangeId: c.changeId,
+			ChangeId: c.getChangeId(),
 		},
 	}); err != nil {
 		return errors.Join(errors.New("send change id"), err)
@@ -292,7 +321,7 @@ func (c *Client) DiffLocal() ([]DiffFileInfo, error) {
 
 	if err := stream.Send(&protos.DiffLocalRequest{
 		Payload: &protos.DiffLocalRequest_RepoId{
-			RepoId: c.repoId,
+			RepoId: c.getRepoId(),
 		},
 	}); err != nil {
 		return nil, errors.Join(errors.New("send repo id"), err)
@@ -300,7 +329,7 @@ func (c *Client) DiffLocal() ([]DiffFileInfo, error) {
 
 	if err := stream.Send(&protos.DiffLocalRequest{
 		Payload: &protos.DiffLocalRequest_CheckedOutChangeId{
-			CheckedOutChangeId: c.changeId,
+			CheckedOutChangeId: c.getChangeId(),
 		},
 	}); err != nil {
 		return nil, errors.Join(errors.New("send change id"), err)
@@ -314,10 +343,44 @@ func (c *Client) DiffLocal() ([]DiffFileInfo, error) {
 	var files []fileInfo
 
 	for file := range c.UnignoredFiles {
-		hash, err := filecontents.HashFile(file.AbsPath)
+		// Get file stats for cache lookup
+		info, err := os.Lstat(file.AbsPath)
 		if err != nil {
-			return nil, errors.Join(fmt.Errorf("hash file %s", file.Name), err)
+			return nil, errors.Join(fmt.Errorf("stat file %s", file.Name), err)
 		}
+
+		// Skip symlinks for this operation (DiffLocal doesn't handle them)
+		if info.Mode()&os.ModeSymlink != 0 {
+			continue
+		}
+
+		inode := getInode(info)
+		mtimeSec := info.ModTime().Unix()
+		mtimeNsec := info.ModTime().UnixNano() % 1e9
+
+		cachedHash, cacheHit := c.repoStore.GetFileHash(
+			file.Name,
+			info.Size(),
+			mtimeSec,
+			mtimeNsec,
+			inode,
+		)
+
+		var hash []byte
+		if cacheHit {
+			hash = cachedHash
+		} else {
+			// Cache miss - compute and update immediately
+			hash, err = filecontents.HashFile(file.AbsPath)
+			if err != nil {
+				return nil, errors.Join(fmt.Errorf("hash file %s", file.Name), err)
+			}
+
+			if err := c.repoStore.SetFileHash(file.Name, info.Size(), mtimeSec, mtimeNsec, inode, hash); err != nil {
+				// Log warning but continue (not critical for diff operation)
+			}
+		}
+
 		files = append(files, fileInfo{
 			file:       file,
 			hash:       hash,
@@ -460,7 +523,7 @@ func (c *Client) CollectDiffLocal(usePatience, includeLargeFiles bool) (difftui.
 
 	if err := stream.Send(&protos.DiffLocalRequest{
 		Payload: &protos.DiffLocalRequest_RepoId{
-			RepoId: c.repoId,
+			RepoId: c.getRepoId(),
 		},
 	}); err != nil {
 		return difftui.DiffData{}, errors.Join(errors.New("send repo id"), err)
@@ -468,7 +531,7 @@ func (c *Client) CollectDiffLocal(usePatience, includeLargeFiles bool) (difftui.
 
 	if err := stream.Send(&protos.DiffLocalRequest{
 		Payload: &protos.DiffLocalRequest_CheckedOutChangeId{
-			CheckedOutChangeId: c.changeId,
+			CheckedOutChangeId: c.getChangeId(),
 		},
 	}); err != nil {
 		return difftui.DiffData{}, errors.Join(errors.New("send change id"), err)
@@ -508,6 +571,7 @@ func (c *Client) CollectDiffLocal(usePatience, includeLargeFiles bool) (difftui.
 
 		var hash []byte
 		if isSymlink {
+			// No caching for symlinks
 			// Validate and normalize symlink target
 			normalizedTarget, err := c.ValidateAndNormalizeSymlink(file.AbsPath, target)
 			if err != nil {
@@ -523,11 +587,38 @@ func (c *Client) CollectDiffLocal(usePatience, includeLargeFiles bool) (difftui.
 				symlinkTarget: normalizedTarget,
 			})
 		} else {
-			// Regular file
-			hash, err = filecontents.HashFile(file.AbsPath)
+			// Regular file - use cache
+			info, err := os.Lstat(file.AbsPath)
 			if err != nil {
-				return difftui.DiffData{}, errors.Join(fmt.Errorf("hash file %s", file.Name), err)
+				return difftui.DiffData{}, errors.Join(fmt.Errorf("stat file %s", file.Name), err)
 			}
+
+			inode := getInode(info)
+			mtimeSec := info.ModTime().Unix()
+			mtimeNsec := info.ModTime().UnixNano() % 1e9
+
+			cachedHash, cacheHit := c.repoStore.GetFileHash(
+				file.Name,
+				info.Size(),
+				mtimeSec,
+				mtimeNsec,
+				inode,
+			)
+
+			if cacheHit {
+				hash = cachedHash
+			} else {
+				// Cache miss - compute and update immediately
+				hash, err = filecontents.HashFile(file.AbsPath)
+				if err != nil {
+					return difftui.DiffData{}, errors.Join(fmt.Errorf("hash file %s", file.Name), err)
+				}
+
+				if err := c.repoStore.SetFileHash(file.Name, info.Size(), mtimeSec, mtimeNsec, inode, hash); err != nil {
+					// Continue on cache update error
+				}
+			}
+
 			files = append(files, fileInfo{
 				file:       file,
 				hash:       hash,
@@ -692,7 +783,7 @@ func (c *Client) DiffLocalWithOutput(out io.Writer, colored, usePatience, includ
 
 	if err := stream.Send(&protos.DiffLocalRequest{
 		Payload: &protos.DiffLocalRequest_RepoId{
-			RepoId: c.repoId,
+			RepoId: c.getRepoId(),
 		},
 	}); err != nil {
 		return errors.Join(errors.New("send repo id"), err)
@@ -716,7 +807,7 @@ func (c *Client) DiffLocalWithOutput(out io.Writer, colored, usePatience, includ
 
 	if err := stream.Send(&protos.DiffLocalRequest{
 		Payload: &protos.DiffLocalRequest_CheckedOutChangeId{
-			CheckedOutChangeId: c.changeId,
+			CheckedOutChangeId: c.getChangeId(),
 		},
 	}); err != nil {
 		return errors.Join(errors.New("send change id"), err)
@@ -740,6 +831,7 @@ func (c *Client) DiffLocalWithOutput(out io.Writer, colored, usePatience, includ
 
 		var hash []byte
 		if isSymlink {
+			// No caching for symlinks
 			// Validate and normalize symlink target
 			normalizedTarget, err := c.ValidateAndNormalizeSymlink(file.AbsPath, target)
 			if err != nil {
@@ -755,11 +847,38 @@ func (c *Client) DiffLocalWithOutput(out io.Writer, colored, usePatience, includ
 				symlinkTarget: normalizedTarget,
 			})
 		} else {
-			// Regular file
-			hash, err = filecontents.HashFile(file.AbsPath)
+			// Regular file - use cache
+			info, err := os.Lstat(file.AbsPath)
 			if err != nil {
-				return errors.Join(fmt.Errorf("hash file %s", file.Name), err)
+				return errors.Join(fmt.Errorf("stat file %s", file.Name), err)
 			}
+
+			inode := getInode(info)
+			mtimeSec := info.ModTime().Unix()
+			mtimeNsec := info.ModTime().UnixNano() % 1e9
+
+			cachedHash, cacheHit := c.repoStore.GetFileHash(
+				file.Name,
+				info.Size(),
+				mtimeSec,
+				mtimeNsec,
+				inode,
+			)
+
+			if cacheHit {
+				hash = cachedHash
+			} else {
+				// Cache miss - compute and update immediately
+				hash, err = filecontents.HashFile(file.AbsPath)
+				if err != nil {
+					return errors.Join(fmt.Errorf("hash file %s", file.Name), err)
+				}
+
+				if err := c.repoStore.SetFileHash(file.Name, info.Size(), mtimeSec, mtimeNsec, inode, hash); err != nil {
+					// Continue on cache update error
+				}
+			}
+
 			files = append(files, fileInfo{
 				file:       file,
 				hash:       hash,
@@ -948,13 +1067,14 @@ func (c *Client) renderDiffBlock(out io.Writer, block *protos.DiffBlock, colored
 func (c *Client) SetBookmark(bookmarkName string, changeName *string) error {
 	request := &protos.SetBookmarkRequest{
 		Auth:         c.GetAuth(),
-		RepoId:       c.repoId,
+		RepoId:       c.getRepoId(),
 		BookmarkName: bookmarkName,
 		ChangeName:   changeName,
 	}
 
 	if changeName == nil {
-		request.CheckedOutChangeId = &c.changeId
+		changeId := c.getChangeId()
+		request.CheckedOutChangeId = &changeId
 	}
 
 	_, err := c.Pogo.SetBookmark(c.ctx, request)
@@ -968,7 +1088,7 @@ func (c *Client) SetBookmark(bookmarkName string, changeName *string) error {
 func (c *Client) RemoveBookmark(bookmarkName string) error {
 	request := &protos.RemoveBookmarkRequest{
 		Auth:         c.GetAuth(),
-		RepoId:       c.repoId,
+		RepoId:       c.getRepoId(),
 		BookmarkName: bookmarkName,
 	}
 
@@ -983,7 +1103,7 @@ func (c *Client) RemoveBookmark(bookmarkName string) error {
 func (c *Client) GetBookmarks() ([]*protos.Bookmark, error) {
 	request := &protos.GetBookmarksRequest{
 		Auth:   c.GetAuth(),
-		RepoId: c.repoId,
+		RepoId: c.getRepoId(),
 	}
 
 	response, err := c.Pogo.GetBookmarks(c.ctx, request)
@@ -997,14 +1117,15 @@ func (c *Client) GetBookmarks() ([]*protos.Bookmark, error) {
 func (c *Client) NewChange(description *string, parentChangeNames []string) (changeId int64, changeName string, err error) {
 	request := &protos.NewChangeRequest{
 		Auth:              c.GetAuth(),
-		RepoId:            c.repoId,
+		RepoId:            c.getRepoId(),
 		Description:       description,
 		ParentChangeNames: parentChangeNames,
 	}
 
 	// If no parent change names provided, use current checked out change
 	if len(parentChangeNames) == 0 {
-		request.CheckedOutChangeId = &c.changeId
+		changeId := c.getChangeId()
+		request.CheckedOutChangeId = &changeId
 	}
 
 	response, e := c.Pogo.NewChange(c.ctx, request)
@@ -1021,7 +1142,7 @@ func (c *Client) NewChange(description *string, parentChangeNames []string) (cha
 func (c *Client) GetDescription() (*string, error) {
 	request := &protos.GetDescriptionRequest{
 		Auth:     c.GetAuth(),
-		ChangeId: c.changeId,
+		ChangeId: c.getChangeId(),
 	}
 
 	response, err := c.Pogo.GetDescription(c.ctx, request)
@@ -1034,7 +1155,7 @@ func (c *Client) GetDescription() (*string, error) {
 func (c *Client) SetDescription(description string) error {
 	request := &protos.SetDescriptionRequest{
 		Auth:        c.GetAuth(),
-		ChangeId:    c.changeId,
+		ChangeId:    c.getChangeId(),
 		Description: description,
 	}
 
@@ -1049,8 +1170,8 @@ func (c *Client) SetDescription(description string) error {
 func (c *Client) Log(maxChanges int32, coloredOutput bool) (string, error) {
 	request := &protos.LogRequest{
 		Auth:               c.GetAuth(),
-		RepoId:             c.repoId,
-		CheckedOutChangeId: c.changeId,
+		RepoId:             c.getRepoId(),
+		CheckedOutChangeId: c.getChangeId(),
 		MaxChanges:         maxChanges,
 	}
 
@@ -1065,8 +1186,8 @@ func (c *Client) Log(maxChanges int32, coloredOutput bool) (string, error) {
 func (c *Client) LogJSON(maxChanges int32) (string, error) {
 	request := &protos.LogRequest{
 		Auth:               c.GetAuth(),
-		RepoId:             c.repoId,
-		CheckedOutChangeId: c.changeId,
+		RepoId:             c.getRepoId(),
+		CheckedOutChangeId: c.getChangeId(),
 		MaxChanges:         maxChanges,
 	}
 
@@ -1081,8 +1202,8 @@ func (c *Client) LogJSON(maxChanges int32) (string, error) {
 func (c *Client) GetLogData(maxChanges int32) (*LogData, error) {
 	request := &protos.LogRequest{
 		Auth:               c.GetAuth(),
-		RepoId:             c.repoId,
-		CheckedOutChangeId: c.changeId,
+		RepoId:             c.getRepoId(),
+		CheckedOutChangeId: c.getChangeId(),
 		MaxChanges:         maxChanges,
 	}
 
@@ -1095,17 +1216,17 @@ func (c *Client) GetLogData(maxChanges int32) (*LogData, error) {
 }
 
 func (c *Client) GetRawData() (server string, repoId int32, changeId int64) {
-	server = c.server
-	repoId = c.repoId
-	changeId = c.changeId
+	server = c.getServer()
+	repoId = c.getRepoId()
+	changeId = c.getChangeId()
 	return
 }
 
 func (c *Client) Info() (*protos.InfoResponse, error) {
 	request := &protos.InfoRequest{
 		Auth:               c.GetAuth(),
-		RepoId:             c.repoId,
-		CheckedOutChangeId: c.changeId,
+		RepoId:             c.getRepoId(),
+		CheckedOutChangeId: c.getChangeId(),
 	}
 
 	response, err := c.Pogo.Info(c.ctx, request)
@@ -1125,7 +1246,7 @@ func (c *Client) Checkout(repoId int32, changeId int64) error {
 
 	request := &protos.EditRequest{
 		Auth:        c.GetAuth(),
-		RepoId:      c.repoId,
+		RepoId:      c.getRepoId(),
 		ChangeId:    changeId,
 		ClientFiles: clientFiles,
 	}
@@ -1142,7 +1263,7 @@ func (c *Client) Edit(revision string) error {
 
 	request := &protos.EditRequest{
 		Auth:        c.GetAuth(),
-		RepoId:      c.repoId,
+		RepoId:      c.getRepoId(),
 		Revision:    revision,
 		ClientFiles: clientFiles,
 	}
@@ -1180,6 +1301,12 @@ func (c *Client) plainEditRequest(request *protos.EditRequest) error {
 			if err := os.Remove(absPath); err != nil && !os.IsNotExist(err) {
 				return errors.Join(fmt.Errorf("delete file %s", fileName), err)
 			}
+
+			// Remove from cache
+			if err := c.repoStore.DeleteFileHash(fileName); err != nil {
+				fmt.Fprintf(c.VerboseOut, "Warning: failed to remove cache entry for %s: %v\n", fileName, err)
+			}
+
 			filesDeleted++
 
 		case *protos.EditResponse_FileHeader:
@@ -1273,7 +1400,7 @@ func (c *Client) plainEditRequest(request *protos.EditRequest) error {
 func (c *Client) RemoveChange(changeName string, keepChildren bool) error {
 	request := &protos.RemoveChangeRequest{
 		Auth:         c.GetAuth(),
-		RepoId:       c.repoId,
+		RepoId:       c.getRepoId(),
 		ChangeName:   changeName,
 		KeepChildren: keepChildren,
 	}
@@ -1287,7 +1414,7 @@ func (c *Client) RemoveChange(changeName string, keepChildren bool) error {
 }
 
 func (c *Client) GetCurrentChangeId() int64 {
-	return c.changeId
+	return c.getChangeId()
 }
 
 func (c *Client) GetRepositoryInfo(repoName string) (*protos.GetRepositoryInfoResponse, error) {
@@ -1307,7 +1434,7 @@ func (c *Client) GetRepositoryInfo(repoName string) (*protos.GetRepositoryInfoRe
 func (c *Client) SetRepositoryVisibility(public bool) error {
 	request := &protos.SetRepositoryVisibilityRequest{
 		Auth:   c.GetAuth(),
-		RepoId: c.repoId,
+		RepoId: c.getRepoId(),
 		Public: public,
 	}
 
@@ -1322,7 +1449,7 @@ func (c *Client) SetRepositoryVisibility(public bool) error {
 func (c *Client) SetSecret(key, value string) error {
 	request := &protos.SetSecretRequest{
 		Auth:   c.GetAuth(),
-		RepoId: c.repoId,
+		RepoId: c.getRepoId(),
 		Key:    key,
 		Value:  value,
 	}
@@ -1338,7 +1465,7 @@ func (c *Client) SetSecret(key, value string) error {
 func (c *Client) GetSecret(key string) (string, error) {
 	request := &protos.GetSecretRequest{
 		Auth:   c.GetAuth(),
-		RepoId: c.repoId,
+		RepoId: c.getRepoId(),
 		Key:    key,
 	}
 
@@ -1353,7 +1480,7 @@ func (c *Client) GetSecret(key string) (string, error) {
 func (c *Client) GetAllSecrets() ([]*protos.Secret, error) {
 	request := &protos.GetAllSecretsRequest{
 		Auth:   c.GetAuth(),
-		RepoId: c.repoId,
+		RepoId: c.getRepoId(),
 	}
 
 	response, err := c.Pogo.GetAllSecrets(c.ctx, request)
@@ -1367,7 +1494,7 @@ func (c *Client) GetAllSecrets() ([]*protos.Secret, error) {
 func (c *Client) DeleteSecret(key string) error {
 	request := &protos.DeleteSecretRequest{
 		Auth:   c.GetAuth(),
-		RepoId: c.repoId,
+		RepoId: c.getRepoId(),
 		Key:    key,
 	}
 
@@ -1382,7 +1509,7 @@ func (c *Client) DeleteSecret(key string) error {
 func (c *Client) ListCIRuns() ([]*protos.CIRunSummary, error) {
 	request := &protos.ListCIRunsRequest{
 		Auth:   c.GetAuth(),
-		RepoId: c.repoId,
+		RepoId: c.getRepoId(),
 	}
 
 	resp, err := c.Pogo.ListCIRuns(c.ctx, request)
@@ -1396,7 +1523,7 @@ func (c *Client) ListCIRuns() ([]*protos.CIRunSummary, error) {
 func (c *Client) GetCIRun(runID int64) (*protos.GetCIRunResponse, error) {
 	request := &protos.GetCIRunRequest{
 		Auth:   c.GetAuth(),
-		RepoId: c.repoId,
+		RepoId: c.getRepoId(),
 		RunId:  runID,
 	}
 
@@ -1409,10 +1536,11 @@ func (c *Client) GetCIRun(runID int64) (*protos.GetCIRunResponse, error) {
 }
 
 func (c *Client) CollectDiff(rev1, rev2 *string, usePatience, includeLargeFiles bool) (difftui.DiffData, error) {
+	changeId := c.getChangeId()
 	request := &protos.DiffRequest{
 		Auth:               c.GetAuth(),
-		RepoId:             c.repoId,
-		CheckedOutChangeId: &c.changeId,
+		RepoId:             c.getRepoId(),
+		CheckedOutChangeId: &changeId,
 		UsePatience:        &usePatience,
 		IncludeLargeFiles:  &includeLargeFiles,
 	}
@@ -1477,10 +1605,11 @@ func (c *Client) CollectDiff(rev1, rev2 *string, usePatience, includeLargeFiles 
 }
 
 func (c *Client) Diff(rev1, rev2 *string, out io.Writer, colored, usePatience, includeLargeFiles bool) error {
+	changeId := c.getChangeId()
 	request := &protos.DiffRequest{
 		Auth:               c.GetAuth(),
-		RepoId:             c.repoId,
-		CheckedOutChangeId: &c.changeId,
+		RepoId:             c.getRepoId(),
+		CheckedOutChangeId: &changeId,
 		UsePatience:        &usePatience,
 		IncludeLargeFiles:  &includeLargeFiles,
 	}

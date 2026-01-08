@@ -14,7 +14,7 @@ import (
 // getHTTPScheme returns the HTTP scheme (http or https) based on whether TLS is used
 func (c *Client) getHTTPScheme() string {
 	// Detect TLS support using the same logic as gRPC connection
-	supportsTLS, _ := detectTLSSupport(c.ctx, c.server)
+	supportsTLS, _ := detectTLSSupport(c.ctx, c.getServer())
 	if supportsTLS {
 		return "https"
 	}
@@ -38,7 +38,7 @@ func (c *Client) makeHTTPRequest(method, url string, body io.Reader) (*http.Requ
 // ListAssets returns a list of all assets for the current repository.
 func (c *Client) ListAssets() ([]string, error) {
 	scheme := c.getHTTPScheme()
-	url := fmt.Sprintf("%s://%s/assets/%d/", scheme, c.server, c.repoId)
+	url := fmt.Sprintf("%s://%s/assets/%d/", scheme, c.getServer(), c.getRepoId())
 
 	req, err := c.makeHTTPRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -67,7 +67,7 @@ func (c *Client) ListAssets() ([]string, error) {
 // GetAsset downloads an asset and writes it to the provided writer.
 func (c *Client) GetAsset(name string, writer io.Writer) error {
 	scheme := c.getHTTPScheme()
-	url := fmt.Sprintf("%s://%s/assets/%d/%s", scheme, c.server, c.repoId, name)
+	url := fmt.Sprintf("%s://%s/assets/%d/%s", scheme, c.getServer(), c.getRepoId(), name)
 
 	req, err := c.makeHTTPRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -96,7 +96,7 @@ func (c *Client) GetAsset(name string, writer io.Writer) error {
 // PutAsset uploads an asset from the provided reader.
 func (c *Client) PutAsset(name string, reader io.Reader) error {
 	scheme := c.getHTTPScheme()
-	url := fmt.Sprintf("%s://%s/assets/%d/%s", scheme, c.server, c.repoId, name)
+	url := fmt.Sprintf("%s://%s/assets/%d/%s", scheme, c.getServer(), c.getRepoId(), name)
 
 	req, err := c.makeHTTPRequest(http.MethodPut, url, reader)
 	if err != nil {
@@ -120,7 +120,7 @@ func (c *Client) PutAsset(name string, reader io.Reader) error {
 // DeleteAsset deletes an asset.
 func (c *Client) DeleteAsset(name string) error {
 	scheme := c.getHTTPScheme()
-	url := fmt.Sprintf("%s://%s/assets/%d/%s", scheme, c.server, c.repoId, name)
+	url := fmt.Sprintf("%s://%s/assets/%d/%s", scheme, c.getServer(), c.getRepoId(), name)
 
 	req, err := c.makeHTTPRequest(http.MethodDelete, url, nil)
 	if err != nil {

@@ -124,6 +124,22 @@ func setupTestEnvironment(t *testing.T, gcThreshold string) *testEnvironment {
 	// Set DATA_DIR environment variable
 	os.Setenv("DATA_DIR", dataDir)
 
+	// Clean up data/objects BEFORE starting server to ensure test isolation
+	// (object store uses relative path, so we need to clean it up)
+	objectsDir := "data/objects"
+	if err := os.RemoveAll(objectsDir); err != nil && !os.IsNotExist(err) {
+		postgres.Stop()
+		os.RemoveAll(tmpDir)
+		os.RemoveAll(dataDir)
+		t.Fatalf("Failed to clean up objects directory: %v", err)
+	}
+	if err := os.MkdirAll(objectsDir, 0755); err != nil {
+		postgres.Stop()
+		os.RemoveAll(tmpDir)
+		os.RemoveAll(dataDir)
+		t.Fatalf("Failed to create objects directory: %v", err)
+	}
+
 	// Disconnect first if already connected (from a previous test)
 	db.Disconnect()
 
@@ -180,6 +196,9 @@ func setupTestEnvironment(t *testing.T, gcThreshold string) *testEnvironment {
 			// Clean up directories
 			os.RemoveAll(tmpDir)
 			os.RemoveAll(dataDir)
+
+			// Clean up object store
+			os.RemoveAll("data/objects")
 		},
 	}
 }
@@ -353,15 +372,6 @@ func setupToken(serverAddr string) error {
 }
 
 func initializeRepository(ctx context.Context, dir string, repoName string, serverAddr string) (int32, int64, error) {
-	// Create .pogo.yaml file
-	configPath := filepath.Join(dir, ".pogo.yaml")
-	config := client.Repo{
-		Server: serverAddr,
-	}
-	if err := config.Save(configPath); err != nil {
-		return 0, 0, fmt.Errorf("failed to save config: %w", err)
-	}
-
 	// Decode for use in gRPC calls
 	tokenBytes, _ := auth.Decode(rootToken)
 
@@ -373,10 +383,10 @@ func initializeRepository(ctx context.Context, dir string, repoName string, serv
 	}
 	defer conn.Close()
 
-	client := protos.NewPogoClient(conn)
+	pogoClient := protos.NewPogoClient(conn)
 
 	// Initialize repository
-	resp, err := client.Init(ctx, &protos.InitRequest{
+	resp, err := pogoClient.Init(ctx, &protos.InitRequest{
 		Auth: &protos.Auth{
 			PersonalAccessToken: tokenBytes,
 		},
@@ -387,12 +397,12 @@ func initializeRepository(ctx context.Context, dir string, repoName string, serv
 		return 0, 0, fmt.Errorf("failed to init repo: %w", err)
 	}
 
-	// Update config with repo ID and change ID
-	config.RepoId = resp.RepoId
-	config.ChangeId = resp.ChangeId
-	if err := config.Save(configPath); err != nil {
-		return 0, 0, fmt.Errorf("failed to update config: %w", err)
+	// Create .pogo.db file with the response
+	repoStore, err := client.CreateRepoStore(dir, serverAddr, resp.RepoId, resp.ChangeId)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to create repo store: %w", err)
 	}
+	repoStore.Close()
 
 	return resp.RepoId, resp.ChangeId, nil
 }
@@ -418,9 +428,9 @@ func createMainBookmark(ctx context.Context, dir string) error {
 }
 
 func pullFiles(ctx context.Context, repoDir, targetDir string) error {
-	// Copy .pogo.yaml to target directory
-	srcConfig := filepath.Join(repoDir, ".pogo.yaml")
-	dstConfig := filepath.Join(targetDir, ".pogo.yaml")
+	// Copy .pogo.db to target directory
+	srcConfig := filepath.Join(repoDir, ".pogo.db")
+	dstConfig := filepath.Join(targetDir, ".pogo.db")
 	if err := copyFile(srcConfig, dstConfig); err != nil {
 		return fmt.Errorf("failed to copy config: %w", err)
 	}

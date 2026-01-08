@@ -222,6 +222,9 @@ func MoveAllFiles(tempDir string) (map[string][]byte, error) {
 
 // GetFilePathFromHash returns the file path for a given base64 hash
 func GetFilePathFromHash(hash string) string {
+	if len(hash) < 2 {
+		return ""
+	}
 	return filepath.Join(rootDir, hash[:2], hash[2:])
 }
 

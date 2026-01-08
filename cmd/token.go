@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/charmbracelet/huh"
 	"github.com/pogo-vcs/pogo/auth"
@@ -63,9 +64,9 @@ The command will:
 			wd, err := os.Getwd()
 			if err == nil {
 				if file, err := client.FindRepoFile(wd); err == nil {
-					repo := &client.Repo{}
-					if err := repo.Load(file); err == nil {
-						server = repo.Server
+					if repoStore, err := client.OpenRepoStore(filepath.Dir(file)); err == nil {
+						server, _ = repoStore.GetServer()
+						repoStore.Close()
 					}
 				}
 			}
@@ -156,9 +157,9 @@ pogo token remove --server old.server.com:8080
 			wd, err := os.Getwd()
 			if err == nil {
 				if file, err := client.FindRepoFile(wd); err == nil {
-					repo := &client.Repo{}
-					if err := repo.Load(file); err == nil {
-						server = repo.Server
+					if repoStore, err := client.OpenRepoStore(filepath.Dir(file)); err == nil {
+						server, _ = repoStore.GetServer()
+						repoStore.Close()
 					}
 				}
 			}

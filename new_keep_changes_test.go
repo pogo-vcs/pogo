@@ -48,14 +48,11 @@ func testNewKeepChanges(t *testing.T, ctx context.Context, serverAddr string) {
 	}
 	t.Logf("Created repository %s (ID: %d, Initial change: %d)", repoName, repoId, changeId)
 
-	config := client.Repo{
-		Server:   serverAddr,
-		RepoId:   repoId,
-		ChangeId: changeId,
+	repoStore, err := client.CreateRepoStore(tmpDir, serverAddr, repoId, changeId)
+	if err != nil {
+		t.Fatalf("Failed to create repo store: %v", err)
 	}
-	if err := config.Save(filepath.Join(tmpDir, ".pogo.yaml")); err != nil {
-		t.Fatalf("Failed to save config: %v", err)
-	}
+	repoStore.Close()
 
 	file1Path := filepath.Join(tmpDir, "file1.txt")
 	if err := os.WriteFile(file1Path, []byte("Initial content in first change"), 0644); err != nil {

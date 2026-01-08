@@ -112,6 +112,22 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 	// Set DATA_DIR environment variable
 	os.Setenv("DATA_DIR", dataDir)
 
+	// Clean up data/objects BEFORE starting server to ensure test isolation
+	// (object store uses relative path, so we need to clean it up)
+	objectsDir := "data/objects"
+	if err := os.RemoveAll(objectsDir); err != nil && !os.IsNotExist(err) {
+		postgres.Stop()
+		os.RemoveAll(tmpDir)
+		os.RemoveAll(dataDir)
+		t.Fatalf("Failed to clean up objects directory: %v", err)
+	}
+	if err := os.MkdirAll(objectsDir, 0755); err != nil {
+		postgres.Stop()
+		os.RemoveAll(tmpDir)
+		os.RemoveAll(dataDir)
+		t.Fatalf("Failed to create objects directory: %v", err)
+	}
+
 	// Disconnect first if already connected (from a previous test)
 	db.Disconnect()
 
@@ -167,6 +183,9 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 			// Clean up directories
 			os.RemoveAll(tmpDir)
 			os.RemoveAll(dataDir)
+
+			// Clean up object store
+			os.RemoveAll("data/objects")
 		},
 	}
 }
@@ -256,14 +275,11 @@ func testBasicOperations(t *testing.T, ctx context.Context, serverAddr string) {
 	t.Logf("Created repository %s (ID: %d, Initial change: %d)", repoName, repoId, changeId)
 
 	// Save config
-	config := client.Repo{
-		Server:   serverAddr,
-		RepoId:   repoId,
-		ChangeId: changeId,
+	repoStore, err := client.CreateRepoStore(tmpDir, serverAddr, repoId, changeId)
+	if err != nil {
+		t.Fatalf("Failed to create repo store: %v", err)
 	}
-	if err := config.Save(filepath.Join(tmpDir, ".pogo.yaml")); err != nil {
-		t.Fatalf("Failed to save config: %v", err)
-	}
+	repoStore.Close()
 
 	// Create test files
 	testFiles := map[string]string{
@@ -310,7 +326,7 @@ func testBasicOperations(t *testing.T, ctx context.Context, serverAddr string) {
 	defer os.RemoveAll(pullDir)
 
 	// Copy config to pull directory
-	if err := copyFile(filepath.Join(tmpDir, ".pogo.yaml"), filepath.Join(pullDir, ".pogo.yaml")); err != nil {
+	if err := copyFile(filepath.Join(tmpDir, ".pogo.db"), filepath.Join(pullDir, ".pogo.db")); err != nil {
 		t.Fatalf("Failed to copy config: %v", err)
 	}
 
@@ -363,14 +379,11 @@ func testMultipleChanges(t *testing.T, ctx context.Context, serverAddr string) {
 	}
 
 	// Save config
-	config := client.Repo{
-		Server:   serverAddr,
-		RepoId:   repoId,
-		ChangeId: changeId,
+	repoStore, err := client.CreateRepoStore(tmpDir, serverAddr, repoId, changeId)
+	if err != nil {
+		t.Fatalf("Failed to create repo store: %v", err)
 	}
-	if err := config.Save(filepath.Join(tmpDir, ".pogo.yaml")); err != nil {
-		t.Fatalf("Failed to save config: %v", err)
-	}
+	repoStore.Close()
 
 	// Create and push initial file
 	if err := os.WriteFile(filepath.Join(tmpDir, "file1.txt"), []byte("Initial content"), 0644); err != nil {
@@ -499,14 +512,11 @@ func testMerges(t *testing.T, ctx context.Context, serverAddr string) {
 		t.Fatalf("Failed to initialize repository: %v", err)
 	}
 
-	config := client.Repo{
-		Server:   serverAddr,
-		RepoId:   repoId,
-		ChangeId: changeId,
+	repoStore, err := client.CreateRepoStore(tmpDir, serverAddr, repoId, changeId)
+	if err != nil {
+		t.Fatalf("Failed to create repo store: %v", err)
 	}
-	if err := config.Save(filepath.Join(tmpDir, ".pogo.yaml")); err != nil {
-		t.Fatalf("Failed to save config: %v", err)
-	}
+	repoStore.Close()
 
 	// Create base file
 	if err := os.WriteFile(filepath.Join(tmpDir, "base.txt"), []byte("Base content\nLine 2\nLine 3"), 0644); err != nil {
@@ -637,14 +647,11 @@ func testMergeConflicts(t *testing.T, ctx context.Context, serverAddr string) {
 		t.Fatalf("Failed to initialize repository: %v", err)
 	}
 
-	config := client.Repo{
-		Server:   serverAddr,
-		RepoId:   repoId,
-		ChangeId: changeId,
+	repoStore, err := client.CreateRepoStore(tmpDir, serverAddr, repoId, changeId)
+	if err != nil {
+		t.Fatalf("Failed to create repo store: %v", err)
 	}
-	if err := config.Save(filepath.Join(tmpDir, ".pogo.yaml")); err != nil {
-		t.Fatalf("Failed to save config: %v", err)
-	}
+	repoStore.Close()
 
 	// Create base file
 	if err := os.WriteFile(filepath.Join(tmpDir, "conflict.txt"), []byte("Line 1\nLine 2\nLine 3"), 0644); err != nil {
@@ -773,14 +780,11 @@ func testBinaryFiles(t *testing.T, ctx context.Context, serverAddr string) {
 		t.Fatalf("Failed to initialize repository: %v", err)
 	}
 
-	config := client.Repo{
-		Server:   serverAddr,
-		RepoId:   repoId,
-		ChangeId: changeId,
+	repoStore, err := client.CreateRepoStore(tmpDir, serverAddr, repoId, changeId)
+	if err != nil {
+		t.Fatalf("Failed to create repo store: %v", err)
 	}
-	if err := config.Save(filepath.Join(tmpDir, ".pogo.yaml")); err != nil {
-		t.Fatalf("Failed to save config: %v", err)
-	}
+	repoStore.Close()
 
 	// Create various binary files
 	binaryFiles := map[string][]byte{
@@ -823,7 +827,7 @@ func testBinaryFiles(t *testing.T, ctx context.Context, serverAddr string) {
 	}
 	defer os.RemoveAll(pullDir)
 
-	if err := copyFile(filepath.Join(tmpDir, ".pogo.yaml"), filepath.Join(pullDir, ".pogo.yaml")); err != nil {
+	if err := copyFile(filepath.Join(tmpDir, ".pogo.db"), filepath.Join(pullDir, ".pogo.db")); err != nil {
 		t.Fatalf("Failed to copy config: %v", err)
 	}
 
@@ -881,14 +885,11 @@ func testBookmarks(t *testing.T, ctx context.Context, serverAddr string) {
 		t.Fatalf("Failed to initialize repository: %v", err)
 	}
 
-	config := client.Repo{
-		Server:   serverAddr,
-		RepoId:   repoId,
-		ChangeId: changeId,
+	repoStore, err := client.CreateRepoStore(tmpDir, serverAddr, repoId, changeId)
+	if err != nil {
+		t.Fatalf("Failed to create repo store: %v", err)
 	}
-	if err := config.Save(filepath.Join(tmpDir, ".pogo.yaml")); err != nil {
-		t.Fatalf("Failed to save config: %v", err)
-	}
+	repoStore.Close()
 
 	c2, err := client.OpenFromFile(ctx, tmpDir)
 	if err != nil {
@@ -1075,6 +1076,21 @@ func testReadonlyChanges(t *testing.T, ctx context.Context, serverAddr string) {
 	}
 	t.Logf("Created repository %s with ID %d, initial change %d", repoName, repoId, changeId)
 
+	// Create .pogo.db file after init
+	repoStore, err := client.CreateRepoStore(tmpDir, serverAddr, repoId, changeId)
+	if err != nil {
+		t.Fatalf("Failed to create repo store: %v", err)
+	}
+	repoStore.Close()
+
+	// Reopen client to load the repoStore
+	c.Close()
+	c, err = client.OpenFromFile(ctx, tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to reopen client: %v", err)
+	}
+	defer c.Close()
+
 	// Create initial file
 	testFile := filepath.Join(tmpDir, "test.txt")
 	if err := os.WriteFile(testFile, []byte("initial content\n"), 0644); err != nil {
@@ -1185,14 +1201,11 @@ func testRemoveCheckedOutChange(t *testing.T, ctx context.Context, serverAddr st
 	t.Logf("Created repository %s (ID: %d, Initial change: %d)", repoName, repoId, changeId)
 
 	// Save config
-	config := client.Repo{
-		Server:   serverAddr,
-		RepoId:   repoId,
-		ChangeId: changeId,
+	repoStore, err := client.CreateRepoStore(tmpDir, serverAddr, repoId, changeId)
+	if err != nil {
+		t.Fatalf("Failed to create repo store: %v", err)
 	}
-	if err := config.Save(filepath.Join(tmpDir, ".pogo.yaml")); err != nil {
-		t.Fatalf("Failed to save config: %v", err)
-	}
+	repoStore.Close()
 
 	// Create initial file
 	if err := os.WriteFile(filepath.Join(tmpDir, "test.txt"), []byte("Initial content\n"), 0644); err != nil {
@@ -1500,14 +1513,11 @@ func TestServerSideCIContainerWithRepoContent(t *testing.T) {
 	}
 	t.Logf("Created repository %s (ID: %d, Initial change: %d)", repoName, repoId, changeId)
 
-	config := client.Repo{
-		Server:   testEnv.serverAddr,
-		RepoId:   repoId,
-		ChangeId: changeId,
+	repoStore, err := client.CreateRepoStore(tmpDir, testEnv.serverAddr, repoId, changeId)
+	if err != nil {
+		t.Fatalf("Failed to create repo store: %v", err)
 	}
-	if err := config.Save(filepath.Join(tmpDir, ".pogo.yaml")); err != nil {
-		t.Fatalf("Failed to save config: %v", err)
-	}
+	repoStore.Close()
 
 	testFilePath := filepath.Join(tmpDir, "test.txt")
 	if err := os.WriteFile(testFilePath, []byte("Hello from CI test"), 0644); err != nil {
