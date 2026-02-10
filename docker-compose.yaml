@@ -29,7 +29,7 @@ services:
     ports:
       - 5432:5432
     volumes:
-      - ./pogo_data/postgres:/var/lib/postgresql/data
+      - ./pogo_data/postgres:/var/lib/postgresql
     # tmpfs:
     #   - /var/lib/postgresql/data
     healthcheck:
