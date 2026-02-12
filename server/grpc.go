@@ -286,6 +286,18 @@ func (a *Server) PushFull(stream grpc.ClientStreamingServer[protos.PushFullReque
 			return fmt.Errorf("move files to permanent store: %w", err)
 		}
 
+		// Verify that all referenced hashes exist on disk (safety net for HTTP uploads)
+		for relPath, header := range fileMeta {
+			if filesWithContent[relPath] || header.SymlinkTarget != nil {
+				continue
+			}
+			hashStr := base64.URLEncoding.EncodeToString(header.ContentHash)
+			refPath := filecontents.GetFilePathFromHash(hashStr)
+			if _, err := os.Stat(refPath); os.IsNotExist(err) {
+				return fmt.Errorf("file %s references hash %s which does not exist in storage", relPath, hashStr)
+			}
+		}
+
 		// Process all file metadata
 		for relPath, header := range fileMeta {
 			exec := false

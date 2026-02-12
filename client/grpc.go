@@ -176,7 +176,31 @@ func (c *Client) PushFull(force bool) error {
 	}
 	fmt.Fprintf(c.VerboseOut, "Server needs %d new files\n", len(neededHashes))
 
-	// Now push with the optimized protocol
+	// Upload needed files via HTTP PUT
+	if len(neededHashes) > 0 {
+		var toUpload []fileUploadInfo
+		for _, fi := range files {
+			if fi.isSymlink {
+				continue
+			}
+			hashStr := base64.URLEncoding.EncodeToString(fi.hash)
+			if neededHashes[hashStr] {
+				toUpload = append(toUpload, fileUploadInfo{
+					hash:    fi.hash,
+					absPath: fi.file.AbsPath,
+					name:    fi.file.Name,
+				})
+			}
+		}
+		if len(toUpload) > 0 {
+			fmt.Fprintf(c.VerboseOut, "Uploading %d files via HTTP...\n", len(toUpload))
+			if err := c.uploadFilesHTTP(ctx, toUpload); err != nil {
+				return errors.Join(errors.New("upload files via HTTP"), err)
+			}
+		}
+	}
+
+	// Now push metadata via gRPC (no file content inline)
 	stream, err := c.Pogo.PushFull(ctx)
 	if err != nil {
 		return errors.Join(errors.New("open push full stream"), err)
@@ -207,7 +231,7 @@ func (c *Client) PushFull(force bool) error {
 		return errors.Join(errors.New("send force flag"), err)
 	}
 
-	// Send all files with their metadata
+	// Send all files with metadata only (content was uploaded via HTTP)
 	for _, fileInfo := range files {
 		select {
 		case <-ctx.Done():
@@ -215,15 +239,10 @@ func (c *Client) PushFull(force bool) error {
 		default:
 		}
 
-		hashStr := base64.URLEncoding.EncodeToString(fileInfo.hash)
-		needsContent := neededHashes[hashStr]
-
 		if fileInfo.isSymlink {
-			fmt.Fprintf(c.VerboseOut, "Pushing symlink: %s -> %s\n", fileInfo.file.Name, fileInfo.symlinkTarget)
-		} else if needsContent {
-			fmt.Fprintf(c.VerboseOut, "Pushing new file: %s\n", fileInfo.file.Name)
+			fmt.Fprintf(c.VerboseOut, "Sending symlink metadata: %s -> %s\n", fileInfo.file.Name, fileInfo.symlinkTarget)
 		} else {
-			fmt.Fprintf(c.VerboseOut, "Skipping existing file: %s\n", fileInfo.file.Name)
+			fmt.Fprintf(c.VerboseOut, "Sending file metadata: %s\n", fileInfo.file.Name)
 		}
 
 		// Send file header with hash
@@ -238,54 +257,19 @@ func (c *Client) PushFull(force bool) error {
 
 		if err := stream.Send(&protos.PushFullRequest{
 			Payload: &protos.PushFullRequest_FileHeader{
-				fileHeader,
+				FileHeader: fileHeader,
 			},
 		}); err != nil {
 			return errors.Join(fmt.Errorf("send file %s header", fileInfo.file.Name), err)
 		}
 
-		// For symlinks, don't send content
-		if fileInfo.isSymlink {
-			// Send has_content = false
-			if err := stream.Send(&protos.PushFullRequest{
-				Payload: &protos.PushFullRequest_HasContent{
-					HasContent: false,
-				},
-			}); err != nil {
-				return errors.Join(fmt.Errorf("send file %s has_content", fileInfo.file.Name), err)
-			}
-			continue
-		}
-
-		// Send has_content flag for regular files
+		// Always send has_content=false — content uploaded via HTTP
 		if err := stream.Send(&protos.PushFullRequest{
 			Payload: &protos.PushFullRequest_HasContent{
-				HasContent: needsContent,
+				HasContent: false,
 			},
 		}); err != nil {
 			return errors.Join(fmt.Errorf("send file %s has_content", fileInfo.file.Name), err)
-		}
-
-		// Only send content if needed
-		if needsContent {
-			f, err := fileInfo.file.Open()
-			if err != nil {
-				return errors.Join(fmt.Errorf("open file %s", fileInfo.file.Name), err)
-			}
-			defer f.Close()
-
-			if _, err := io.Copy(&PushFull_StreamWriter{stream}, f); err != nil {
-				return errors.Join(fmt.Errorf("send file %s content", fileInfo.file.Name), err)
-			}
-
-			// Send EOF after content
-			if err := stream.Send(&protos.PushFullRequest{
-				Payload: &protos.PushFullRequest_Eof{
-					&protos.EOF{},
-				},
-			}); err != nil {
-				return errors.Join(fmt.Errorf("send file %s eof", fileInfo.file.Name), err)
-			}
 		}
 	}
 
