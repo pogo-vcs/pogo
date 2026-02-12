@@ -113,27 +113,31 @@ func (c *Client) PushFull(force bool) error {
 			mtimeSec := info.ModTime().Unix()
 			mtimeNsec := info.ModTime().UnixNano() % 1e9
 
-			cachedHash, cacheHit := c.repoStore.GetFileHash(
-				file.Name,
-				info.Size(),
-				mtimeSec,
-				mtimeNsec,
-				inode,
-			)
+			if c.repoStore != nil {
+				cachedHash, cacheHit := c.repoStore.GetFileHash(
+					file.Name,
+					info.Size(),
+					mtimeSec,
+					mtimeNsec,
+					inode,
+				)
 
-			if cacheHit {
-				hash = cachedHash
-				fmt.Fprintf(c.VerboseOut, "Cache hit: %s\n", file.Name)
-			} else {
-				// Cache miss - compute and update immediately
+				if cacheHit {
+					hash = cachedHash
+					fmt.Fprintf(c.VerboseOut, "Cache hit: %s\n", file.Name)
+				}
+			}
+
+			if hash == nil {
 				hash, err = filecontents.HashFile(file.AbsPath)
 				if err != nil {
 					return errors.Join(fmt.Errorf("hash file %s", file.Name), err)
 				}
 
-				if err := c.repoStore.SetFileHash(file.Name, info.Size(), mtimeSec, mtimeNsec, inode, hash); err != nil {
-					// Log warning but continue
-					fmt.Fprintf(c.VerboseOut, "Warning: failed to cache hash for %s: %v\n", file.Name, err)
+				if c.repoStore != nil {
+					if err := c.repoStore.SetFileHash(file.Name, info.Size(), mtimeSec, mtimeNsec, inode, hash); err != nil {
+						fmt.Fprintf(c.VerboseOut, "Warning: failed to cache hash for %s: %v\n", file.Name, err)
+					}
 				}
 				fmt.Fprintf(c.VerboseOut, "Cache miss: %s\n", file.Name)
 			}

@@ -166,7 +166,7 @@ func (c *Client) getChangeId() int64 {
 	return changeId
 }
 
-func (c *Client) setRepoStore(store *RepoStore) {
+func (c *Client) SetRepoStore(store *RepoStore) {
 	c.repoStore = store
 }
 

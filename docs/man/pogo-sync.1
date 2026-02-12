@@ -1,0 +1,31 @@
+.nh
+.TH "pogo" "1" "Feb 2026" "pogo/dev" "Pogo Manual"
+
+.SH NAME
+pogo-sync - Trunk based update of your divergent line of changes
+
+
+.SH SYNOPSIS
+\fBpogo sync [flags]\fP
+
+
+.SH DESCRIPTION
+Sync is for a Trunk based workflow. It merges your change with a trunk (defaults to main, can be adjusted passing another tag or change name) and if there are no conflicts, sets the given trunk bookmark to the newly created change. If there are conflicts, you are prompted to do so yourself.
+
+
+.SH OPTIONS
+\fB-h\fP, \fB--help\fP[=false]
+	help for sync
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--time\fP[=false]
+	Measure command execution time
+
+.PP
+\fB-v\fP, \fB--verbose\fP[=false]
+	Enable verbose debug logging
+
+
+.SH SEE ALSO
+\fBpogo(1)\fP

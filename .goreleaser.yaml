@@ -142,6 +142,7 @@ homebrew_casks:
       - docs/man/pogo-secrets-set.1
       - docs/man/pogo-secrets.1
       - docs/man/pogo-serve.1
+      - docs/man/pogo-sync.1
       - docs/man/pogo-token-remove.1
       - docs/man/pogo-token-set.1
       - docs/man/pogo-token.1

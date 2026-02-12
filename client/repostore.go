@@ -3,6 +3,7 @@ package client
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -135,6 +136,12 @@ func (rs *RepoStore) Close() error {
 		return rs.db.Close()
 	}
 	return nil
+}
+
+// Remove closes the database and deletes the .pogo.db file
+func (rs *RepoStore) Remove() {
+	rs.Close()
+	os.Remove(filepath.Join(rs.location, ".pogo.db"))
 }
 
 // GetVersion returns the database schema version

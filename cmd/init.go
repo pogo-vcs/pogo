@@ -44,12 +44,20 @@ pogo init --server pogo.example.com:8080 --name open-source-project --public`,
 			return fmt.Errorf("init repository: %w", err)
 		}
 
+		repoStore, err := client.CreateRepoStore(wd, cmd.Flag("server").Value.String(), repoId, changeId)
+		if err != nil {
+			return fmt.Errorf("create repo store: %w", err)
+		}
+		defer repoStore.Close()
+		c.SetRepoStore(repoStore)
+
 		initialized := false
 		defer func() {
 			if !initialized {
 				if err := c.DeleteRepo(); err != nil {
 					_, _ = fmt.Fprintf(cmd.OutOrStderr(), "warning: failed to delete repository: %v\n", err)
 				}
+				repoStore.Remove()
 			}
 		}()
 
@@ -58,12 +66,6 @@ pogo init --server pogo.example.com:8080 --name open-source-project --public`,
 		}
 
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Repository ID: %d\n", repoId)
-
-		repoStore, err := client.CreateRepoStore(wd, cmd.Flag("server").Value.String(), repoId, changeId)
-		if err != nil {
-			return fmt.Errorf("create repo store: %w", err)
-		}
-		defer repoStore.Close()
 
 		initialized = true
 		return nil
