@@ -121,6 +121,7 @@ homebrew_casks:
       - docs/man/pogo-completion-powershell.1
       - docs/man/pogo-completion-zsh.1
       - docs/man/pogo-completion.1
+      - docs/man/pogo-delete-repo.1
       - docs/man/pogo-describe.1
       - docs/man/pogo-diff.1
       - docs/man/pogo-discard.1

@@ -1,0 +1,45 @@
+.nh
+.TH "pogo" "1" "Feb 2026" "pogo/dev" "Pogo Manual"
+
+.SH NAME
+pogo-delete-repo - Delete the current repository from the server
+
+
+.SH SYNOPSIS
+\fBpogo delete-repo [flags]\fP
+
+
+.SH DESCRIPTION
+Delete the current repository from the server permanently.
+
+.PP
+This is a destructive operation that cannot be undone. It will:
+- Delete the repository and all its data from the server
+- Run garbage collection to free up disk space
+- Remove the local .pogo.db file
+
+.PP
+In interactive mode, you will be prompted to confirm before deletion.
+Use --force to skip confirmation.
+
+
+.SH OPTIONS
+\fB-f\fP, \fB--force\fP[=false]
+	Skip confirmation prompt
+
+.PP
+\fB-h\fP, \fB--help\fP[=false]
+	help for delete-repo
+
+
+.SH OPTIONS INHERITED FROM PARENT COMMANDS
+\fB--time\fP[=false]
+	Measure command execution time
+
+.PP
+\fB-v\fP, \fB--verbose\fP[=false]
+	Enable verbose debug logging
+
+
+.SH SEE ALSO
+\fBpogo(1)\fP

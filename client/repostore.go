@@ -138,10 +138,13 @@ func (rs *RepoStore) Close() error {
 	return nil
 }
 
-// Remove closes the database and deletes the .pogo.db file
+// Remove closes the database and deletes .pogo.db and related WAL/SHM files
 func (rs *RepoStore) Remove() {
 	rs.Close()
-	os.Remove(filepath.Join(rs.location, ".pogo.db"))
+	dbPath := filepath.Join(rs.location, ".pogo.db")
+	os.Remove(dbPath)
+	os.Remove(dbPath + "-shm")
+	os.Remove(dbPath + "-wal")
 }
 
 // GetVersion returns the database schema version

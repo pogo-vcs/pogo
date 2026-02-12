@@ -240,6 +240,19 @@ templ Settings() {
 										</form>
 									</div>
 								</section>
+								<section class="mb-8 p-4 bg-ctp-mantle rounded-lg border border-ctp-red">
+									<h2 class="text-xl font-semibold mb-4 text-ctp-red">Danger Zone</h2>
+									<p class="text-sm text-ctp-subtext1 mb-4">
+										Deleting a repository is permanent and cannot be undone. All changes, bookmarks, and associated data will be removed.
+									</p>
+									<button
+										type="button"
+										onclick={ confirmDeleteRepository(int(repo.ID)) }
+										class="cursor-pointer px-4 py-2 bg-ctp-red text-ctp-base font-medium rounded-md hover:bg-ctp-maroon focus:outline-none focus:ring-2 focus:ring-ctp-red focus:ring-offset-2 focus:ring-offset-ctp-base"
+									>
+										Delete Repository
+									</button>
+								</section>
 							}
 						}
 					}
@@ -291,6 +304,16 @@ script confirmVisibilityChange(isPublic bool, repoId int) {
 		input.value = isPublic ? 'false' : 'true';
 		
 		form.appendChild(input);
+		document.body.appendChild(form);
+		form.submit();
+	}
+}
+
+script confirmDeleteRepository(repoId int) {
+	if (confirm("Are you sure you want to delete this repository?\n\nThis action is permanent and cannot be undone. All changes, bookmarks, and associated data will be removed.")) {
+		const form = document.createElement('form');
+		form.method = 'POST';
+		form.action = `/api/repository/${repoId}/delete`;
 		document.body.appendChild(form);
 		form.submit();
 	}

@@ -125,6 +125,9 @@ func (a *Server) DeleteRepository(ctx context.Context, req *protos.DeleteReposit
 		return nil, fmt.Errorf("commit transaction: %w", err)
 	}
 
+	// Run GC to clean up orphaned objects on disk
+	_, _ = runGarbageCollectionInternal(ctx)
+
 	return &protos.DeleteRepositoryResponse{}, nil
 }
 

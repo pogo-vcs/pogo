@@ -166,6 +166,10 @@ func (c *Client) getChangeId() int64 {
 	return changeId
 }
 
+func (c *Client) GetRepoStore() *RepoStore {
+	return c.repoStore
+}
+
 func (c *Client) SetRepoStore(store *RepoStore) {
 	c.repoStore = store
 }

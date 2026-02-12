@@ -173,6 +173,7 @@ func RegisterWebUI(s *Server) {
 	s.httpMux.HandleFunc("/api/repository/{id}/grant", authMiddleware(handleGrantAccess))
 	s.httpMux.HandleFunc("/api/repository/{id}/revoke", authMiddleware(handleRevokeAccess))
 	s.httpMux.HandleFunc("/api/repository/{id}/visibility", authMiddleware(handleSetRepositoryVisibility))
+	s.httpMux.HandleFunc("/api/repository/{id}/delete", authMiddleware(handleDeleteRepository))
 	s.httpMux.HandleFunc("/api/repository/{id}/secrets/set", authMiddleware(handleSetSecret))
 	s.httpMux.HandleFunc("/api/repository/{id}/secrets/delete", authMiddleware(handleDeleteSecret))
 }
@@ -1018,6 +1019,64 @@ func handleSetRepositoryVisibility(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, fmt.Sprintf("/repository/%d/settings", repoId), http.StatusSeeOther)
+}
+
+func handleDeleteRepository(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	ctx := r.Context()
+	userInterface := ctx.Value(auth.UserCtxKey)
+	if userInterface == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	user, ok := userInterface.(*db.User)
+	if !ok || user == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	repoIdStr := r.PathValue("id")
+	repoId, err := strconv.ParseInt(repoIdStr, 10, 32)
+	if err != nil {
+		http.Error(w, "Invalid repository ID", http.StatusBadRequest)
+		return
+	}
+
+	hasAccess, err := db.Q.CheckUserRepositoryAccess(ctx, int32(repoId), user.ID)
+	if err != nil || !hasAccess {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Hold the GC lock while deleting + running GC
+	gcMutex.Lock()
+	defer gcMutex.Unlock()
+
+	tx, err := db.Q.Begin(ctx)
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Close()
+
+	if err := tx.DeleteRepository(ctx, int32(repoId)); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to delete repository: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to delete repository: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Run GC to clean up orphaned objects
+	_, _ = runGarbageCollectionInternal(ctx)
+
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 func handleSetSecret(w http.ResponseWriter, r *http.Request) {
